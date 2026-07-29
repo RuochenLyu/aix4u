@@ -1,0 +1,29 @@
+---
+import Base from '../layouts/Base.astro';
+import Hud from '../components/Hud.astro';
+import Playfield from '../components/Playfield.astro';
+
+const title = 'aix4u — products by Ruochen';
+const description =
+  "An indie developer's products, dropping like tetrominoes. AI for you.";
+---
+
+<Base title={title} description={description}>
+  <Hud />
+
+  <main class="stage">
+    <h1 class="visually-hidden">{title}</h1>
+    <Playfield />
+  </main>
+
+  <footer class="hint">
+    <button type="button" class="hint__button" id="reshuffle">
+      <span class="hint__fine">press <span class="hint__key">R</span> to reshuffle</span>
+      <span class="hint__coarse">tap to reshuffle</span>
+    </button>
+  </footer>
+</Base>
+
+<script>
+  import '../scripts/main';
+</script>

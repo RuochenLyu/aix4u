@@ -1,0 +1,752 @@
+/* ---------------------------------------------------------------------------
+   aix4u.com — pixel/retro handheld aesthetic.
+   Light = "TV gray", dark = "backlit console" (DESIGN §2).
+   Only transform/opacity are ever animated.
+--------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Silkscreen';
+  src: url('/fonts/silkscreen-latin-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Silkscreen';
+  src: url('/fonts/silkscreen-latin-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-pixel: 'Silkscreen', 'Courier New', monospace;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --bg: #c9d2dd;
+  --bg-deep: #bcc6d3;
+  --grid-line: rgba(34, 36, 42, 0.07);
+  --ink: #22242a;
+  --ink-soft: #545a66;
+  --outline: #22242a;
+  --seam: rgba(34, 36, 42, 0.55);
+  --bevel-light: rgba(255, 255, 255, 0.38);
+  --bevel-dark: rgba(0, 0, 0, 0.22);
+  --piece-shadow: rgba(34, 36, 42, 0.32);
+  --piece-glow: transparent;
+  --card-bg: #eaeff5;
+  --card-line: #22242a;
+  --tile-fill: #aab4c1;
+  --tile-line: rgba(34, 36, 42, 0.55);
+  --filler-fill: #b4bec9;
+  --filler-line: rgba(34, 36, 42, 0.28);
+  --ghost-line: rgba(34, 36, 42, 0.16);
+  --flash: #ffffff;
+  --scanline: rgba(34, 36, 42, 0.045);
+  --focus: #1a4fd6;
+
+  --field-height-budget: 70vh;
+  --hud-height: 3.25rem;
+}
+
+:root[data-theme='dark'] {
+  --bg: #141519;
+  --bg-deep: #101116;
+  --grid-line: rgba(243, 236, 219, 0.055);
+  --ink: #f3ecdb;
+  --ink-soft: #9c968a;
+  --outline: #f3ecdb;
+  --seam: rgba(243, 236, 219, 0.4);
+  --bevel-light: rgba(255, 255, 255, 0.22);
+  --bevel-dark: rgba(0, 0, 0, 0.35);
+  --piece-shadow: rgba(0, 0, 0, 0.55);
+  --card-bg: #1d1f26;
+  --card-line: #f3ecdb;
+  --tile-fill: #2b2f39;
+  --tile-line: rgba(243, 236, 219, 0.45);
+  --filler-fill: #22252d;
+  --filler-line: rgba(243, 236, 219, 0.16);
+  --ghost-line: rgba(243, 236, 219, 0.13);
+  --flash: #fff8e6;
+  --scanline: rgba(0, 0, 0, 0.1);
+  --focus: #8ab4ff;
+}
+
+@media (max-width: 699px) {
+  :root {
+    --field-height-budget: 64vh;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+}
+
+:where(a, button):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- ambience: the arcade screen the playfield sits on ------------------- */
+
+.ambience,
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ambience {
+  background:
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell)),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell)),
+    radial-gradient(ellipse at 50% 38%, transparent 30%, var(--bg-deep) 100%);
+  --ambient-cell: 48px;
+}
+
+.scanlines {
+  background: repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
+  z-index: 6;
+  mix-blend-mode: multiply;
+}
+
+:root[data-theme='dark'] .scanlines {
+  mix-blend-mode: normal;
+  opacity: 0.45;
+}
+
+/* --- shell --------------------------------------------------------------- */
+
+.shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* --- HUD ----------------------------------------------------------------- */
+
+.hud {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.75rem, 2.5vw, 2rem);
+  min-height: var(--hud-height);
+  padding: 0.6rem clamp(0.75rem, 3vw, 2rem);
+  border-bottom: 2px solid var(--outline);
+  font-family: var(--font-pixel);
+}
+
+.hud__logo {
+  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.hud__logo:hover {
+  color: var(--focus);
+}
+
+.hud__meta {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.6rem, 2vw, 1.4rem);
+  margin-left: auto;
+  font-size: clamp(0.62rem, 1.1vw, 0.8rem);
+  letter-spacing: 0.08em;
+}
+
+.hud__counter {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45em;
+  color: var(--ink-soft);
+}
+
+.hud__digits {
+  padding: 0.2em 0.4em;
+  border: 2px solid var(--outline);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hud__next {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  color: var(--ink-soft);
+}
+
+.hud__next-frame {
+  display: grid;
+  place-items: center;
+  width: 2.1em;
+  height: 2.1em;
+  border: 2px dashed var(--tile-line);
+  color: var(--ink);
+  opacity: 0.75;
+}
+
+.hud__next-teaser {
+  max-width: 12ch;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.4em;
+  height: 2.4em;
+  padding: 0;
+  border: 2px solid var(--outline);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--card-bg);
+}
+
+.theme-toggle svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.theme-toggle .icon-moon {
+  display: none;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-moon {
+  display: block;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-sun {
+  display: none;
+}
+
+/* --- stage & playfield --------------------------------------------------- */
+
+.stage {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: clamp(0.5rem, 2vh, 1.5rem) 1rem;
+}
+
+.playfield {
+  --cell: 44px;
+  --cell-fit-w: calc(min(100vw - 2rem, 1160px) / var(--cols));
+  --cell-fit-h: calc(var(--field-height-budget) / var(--rows));
+  --cell: clamp(16px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
+
+  position: relative;
+  width: calc(var(--cols) * var(--cell));
+  height: calc(var(--rows) * var(--cell));
+}
+
+.playfield::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--cell)),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--cell));
+  pointer-events: none;
+}
+
+/* The engine repaints the scene on load, so the build-time frame stays hidden
+   for a moment — but only where scripting is on. The delayed `reveal` keyframe
+   is a safety net: if the module never arrives, the static scene shows anyway. */
+.js .playfield {
+  visibility: hidden;
+  animation: reveal 1ms linear 1.2s forwards;
+}
+
+.js .playfield.is-ready {
+  visibility: visible;
+  animation: none;
+}
+
+@keyframes reveal {
+  to {
+    visibility: visible;
+  }
+}
+
+/* --- pieces -------------------------------------------------------------- */
+
+.piece,
+.filler,
+.ghost {
+  position: absolute;
+  left: calc(var(--gx) * var(--cell));
+  top: calc(var(--gy) * var(--cell));
+}
+
+.piece {
+  width: calc(var(--pw) * var(--cell));
+  height: calc(var(--ph) * var(--cell));
+  color: inherit;
+  text-decoration: none;
+  z-index: 3;
+}
+
+.piece__drop,
+.piece__bob,
+.piece__body {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.piece__body {
+  position: relative;
+  filter: drop-shadow(3px 3px 0 var(--piece-shadow));
+}
+
+:root[data-theme='dark'] .piece__body {
+  filter: drop-shadow(3px 3px 0 var(--piece-shadow)) drop-shadow(0 0 10px var(--piece-glow));
+}
+
+.cell {
+  position: absolute;
+  left: calc(var(--cx) * var(--cell));
+  top: calc(var(--cy) * var(--cell));
+  display: grid;
+  place-items: center;
+  width: var(--cell);
+  height: var(--cell);
+  background: var(--piece-fill);
+  box-shadow:
+    inset 0 0 0 2px var(--seam),
+    inset 3px 3px 0 -1px var(--bevel-light),
+    inset -3px -3px 0 -1px var(--bevel-dark);
+}
+
+.cell--icon {
+  font-family: var(--font-pixel);
+  font-size: clamp(11px, calc(var(--cell) * 0.42), 30px);
+  font-weight: 700;
+  color: var(--outline);
+  text-shadow: 1px 1px 0 var(--bevel-light);
+}
+
+:root[data-theme='dark'] .cell--icon {
+  color: rgba(20, 21, 25, 0.82);
+  text-shadow: none;
+}
+
+.piece--product {
+  --piece-fill: var(--accent);
+  --piece-glow: var(--accent);
+}
+
+:root[data-theme='dark'] .piece--product {
+  --piece-fill: var(--accent-dark);
+  --piece-glow: color-mix(in srgb, var(--accent-dark) 55%, transparent);
+}
+
+/* Link tiles are quieter than products: muted fill, thinner outline. */
+.piece--link {
+  --piece-fill: var(--tile-fill);
+  z-index: 2;
+}
+
+.piece--link .cell {
+  box-shadow: inset 0 0 0 1px var(--tile-line);
+  font-family: var(--font-pixel);
+  font-size: clamp(9px, calc(var(--cell) * 0.3), 20px);
+  color: var(--ink);
+}
+
+.piece--link .piece__body {
+  filter: none;
+  opacity: 0.9;
+}
+
+.piece--link:hover .piece__body,
+.piece--link:focus-visible .piece__body {
+  opacity: 1;
+}
+
+.piece:hover .piece__body {
+  filter: drop-shadow(5px 5px 0 var(--piece-shadow));
+}
+
+.filler {
+  width: var(--cell);
+  height: var(--cell);
+  background: var(--filler-fill);
+  box-shadow: inset 0 0 0 1px var(--filler-line);
+  z-index: 1;
+}
+
+/* --- label cards --------------------------------------------------------- */
+
+.label {
+  position: absolute;
+  left: calc(var(--gx) * var(--cell));
+  top: calc(var(--gy) * var(--cell));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25em;
+  width: calc(var(--lw) * var(--cell));
+  min-height: calc(var(--lh) * var(--cell));
+  padding: 0.4em 0.55em;
+  border: 1px solid var(--card-line);
+  background: var(--card-bg);
+  pointer-events: none;
+}
+
+.label__name {
+  font-family: var(--font-pixel);
+  font-size: clamp(9px, calc(var(--cell) * 0.22), 15px);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
+.label__tagline {
+  font-size: clamp(8px, calc(var(--cell) * 0.17), 12px);
+  line-height: 1.25;
+  color: var(--ink-soft);
+}
+
+.label--compact .label__tagline {
+  display: none;
+}
+
+.piece:hover + .label .label__tagline,
+.label--compact:hover .label__tagline {
+  display: block;
+}
+
+/* Stepped pixel leader line from the piece edge to the card. */
+.label__leader {
+  position: absolute;
+  background: var(--card-line);
+}
+
+.label[data-side='right'] .label__leader {
+  right: 100%;
+  top: 50%;
+  width: calc(var(--leader) * var(--cell));
+  height: 1px;
+  transform-origin: right center;
+}
+
+.label[data-side='left'] .label__leader {
+  left: 100%;
+  top: 50%;
+  width: calc(var(--leader) * var(--cell));
+  height: 1px;
+  transform-origin: left center;
+}
+
+.label[data-side='above'] .label__leader {
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: calc(var(--leader) * var(--cell));
+  transform-origin: center top;
+}
+
+.label[data-side='below'] .label__leader {
+  left: 50%;
+  bottom: 100%;
+  width: 1px;
+  height: calc(var(--leader) * var(--cell));
+  transform-origin: center bottom;
+}
+
+.label--compact {
+  padding: 0.25em 0.45em;
+}
+
+/* --- ghost piece & line-clear flash -------------------------------------- */
+
+.ghost-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ghost {
+  top: 0;
+  width: calc(4 * var(--cell));
+  height: calc(2 * var(--cell));
+}
+
+.ghost .cell {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--ghost-line);
+}
+
+.line-flash {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  height: calc(var(--stack-rows) * var(--cell));
+  background: var(--flash);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- footer hint --------------------------------------------------------- */
+
+.hint {
+  padding: 0.75rem 1rem 1.25rem;
+  text-align: center;
+}
+
+.hint__button {
+  padding: 0.5em 0.9em;
+  border: 2px solid transparent;
+  background: none;
+  color: var(--ink-soft);
+  font-family: var(--font-pixel);
+  font-size: clamp(0.6rem, 1.1vw, 0.75rem);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.hint__button:hover {
+  border-color: var(--outline);
+  color: var(--ink);
+}
+
+.hint__key {
+  padding: 0.1em 0.4em;
+  border: 2px solid currentColor;
+}
+
+.hint__coarse {
+  display: none;
+}
+
+/* Mobile HUD condenses to `AIX4U · 05 · NEXT`. */
+@media (max-width: 699px) {
+  .hud {
+    gap: 0.75rem;
+  }
+
+  .hud__counter-word {
+    display: none;
+  }
+
+  .hud__next-teaser {
+    max-width: 7ch;
+  }
+}
+
+@media (pointer: coarse) {
+  .hint__fine {
+    display: none;
+  }
+
+  .hint__coarse {
+    display: inline;
+  }
+}
+
+/* --- animation ----------------------------------------------------------- */
+
+@keyframes piece-fall {
+  from {
+    transform: translate3d(0, var(--fall-from), 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes piece-settle {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(2px);
+  }
+  70% {
+    transform: translateY(-1px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes piece-bob {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes leader-grow {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes ghost-fall {
+  from {
+    transform: translateY(calc(-3 * var(--cell)));
+  }
+  to {
+    transform: translateY(calc(var(--rows) * var(--cell)));
+  }
+}
+
+@keyframes hard-drop {
+  to {
+    transform: translate3d(0, var(--hard-drop), 0);
+  }
+}
+
+@keyframes line-flash {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.js .playfield.is-entering .piece__drop,
+.js .playfield.is-entering .filler {
+  --fall-from: calc(-1 * (var(--gy) * var(--cell) + 5 * var(--cell)));
+  animation: piece-fall var(--fall-duration, 620ms) steps(11, end) var(--fall-delay, 0ms) both;
+}
+
+.js .playfield.is-entering .piece__body {
+  animation: piece-settle 150ms steps(2, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms)) both;
+}
+
+.js .playfield.is-entering .label {
+  animation: label-in 150ms steps(3, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms) + 150ms) both;
+}
+
+.js .playfield.is-entering .label__leader {
+  animation: leader-grow 220ms steps(5, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms) + 150ms) both;
+}
+
+/* Bobbing only starts once the piece has landed, hence the composed delay. */
+.js .playfield.is-idle .piece--floating .piece__bob {
+  animation-name: piece-bob;
+  animation-duration: var(--bob-period, 4s);
+  animation-timing-function: steps(4, end);
+  animation-delay: calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + var(--bob-delay, 0s));
+  animation-iteration-count: infinite;
+}
+
+.js .playfield.is-idle .ghost {
+  animation: ghost-fall var(--ghost-duration, 20s) steps(18, end) var(--ghost-delay, 0s) infinite;
+}
+
+.playfield.is-clearing .piece--floating .piece__drop {
+  animation: hard-drop 240ms steps(7, end) calc(var(--order, 0) * 40ms) forwards;
+}
+
+.playfield.is-clearing .piece__bob {
+  animation: none;
+}
+
+.playfield.is-flashing .line-flash {
+  animation: line-flash 200ms steps(2, end) 2;
+}
+
+.playfield.is-cleared .piece,
+.playfield.is-cleared .filler,
+.playfield.is-cleared .label {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .playfield.is-entering .piece__drop,
+  .js .playfield.is-entering .piece__body,
+  .js .playfield.is-entering .filler,
+  .js .playfield.is-entering .label,
+  .js .playfield.is-entering .label__leader,
+  .js .playfield.is-idle .piece--floating .piece__bob,
+  .js .playfield.is-idle .ghost,
+  .playfield.is-clearing .piece--floating .piece__drop,
+  .playfield.is-flashing .line-flash {
+    animation: none !important;
+  }
+
+  .playfield.is-cleared .piece,
+  .playfield.is-cleared .filler,
+  .playfield.is-cleared .label {
+    opacity: 1;
+  }
+}

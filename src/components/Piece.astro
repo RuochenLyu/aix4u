@@ -1,0 +1,95 @@
+---
+import type { SceneItem } from '../lib/content';
+import type { PiecePlacement } from '../lib/scene';
+import { SHAPES } from '../lib/tetromino';
+
+interface Props {
+  item: SceneItem;
+  placement: PiecePlacement;
+}
+
+const { item, placement } = Astro.props;
+const shape = SHAPES[placement.shape];
+const isProduct = item.type === 'product';
+const label = placement.label;
+
+const style: Record<string, string> = {
+  '--gx': String(placement.x),
+  '--gy': String(placement.y),
+  '--pw': String(shape.width),
+  '--ph': String(shape.height),
+  '--order': String(placement.order),
+  '--fall-delay': `${placement.order * 80}ms`,
+  '--fall-duration': '560ms',
+  '--bob-period': `${placement.bobPeriod || 4}s`,
+  '--bob-delay': `${placement.bobDelay}s`,
+};
+
+if (item.type === 'product') {
+  style['--accent'] = item.accent;
+  style['--accent-dark'] = item.accentDark;
+}
+
+const labelStyle = label
+  ? {
+      '--gx': String(label.x),
+      '--gy': String(label.y),
+      '--lw': String(label.w),
+      '--lh': String(label.h),
+      '--leader': String(label.leader),
+      '--fall-delay': `${placement.order * 80}ms`,
+      '--fall-duration': '560ms',
+    }
+  : undefined;
+---
+
+<a
+  class:list={[
+    'piece',
+    isProduct ? 'piece--product' : 'piece--link',
+    placement.pool === 'floating' ? 'piece--floating' : 'piece--landed',
+  ]}
+  id={`piece-${item.id}`}
+  data-piece={item.id}
+  data-pool={placement.pool}
+  href={item.url}
+  rel={isProduct ? 'noopener' : 'me noopener'}
+  style={style}
+>
+  <span class="piece__drop">
+    <span class="piece__bob">
+      <span class="piece__body">
+        {
+          shape.cells.map(([cx, cy], index) => (
+            <span
+              class:list={['cell', index === shape.icon && 'cell--icon']}
+              style={{ '--cx': String(cx), '--cy': String(cy) }}
+              aria-hidden="true"
+            >
+              {index === shape.icon ? (isProduct ? item.name.charAt(0) : item.label) : ''}
+            </span>
+          ))
+        }
+      </span>
+    </span>
+  </span>
+  <span class="visually-hidden">
+    {item.name}{item.type === 'product' ? ` — ${item.tagline}` : ''}
+  </span>
+</a>
+
+{
+  label && item.type === 'product' && (
+    <div
+      class:list={['label', label.compact && 'label--compact']}
+      data-label={item.id}
+      data-side={label.side}
+      style={labelStyle}
+      aria-hidden="true"
+    >
+      <span class="label__leader"></span>
+      <span class="label__name">{item.name}</span>
+      <span class="label__tagline">{item.tagline}</span>
+    </div>
+  )
+}

@@ -1,0 +1,92 @@
+---
+import '../styles/global.css';
+import { content } from '../lib/content';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://aix4u.com');
+const ogImage = new URL('/og.png', canonical);
+
+const itemList = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Products by Ruochen',
+  description,
+  url: canonical.href,
+  numberOfItems: content.products.length,
+  itemListElement: content.products.map((product, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    item: {
+      '@type': 'SoftwareApplication',
+      name: product.name,
+      url: product.url,
+      description: product.description,
+      applicationCategory: 'WebApplication',
+      author: { '@type': 'Person', name: 'Ruochen Lyu', url: 'https://github.com/RuochenLyu' },
+    },
+  })),
+};
+---
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta name="author" content="Ruochen Lyu" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="aix4u" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:image" content={ogImage.href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage.href} />
+
+    <link rel="preload" href="/fonts/silkscreen-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+
+    <script is:inline>
+      // Resolve the theme before first paint: stored choice wins, then the OS.
+      // Also flips `no-js` to `js` so the CSS knows the engine is coming.
+      (() => {
+        const root = document.documentElement;
+        root.classList.remove('no-js');
+        root.classList.add('js');
+        let theme = null;
+        try {
+          theme = localStorage.getItem('aix4u-theme');
+        } catch {}
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        root.dataset.theme = theme;
+      })();
+    </script>
+
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(itemList)} />
+  </head>
+  <body>
+    <div class="ambience" aria-hidden="true"></div>
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="shell">
+      <slot />
+    </div>
+  </body>
+</html>

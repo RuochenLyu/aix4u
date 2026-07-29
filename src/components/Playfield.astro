@@ -1,0 +1,52 @@
+---
+import Piece from './Piece.astro';
+import { content } from '../lib/content';
+import { buildScene, DEFAULT_SEED } from '../lib/scene';
+import { SHAPES } from '../lib/tetromino';
+
+// The build-time frame uses the widest breakpoint and a fixed seed, so the
+// static HTML is a complete, readable scene even with scripting disabled.
+const scene = buildScene(DEFAULT_SEED, 1440, content.items);
+const byId = new Map(content.items.map((item) => [item.id, item]));
+const ghostShape = SHAPES[scene.ghost.shape];
+---
+
+<div
+  class="playfield is-entering is-idle"
+  id="playfield"
+  data-seed={scene.seed}
+  style={{
+    '--cols': String(scene.breakpoint.cols),
+    '--rows': String(scene.breakpoint.rows),
+    '--stack-rows': String(scene.breakpoint.stackRows),
+    '--ghost-duration': `${scene.ghost.duration}s`,
+    '--ghost-delay': `${scene.ghost.delay}s`,
+  }}
+>
+  <div class="ghost-layer" aria-hidden="true">
+    <div class="ghost" id="ghost" style={{ '--gx': String(scene.ghost.x) }}>
+      {
+        ghostShape.cells.map(([cx, cy]) => (
+          <span class="cell" style={{ '--cx': String(cx), '--cy': String(cy) }} />
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="filler-layer" id="filler-layer" aria-hidden="true">
+    {
+      scene.filler.map((cell) => (
+        <span class="filler" style={{ '--gx': String(cell.x), '--gy': String(cell.y) }} />
+      ))
+    }
+  </div>
+
+  {
+    scene.pieces.map((placement) => {
+      const item = byId.get(placement.id);
+      return item ? <Piece item={item} placement={placement} /> : null;
+    })
+  }
+
+  <div class="line-flash" id="line-flash" aria-hidden="true"></div>
+</div>
