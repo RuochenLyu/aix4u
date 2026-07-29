@@ -22,6 +22,7 @@ src/lib/scene.ts         the scene engine (pure, isomorphic)
 src/components/          HUD, playfield, piece + label card
 src/scripts/main.ts      client entry: theme, seed lifecycle, reshuffle
 src/styles/global.css    the whole visual language, themed with custom properties
+scripts/check-scene.ts   layout invariants, checked over thousands of seeds
 ```
 
 **One seed, one scene.** A single integer runs through a mulberry32 PRNG and determines
@@ -33,12 +34,19 @@ piece's path. `buildScene()` is pure and runs in both Node and the browser:
 - in the **browser** with a random seed (or `?seed=` from the URL), which only *moves*
   the elements that are already there. Pieces are real `<a href>` elements at every stage.
 
-**Two pools.** High-priority products float in the sky, one per vertical lane. Everything
-else — lower-priority products and the link tiles — rests on the stack at the bottom,
-which is grown from a random-walk skyline and always keeps a hole or two, because real
-Tetris stacks have holes. The lane count comes from the viewport, so on a narrow screen
-the low-priority pieces spill down into the stack instead of crowding the sky. Ship more
-products and the stack gets taller and prouder.
+**Two pools.** High-priority products float in the sky, one per vertical lane, spread over
+the upper two thirds of the field. Everything else — lower-priority products and the link
+tiles — rests on the stack at the bottom, which occupies a seed-placed window of the floor,
+is grown from a ragged skyline and always keeps a hole or two, because real Tetris stacks
+have holes. The lane count comes from the viewport, so on a narrow screen the low-priority
+pieces spill down into the stack instead of crowding the sky. Ship more products and the
+stack gets taller and prouder.
+
+**Label cards never overlap.** A card may not cover a piece, the stack or another card, so
+the engine degrades instead: full card → name-only card → nearest free slot on the field.
+If a card ends up far from its piece the leader line is dropped rather than dragged across
+the scene. `npm run check:scene` asserts these invariants over 2 800 scenes (seven viewport
+widths × four hundred seeds) and runs as part of every build.
 
 **Motion** is quantized (`steps()`, never smooth): pieces drop in with a settle-bounce,
 label cards fade in behind them, floating pieces bob out of phase, and a ghost piece
@@ -99,7 +107,7 @@ Validation lives in `src/lib/content.ts` and runs during the build, so a typo fa
 ```sh
 npm install
 npm run dev      # http://localhost:4321
-npm run build    # astro check + static build into dist/
+npm run build    # astro check + scene invariants + static build into dist/
 npm run preview  # serve dist/
 ```
 
@@ -108,6 +116,9 @@ Useful while working on the engine:
 - `?seed=12345` reproduces a scene exactly. The current seed is written back to the URL
   after every reshuffle, so any layout you like is shareable.
 - <kbd>R</kbd> reshuffles.
+- `npm run check:scene` replays the engine over every breakpoint and hundreds of seeds and
+  fails on any overlap, stray card or leader drawn on the wrong side of its piece. Run it
+  after touching `src/lib/scene.ts`.
 - `npm run sync-fonts` re-copies the font subsets out of the `@fontsource/*` packages
   into `public/fonts/` (only needed after bumping those dependencies).
 
