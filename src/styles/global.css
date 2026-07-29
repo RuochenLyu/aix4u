@@ -31,23 +31,27 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --bg: #c9d2dd;
-  --bg-deep: #bcc6d3;
-  --grid-line: rgba(34, 36, 42, 0.07);
+  --bg-deep: #b8c3d1;
+  --grid-line: rgba(34, 36, 42, 0.08);
   --ink: #22242a;
-  --ink-soft: #545a66;
+  --ink-soft: #4a505c;
   --outline: #22242a;
-  --seam: rgba(34, 36, 42, 0.55);
-  --bevel-light: rgba(255, 255, 255, 0.38);
-  --bevel-dark: rgba(0, 0, 0, 0.22);
-  --piece-shadow: rgba(34, 36, 42, 0.32);
+  --seam: #22242a;
+  --bevel-light: rgba(255, 255, 255, 0.45);
+  --bevel-dark: rgba(0, 0, 0, 0.24);
+  --piece-shadow: rgba(34, 36, 42, 0.45);
+  --piece-shadow-step: rgba(34, 36, 42, 0.18);
   --piece-glow: transparent;
-  --card-bg: #eaeff5;
+  --card-bg: #fbfcfe;
   --card-line: #22242a;
-  --tile-fill: #aab4c1;
-  --tile-line: rgba(34, 36, 42, 0.55);
-  --filler-fill: #b4bec9;
-  --filler-line: rgba(34, 36, 42, 0.28);
-  --ghost-line: rgba(34, 36, 42, 0.16);
+  --card-shadow: rgba(34, 36, 42, 0.35);
+  --tile-fill: #9dabbb;
+  --tile-line: #22242a;
+  --filler-fill: #b3bdc9;
+  --filler-fill-b: #aab5c2;
+  --filler-fill-c: #bcc5d0;
+  --filler-line: rgba(34, 36, 42, 0.3);
+  --ghost-line: rgba(34, 36, 42, 0.18);
   --flash: #ffffff;
   --scanline: rgba(34, 36, 42, 0.045);
   --focus: #1a4fd6;
@@ -63,15 +67,19 @@
   --ink: #f3ecdb;
   --ink-soft: #9c968a;
   --outline: #f3ecdb;
-  --seam: rgba(243, 236, 219, 0.4);
-  --bevel-light: rgba(255, 255, 255, 0.22);
+  --seam: rgba(243, 236, 219, 0.45);
+  --bevel-light: rgba(255, 255, 255, 0.2);
   --bevel-dark: rgba(0, 0, 0, 0.35);
   --piece-shadow: rgba(0, 0, 0, 0.55);
+  --piece-shadow-step: rgba(0, 0, 0, 0.25);
   --card-bg: #1d1f26;
   --card-line: #f3ecdb;
+  --card-shadow: rgba(0, 0, 0, 0.55);
   --tile-fill: #2b2f39;
   --tile-line: rgba(243, 236, 219, 0.45);
   --filler-fill: #22252d;
+  --filler-fill-b: #1e212a;
+  --filler-fill-c: #272a33;
   --filler-line: rgba(243, 236, 219, 0.16);
   --ghost-line: rgba(243, 236, 219, 0.13);
   --flash: #fff8e6;
@@ -81,7 +89,9 @@
 
 @media (max-width: 699px) {
   :root {
-    --field-height-budget: 64vh;
+    /* The narrow field is width-bound, so let it claim the height it needs
+       instead of leaving dead bands above and below. */
+    --field-height-budget: 82vh;
   }
 }
 
@@ -344,13 +354,15 @@ a {
   height: 100%;
 }
 
+/* Two stacked hard shadows: the second one shadows the first, which produces a
+   stepped pixel stair rather than a blur. */
 .piece__body {
   position: relative;
-  filter: drop-shadow(3px 3px 0 var(--piece-shadow));
+  filter: drop-shadow(4px 4px 0 var(--piece-shadow)) drop-shadow(4px 4px 0 var(--piece-shadow-step));
 }
 
 :root[data-theme='dark'] .piece__body {
-  filter: drop-shadow(3px 3px 0 var(--piece-shadow)) drop-shadow(0 0 10px var(--piece-glow));
+  filter: drop-shadow(4px 4px 0 var(--piece-shadow)) drop-shadow(0 0 10px var(--piece-glow));
 }
 
 .cell {
@@ -362,10 +374,14 @@ a {
   width: var(--cell);
   height: var(--cell);
   background: var(--piece-fill);
+  /* 3px near-black seam, then a flat pixel bevel: light along the top and left,
+     shade along the bottom and right. No blur, no corner artefacts. */
   box-shadow:
-    inset 0 0 0 2px var(--seam),
-    inset 3px 3px 0 -1px var(--bevel-light),
-    inset -3px -3px 0 -1px var(--bevel-dark);
+    inset 0 0 0 3px var(--seam),
+    inset 0 6px 0 -3px var(--bevel-light),
+    inset 6px 0 0 -3px var(--bevel-light),
+    inset 0 -6px 0 -3px var(--bevel-dark),
+    inset -6px 0 0 -3px var(--bevel-dark);
 }
 
 .cell--icon {
@@ -398,15 +414,24 @@ a {
 }
 
 .piece--link .cell {
-  box-shadow: inset 0 0 0 1px var(--tile-line);
+  box-shadow:
+    inset 0 0 0 2px var(--tile-line),
+    inset 0 5px 0 -2px var(--bevel-light),
+    inset 0 -5px 0 -2px var(--bevel-dark),
+    inset -5px 0 0 -2px var(--bevel-dark);
   font-family: var(--font-pixel);
   font-size: clamp(9px, calc(var(--cell) * 0.3), 20px);
   color: var(--ink);
 }
 
 .piece--link .piece__body {
-  filter: none;
+  filter: drop-shadow(3px 3px 0 var(--piece-shadow-step));
   opacity: 0.9;
+}
+
+.piece--link:hover,
+.piece--link:focus-visible {
+  z-index: 6;
 }
 
 .piece--link:hover .piece__body,
@@ -414,16 +439,49 @@ a {
   opacity: 1;
 }
 
-.piece:hover .piece__body {
-  filter: drop-shadow(5px 5px 0 var(--piece-shadow));
+/* Two letters cannot carry a destination, so name the tile on hover/focus. */
+.piece--link::after {
+  content: attr(data-name);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 1;
+  padding: 0.3em 0.5em;
+  border: 2px solid var(--card-line);
+  background: var(--card-bg);
+  box-shadow: 3px 3px 0 var(--card-shadow);
+  color: var(--ink);
+  font-family: var(--font-pixel);
+  font-size: clamp(8px, calc(var(--cell) * 0.2), 12px);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.piece--link:hover::after,
+.piece--link:focus-visible::after {
+  opacity: 1;
+}
+
+.piece--product:hover .piece__body {
+  filter: drop-shadow(6px 6px 0 var(--piece-shadow)) drop-shadow(4px 4px 0 var(--piece-shadow-step));
 }
 
 .filler {
   width: var(--cell);
   height: var(--cell);
   background: var(--filler-fill);
-  box-shadow: inset 0 0 0 1px var(--filler-line);
+  box-shadow: inset 0 0 0 2px var(--filler-line);
   z-index: 1;
+}
+
+.filler[data-tone='1'] {
+  background: var(--filler-fill-b);
+}
+
+.filler[data-tone='2'] {
+  background: var(--filler-fill-c);
 }
 
 /* --- label cards --------------------------------------------------------- */
@@ -439,9 +497,10 @@ a {
   gap: 0.25em;
   width: calc(var(--lw) * var(--cell));
   min-height: calc(var(--lh) * var(--cell));
-  padding: 0.4em 0.55em;
-  border: 1px solid var(--card-line);
+  padding: 0.45em 0.6em;
+  border: 3px solid var(--card-line);
   background: var(--card-bg);
+  box-shadow: 4px 4px 0 var(--card-shadow);
   pointer-events: none;
 }
 
@@ -462,51 +521,151 @@ a {
   display: none;
 }
 
+/* Compact cards keep their tagline for hover; it lifts above the scene so the
+   reveal reads as deliberate rather than as a layout accident. */
+.piece:hover + .label,
+.piece:focus-visible + .label {
+  z-index: 7;
+}
+
 .piece:hover + .label .label__tagline,
-.label--compact:hover .label__tagline {
+.piece:focus-visible + .label .label__tagline {
   display: block;
 }
 
-/* Stepped pixel leader line from the piece edge to the card. */
+/* Stepped pixel leader: a run along the card→piece axis, plus an elbow back to
+   the card's centre line when the card had to slide past its piece. */
 .label__leader {
   position: absolute;
   background: var(--card-line);
 }
 
+.label__leader::after {
+  content: '';
+  position: absolute;
+  background: var(--card-line);
+}
+
+.label[data-side='right'] .label__leader,
+.label[data-side='left'] .label__leader {
+  width: calc(var(--leader) * var(--cell));
+  height: 2px;
+}
+
 .label[data-side='right'] .label__leader {
   right: 100%;
-  top: 50%;
-  width: calc(var(--leader) * var(--cell));
-  height: 1px;
   transform-origin: right center;
 }
 
 .label[data-side='left'] .label__leader {
   left: 100%;
-  top: 50%;
-  width: calc(var(--leader) * var(--cell));
-  height: 1px;
   transform-origin: left center;
 }
 
-.label[data-side='above'] .label__leader {
-  left: 50%;
-  top: 100%;
-  width: 1px;
+.label[data-side='above'] .label__leader,
+.label[data-side='below'] .label__leader {
+  width: 2px;
   height: calc(var(--leader) * var(--cell));
+}
+
+.label[data-side='above'] .label__leader {
+  top: 100%;
   transform-origin: center top;
 }
 
 .label[data-side='below'] .label__leader {
-  left: 50%;
   bottom: 100%;
-  width: 1px;
-  height: calc(var(--leader) * var(--cell));
   transform-origin: center bottom;
 }
 
+/* Straight run: the card lines up with its piece. */
+.label[data-cross='flat'][data-side='right'] .label__leader,
+.label[data-cross='flat'][data-side='left'] .label__leader {
+  top: calc(50% - 1px);
+}
+
+.label[data-cross='flat'][data-side='above'] .label__leader,
+.label[data-cross='flat'][data-side='below'] .label__leader {
+  left: calc(50% - 1px);
+}
+
+/* Elbow: `start` means the piece sits before the card's centre on the cross
+   axis (above it, or left of it), `end` means after. */
+.label[data-cross='start'][data-side='right'] .label__leader,
+.label[data-cross='start'][data-side='left'] .label__leader {
+  top: calc(50% - 1px - var(--cross) * var(--cell));
+}
+
+.label[data-cross='end'][data-side='right'] .label__leader,
+.label[data-cross='end'][data-side='left'] .label__leader {
+  top: calc(50% - 1px + var(--cross) * var(--cell));
+}
+
+.label[data-cross='start'][data-side='above'] .label__leader,
+.label[data-cross='start'][data-side='below'] .label__leader {
+  left: calc(50% - 1px - var(--cross) * var(--cell));
+}
+
+.label[data-cross='end'][data-side='above'] .label__leader,
+.label[data-cross='end'][data-side='below'] .label__leader {
+  left: calc(50% - 1px + var(--cross) * var(--cell));
+}
+
+.label[data-cross='flat'] .label__leader::after,
+.label[data-connected='false'] .label__leader {
+  display: none;
+}
+
+.label[data-side='right'] .label__leader::after,
+.label[data-side='left'] .label__leader::after {
+  width: 2px;
+  height: calc(var(--cross) * var(--cell));
+}
+
+.label[data-side='right'] .label__leader::after {
+  right: 0;
+}
+
+.label[data-side='left'] .label__leader::after {
+  left: 0;
+}
+
+.label[data-cross='start'][data-side='right'] .label__leader::after,
+.label[data-cross='start'][data-side='left'] .label__leader::after {
+  top: 0;
+}
+
+.label[data-cross='end'][data-side='right'] .label__leader::after,
+.label[data-cross='end'][data-side='left'] .label__leader::after {
+  bottom: 0;
+}
+
+.label[data-side='above'] .label__leader::after,
+.label[data-side='below'] .label__leader::after {
+  height: 2px;
+  width: calc(var(--cross) * var(--cell));
+}
+
+.label[data-side='above'] .label__leader::after {
+  top: 0;
+}
+
+.label[data-side='below'] .label__leader::after {
+  bottom: 0;
+}
+
+.label[data-cross='start'][data-side='above'] .label__leader::after,
+.label[data-cross='start'][data-side='below'] .label__leader::after {
+  left: 0;
+}
+
+.label[data-cross='end'][data-side='above'] .label__leader::after,
+.label[data-cross='end'][data-side='below'] .label__leader::after {
+  right: 0;
+}
+
 .label--compact {
-  padding: 0.25em 0.45em;
+  padding: 0.3em 0.5em;
 }
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
@@ -601,9 +760,15 @@ a {
 
 /* --- animation ----------------------------------------------------------- */
 
+/* Every stepped animation ends on a held keyframe: a `steps(n, end)` easing
+   combined with a fill can otherwise freeze one step short of the final value,
+   which would leave pieces off-grid and cards half-faded. */
 @keyframes piece-fall {
   from {
     transform: translate3d(0, var(--fall-from), 0);
+  }
+  92% {
+    transform: translate3d(0, 0, 0);
   }
   to {
     transform: translate3d(0, 0, 0);
@@ -614,11 +779,14 @@ a {
   0% {
     transform: translateY(0);
   }
-  35% {
+  30% {
     transform: translateY(2px);
   }
-  70% {
+  60% {
     transform: translateY(-1px);
+  }
+  85% {
+    transform: translateY(0);
   }
   100% {
     transform: translateY(0);
@@ -641,6 +809,9 @@ a {
   from {
     opacity: 0;
   }
+  80% {
+    opacity: 1;
+  }
   to {
     opacity: 1;
   }
@@ -649,6 +820,9 @@ a {
 @keyframes leader-grow {
   from {
     transform: scale(0);
+  }
+  80% {
+    transform: scale(1);
   }
   to {
     transform: scale(1);
@@ -665,6 +839,9 @@ a {
 }
 
 @keyframes hard-drop {
+  85% {
+    transform: translate3d(0, var(--hard-drop), 0);
+  }
   to {
     transform: translate3d(0, var(--hard-drop), 0);
   }
