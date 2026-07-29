@@ -1,0 +1,89 @@
+{
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`.",
+  "next": {
+    "teaser": ""
+  },
+  "items": [
+    {
+      "type": "product",
+      "id": "meikyu",
+      "name": "Meikyu",
+      "shape": "T",
+      "accent": "#e8a33d",
+      "accentDark": "#ffc061",
+      "priority": 1,
+      "url": "https://meikyu.app",
+      "tagline": "A daily dungeon deduction puzzle",
+      "description": "Five residents are hiding in today's dungeon. You have six tries to place them."
+    },
+    {
+      "type": "product",
+      "id": "raytally",
+      "name": "RayTally",
+      "shape": "L",
+      "accent": "#d9f24e",
+      "accentDark": "#e6ff6b",
+      "priority": 2,
+      "url": "https://raytally.com",
+      "tagline": "Daily product ideas mined from search-trend shifts",
+      "description": "A daily brainstorm feed that mines verifiable search-trend shifts for product ideas."
+    },
+    {
+      "type": "product",
+      "id": "ahr999",
+      "name": "AHR999 Dataset",
+      "shape": "S",
+      "accent": "#f59e0b",
+      "accentDark": "#ffb733",
+      "priority": 3,
+      "url": "https://ahr999.aix4u.com",
+      "tagline": "Open, daily-updated Bitcoin AHR999 index data",
+      "description": "Open dataset and dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI."
+    },
+    {
+      "type": "product",
+      "id": "x2markdown",
+      "name": "X2Markdown",
+      "shape": "O",
+      "accent": "#20b8c8",
+      "accentDark": "#48dcec",
+      "priority": 4,
+      "url": "https://chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo",
+      "tagline": "Any webpage → clean Markdown, one right-click",
+      "description": "Chrome extension that converts the visible page (or selection) into clean Markdown via right-click; dedicated extraction for x.com posts and articles; local-only processing."
+    },
+    {
+      "type": "product",
+      "id": "health-analyst",
+      "name": "Health Analyst",
+      "shape": "I",
+      "accent": "#3fae5a",
+      "accentDark": "#5fd67c",
+      "priority": 5,
+      "url": "https://github.com/RuochenLyu/apple-health-analyst",
+      "tagline": "Privacy-first Apple Health reports, built for AI agents",
+      "description": "Two-stage CLI and agent skill: parses Apple Health exports locally into structured insights, then renders narrative HTML reports with SVG charts."
+    },
+    {
+      "type": "link",
+      "id": "github",
+      "name": "GitHub",
+      "label": "GH",
+      "url": "https://github.com/RuochenLyu"
+    },
+    {
+      "type": "link",
+      "id": "kshift",
+      "name": "kshift.me",
+      "label": "KS",
+      "url": "https://kshift.me"
+    },
+    {
+      "type": "link",
+      "id": "x",
+      "name": "X",
+      "label": "X",
+      "url": "https://x.com/kshift"
+    }
+  ]
+}
