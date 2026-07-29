@@ -87,13 +87,6 @@
   --focus: #8ab4ff;
 }
 
-@media (max-width: 699px) {
-  :root {
-    /* The narrow field is width-bound, so let it claim the height it needs
-       instead of leaving dead bands above and below. */
-    --field-height-budget: 82vh;
-  }
-}
 
 *,
 *::before,
@@ -297,6 +290,19 @@ a {
   position: relative;
   width: calc(var(--cols) * var(--cell));
   height: calc(var(--rows) * var(--cell));
+}
+
+/* Narrow: every product floats in its own band (DESIGN §6), so the field is as
+   tall as that column needs and the page scrolls. Binding the cell to the
+   viewport height instead would shrink the whole scene to a thumbnail. */
+@media (max-width: 699px) {
+  .playfield {
+    --cell: clamp(16px, var(--cell-fit-w), 72px);
+  }
+
+  .stage {
+    align-items: start;
+  }
 }
 
 .playfield::before {
