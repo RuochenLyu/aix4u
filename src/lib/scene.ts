@@ -13,11 +13,16 @@
  *             that occupies a seed-placed window of the floor and deliberately
  *             keeps 1-2 hollow gaps.
  * Lane count comes from the viewport, so pieces spill from the sky into the
- * stack as the screen narrows — a taller stack, never a cramped sky.
+ * stack as the screen narrows — a taller stack, never a cramped sky. Below the
+ * narrow breakpoint that inverts (DESIGN §6): every product floats in its own
+ * band and the stack keeps only link tiles, because a crowded phone stack put
+ * cards nowhere near the piece they name.
  *
  * Label cards are a hard constraint: a card may never overlap a piece, the
- * stack or another card. `placeLabels` degrades (full card → name-only card →
- * nearest free slot) rather than accepting an overlap.
+ * stack or another card, and it must stay attached to its own piece — either
+ * touching it or joined by a leader that crosses nothing. `placeLabels`
+ * degrades (full card → name-only card → name-only card pinned to the piece)
+ * rather than accepting an overlap or a floating, unconnected card.
  *
  * All coordinates are in grid cells: x grows right, y grows down from the top
  * of the playfield. The renderer multiplies them by the CSS `--cell` length.
@@ -38,6 +43,7 @@ export interface Breakpoint {
   /** Minimum viewport width (px) this breakpoint applies to. */
   minWidth: number;
   cols: number;
+  /** Field height. `floatAll` fields grow past this to fit their bands. */
   rows: number;
   /** Vertical lanes available to the floating pool = floating capacity. */
   lanes: number;
@@ -52,6 +58,8 @@ export interface Breakpoint {
   compactHeight: number;
   /** Floating labels sit beside the piece on roomy screens, above/below otherwise. */
   labelBeside: boolean;
+  /** Narrow screens float every product; the stack keeps only link tiles. */
+  floatAll: boolean;
 }
 
 export const BREAKPOINTS: Breakpoint[] = [
@@ -68,6 +76,7 @@ export const BREAKPOINTS: Breakpoint[] = [
     compactWidth: 2.9,
     compactHeight: 0.95,
     labelBeside: true,
+    floatAll: false,
   },
   {
     name: 'medium',
@@ -76,26 +85,30 @@ export const BREAKPOINTS: Breakpoint[] = [
     rows: 12,
     lanes: 3,
     stackRows: 4,
-    stackRatio: 0.7,
+    stackRatio: 0.8,
     labelWidth: 4.2,
     labelHeight: 1.7,
     compactWidth: 2.9,
     compactHeight: 0.95,
     labelBeside: true,
+    floatAll: false,
   },
   {
+    // `lanes` is unused here: every product floats, and `rows` is only the
+    // floor — the field grows to whatever the column of bands needs.
     name: 'narrow',
     minWidth: 0,
     cols: 9,
-    rows: 16,
-    lanes: 2,
-    stackRows: 5,
+    rows: 14,
+    lanes: 0,
+    stackRows: 4,
     stackRatio: 0.9,
-    labelWidth: 4.4,
-    labelHeight: 1.05,
-    compactWidth: 3.2,
-    compactHeight: 1.05,
+    labelWidth: 6.2,
+    labelHeight: 2.3,
+    compactWidth: 4.2,
+    compactHeight: 1.1,
     labelBeside: false,
+    floatAll: true,
   },
 ];
 
@@ -211,22 +224,39 @@ function overlaps(a: Rect, b: Rect): boolean {
 }
 
 export function buildScene(seed: number, viewportWidth: number, items: readonly SceneItem[]): Scene {
-  const bp = breakpointFor(viewportWidth);
+  const base = breakpointFor(viewportWidth);
   const rng = createRandom(seed);
 
   const products = items
     .filter((item) => item.type === 'product')
     .sort((a, b) => (a.type === 'product' && b.type === 'product' ? a.priority - b.priority : 0));
 
-  // Overflow rule: only as many protagonists as there are lanes.
-  const floating = products.slice(0, bp.lanes);
-  const landed: SceneItem[] = [...products.slice(bp.lanes), ...items.filter((item) => item.type === 'link')];
+  // Overflow rule: only as many protagonists as there are lanes — unless the
+  // breakpoint floats everything, in which case the stack is links-only.
+  const floating = base.floatAll ? products : products.slice(0, base.lanes);
+  const landed: SceneItem[] = base.floatAll
+    ? items.filter((item) => item.type === 'link')
+    : [...products.slice(base.lanes), ...items.filter((item) => item.type === 'link')];
 
   const pieces: PiecePlacement[] = [];
   const occupied: Rect[] = [];
+  /** Card slots the band layout has already earmarked, by piece id. */
+  const reserved = new Map<string, Rect>();
 
-  const { filler, tops } = layoutStack(rng, bp, landed, pieces, occupied);
-  layoutSky(rng, bp, floating, pieces, occupied, tops);
+  let bp = base;
+  let filler: FillerCell[];
+  let tops: number[];
+
+  if (base.floatAll) {
+    // Bands are laid out from the top down, so the field height falls out of
+    // the layout rather than constraining it; then the floor goes underneath.
+    const skyBottom = layoutBands(rng, base, floating, pieces, occupied, reserved);
+    bp = { ...base, rows: Math.max(base.rows, Math.ceil(skyBottom + 0.4) + base.stackRows) };
+    ({ filler, tops } = layoutStack(rng, bp, landed, pieces, occupied));
+  } else {
+    ({ filler, tops } = layoutStack(rng, bp, landed, pieces, occupied));
+    layoutSky(rng, bp, floating, pieces, occupied, tops);
+  }
 
   // Landed pieces enter first, then the sky, bottom-up.
   pieces.sort((a, b) => (a.pool === b.pool ? b.y - a.y : a.pool === 'landed' ? -1 : 1));
@@ -234,7 +264,25 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
     piece.order = index;
   });
 
-  placeLabels(bp, pieces, occupied, tops);
+  // Placement is greedy, so whoever goes last can find itself boxed in by cards
+  // that had the whole field to choose from. Re-run with the stranded pieces
+  // promoted to the front until nobody is stranded (usually the first pass).
+  let priority: string[] = [];
+  let best: (LabelPlacement | null)[] | null = null;
+  let bestStranded = Number.POSITIVE_INFINITY;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const stranded = placeLabels(bp, pieces, occupied, tops, reserved, priority);
+    if (stranded.length === 0) {
+      best = null;
+      break;
+    }
+    if (stranded.length < bestStranded) {
+      bestStranded = stranded.length;
+      best = pieces.map((piece) => piece.label);
+    }
+    priority = [...stranded, ...priority];
+  }
+  if (best) pieces.forEach((piece, index) => (piece.label = best[index]!));
 
   const ghostShapes: ShapeName[] = ['T', 'L', 'S', 'O', 'I'];
   const ghost: GhostPlacement = {
@@ -252,6 +300,10 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
  * (neighbouring columns always differ by 1-2 cells), landed items dropped onto
  * its flattest runs, anonymous filler underneath, then 1-2 carved-out holes.
  * Returns the per-column stack height so the sky can stay clear of it.
+ *
+ * Products land before link tiles and seal their columns: a landed product
+ * carries a label card, and a card can only stay attached to a piece that is
+ * still exposed at the top of its column (DESIGN §6).
  */
 function layoutStack(
   rng: Rng,
@@ -278,18 +330,39 @@ function layoutStack(
   }
 
   const pieceCells = new Set<string>();
+  const sealed = new Array<boolean>(bp.cols).fill(false);
+  // Widest product first: a wide piece dropped after the narrow ones finds the
+  // floor already fragmented into runs too short to hold it exposed.
+  const order = [
+    ...shuffled(
+      rng,
+      landed.filter((item) => item.type === 'product'),
+    ).sort((a, b) => SHAPES[b.type === 'product' ? b.shape : 'DOT'].width - SHAPES[a.type === 'product' ? a.shape : 'DOT'].width),
+    ...shuffled(
+      rng,
+      landed.filter((item) => item.type === 'link'),
+    ),
+  ];
 
-  for (const item of shuffled(rng, landed)) {
+  for (const item of order) {
     const shape = SHAPES[item.type === 'product' ? item.shape : 'DOT'];
     const slots: { x: number; top: number }[] = [];
+    const buried: { x: number; top: number }[] = [];
     for (let x = stackStart; x + shape.width <= stackEnd; x++) {
       let top = 0;
-      for (let dx = 0; dx < shape.width; dx++) top = Math.max(top, heights[x + dx]!);
-      if (top + shape.height <= maxHeight + 1) slots.push({ x, top });
+      let clear = true;
+      for (let dx = 0; dx < shape.width; dx++) {
+        top = Math.max(top, heights[x + dx]!);
+        clear &&= !sealed[x + dx];
+      }
+      if (top + shape.height > maxHeight + 1) continue;
+      (clear ? slots : buried).push({ x, top });
     }
     // Prefer the lowest landing spots, but keep some seed-driven variety.
     slots.sort((a, b) => a.top - b.top);
-    const pick = slots[int(rng, 0, Math.min(2, slots.length - 1))] ?? { x: stackStart, top: 0 };
+    buried.sort((a, b) => a.top - b.top);
+    const pool = slots.length > 0 ? slots : buried;
+    const pick = pool[int(rng, 0, Math.min(2, pool.length - 1))] ?? { x: stackStart, top: 0 };
 
     const y = bp.rows - pick.top - shape.height;
     pieces.push({
@@ -306,6 +379,14 @@ function layoutStack(
     occupied.push({ x: pick.x, y, w: shape.width, h: shape.height });
     for (const [dx, dy] of shape.cells) pieceCells.add(`${pick.x + dx}:${y + dy}`);
     for (let dx = 0; dx < shape.width; dx++) heights[pick.x + dx] = pick.top + shape.height;
+    if (item.type === 'product') {
+      // Seal one column past each end as well: two landed products standing
+      // shoulder to shoulder leave their two cards fighting over the same strip
+      // of sky, and one of them loses.
+      for (let x = pick.x - 1; x <= pick.x + shape.width; x++) {
+        if (x >= 0 && x < bp.cols) sealed[x] = true;
+      }
+    }
   }
 
   const filler: FillerCell[] = [];
@@ -364,7 +445,11 @@ function layoutSky(
     const slack = Math.max(0, laneWidth - shape.width);
     const x = clamp(Math.round(lane * laneWidth + rng() * slack), 0, bp.cols - shape.width);
 
-    const floor = bp.rows - (tops[x] ?? 0) - shape.height - 1.2;
+    // Keep a band clear above the stack: the pieces resting in it need somewhere
+    // to put their own cards, and a card must stay next to its piece.
+    let localTop = 0;
+    for (let dx = 0; dx < shape.width; dx++) localTop = Math.max(localTop, tops[x + dx] ?? 0);
+    const floor = bp.rows - localTop - shape.height - bp.compactHeight - 2 * LABEL_GAP;
     const y = clamp(slots[index]! + (rng() - 0.5) * 0.5, bandTop, Math.max(bandTop, floor));
 
     pieces.push({
@@ -382,11 +467,77 @@ function layoutSky(
   });
 }
 
+/**
+ * Narrow screens: every product floats (DESIGN §6). Each piece owns a
+ * contiguous vertical *band* holding the piece and its card, and the bands are
+ * stacked down the field, alternating between the left and right edge. Because
+ * a band is contiguous and bands never overlap, a card can only ever sit next
+ * to the piece it names — the failure mode that made the crowded phone stack
+ * unusable is structurally impossible here. Returns the bottom of the last band.
+ */
+function layoutBands(
+  rng: Rng,
+  bp: Breakpoint,
+  floating: readonly SceneItem[],
+  pieces: PiecePlacement[],
+  occupied: Rect[],
+  reserved: Map<string, Rect>,
+): number {
+  const cardW = Math.min(bp.labelWidth, bp.cols);
+  const cardH = bp.labelHeight;
+  let left = rng() < 0.5;
+  let y = 0.3;
+
+  for (const item of floating) {
+    const shape = SHAPES[item.type === 'product' ? item.shape : 'DOT'];
+    const slack = Math.max(0, bp.cols - shape.width);
+    const inset = Math.min(int(rng, 0, 1), slack);
+    const x = left ? inset : slack - inset;
+
+    // The card takes the top or the bottom half of the band; either way the
+    // band stays one contiguous block, so the rhythm reads as staggered
+    // without any risk of a card drifting into a neighbour's territory.
+    const cardAbove = rng() < 0.45;
+    const pieceY = cardAbove ? y + cardH + LABEL_GAP : y;
+    const cardY = cardAbove ? y : y + shape.height + LABEL_GAP;
+
+    pieces.push({
+      id: item.id,
+      pool: 'floating',
+      shape: item.type === 'product' ? item.shape : 'DOT',
+      x,
+      y: round(pieceY, 1),
+      order: 0,
+      bobPeriod: round(3.4 + rng() * 2.6, 1),
+      bobDelay: round(rng() * 3, 1),
+      label: null,
+    });
+    occupied.push({ x, y: round(pieceY, 1), w: shape.width, h: shape.height });
+    reserved.set(item.id, {
+      x: round(clamp(x + shape.width / 2 - cardW / 2, 0, Math.max(0, bp.cols - cardW))),
+      y: round(cardY, 1),
+      w: cardW,
+      h: cardH,
+    });
+
+    y += shape.height + LABEL_GAP + cardH + 0.4 + rng() * 0.5;
+    left = !left;
+  }
+
+  return y;
+}
+
 const LABEL_GAP = 0.4;
-/** Past this run (or elbow) the leader would slice across the scene, so we drop it. */
-const LABEL_LEADER_MAX = 2.6;
-/** Cross-axis slack (in cells) a card may slide before we try another side. */
-const LABEL_NUDGES = [0, -1.2, 1.2, -2.4, 2.4];
+/** Outward search: how far past the piece edge a card may be parked, in cells. */
+const LABEL_RUNS = [LABEL_GAP, 0.9, 1.5, 2.1, 2.7, 3.3];
+/** …and how far it may slide across that axis. Both grow outwards from zero. */
+const LABEL_CROSSES = [0, -0.7, 0.7, -1.4, 1.4, -2.1, 2.1, -2.8, 2.8];
+/**
+ * The leader is a 2px line, so it is tested as a line, not as a box: it clears
+ * an obstacle unless it cuts more than this far inside it. Running along a
+ * neighbour's edge is fine; running through its middle is not.
+ */
+const LEADER_CLEARANCE = 0.12;
 
 interface LabelSize {
   w: number;
@@ -394,92 +545,297 @@ interface LabelSize {
   compact: boolean;
 }
 
+interface LabelGeometry {
+  side: LabelSide;
+  /** Leader run from the piece edge to the card, along `side`. */
+  run: number;
+  /** Signed offset across that axis; the leader elbows back by this much. */
+  cross: number;
+}
+
+/** Where the leader would go for a card at `rect`. Mirrors what the CSS draws. */
+function labelGeometry(rect: Rect, piece: PiecePlacement, pw: number, ph: number): LabelGeometry {
+  const side = separatingSide(rect, piece, pw, ph);
+  const horizontal = side === 'left' || side === 'right';
+  const run =
+    side === 'right'
+      ? rect.x - (piece.x + pw)
+      : side === 'left'
+        ? piece.x - (rect.x + rect.w)
+        : side === 'above'
+          ? piece.y - (rect.y + rect.h)
+          : rect.y - (piece.y + ph);
+  const pieceCenter = horizontal ? piece.y + ph / 2 : piece.x + pw / 2;
+  const cardCenter = horizontal ? rect.y + rect.h / 2 : rect.x + rect.w / 2;
+  return { side, run, cross: pieceCenter - cardCenter };
+}
+
 /**
- * Label cards, in order of preference:
- *   1. the full card beside (or above/below) its piece,
- *   2. the same positions with the tagline dropped,
- *   3. the nearest free slot anywhere on the field.
- * Overlap is a hard failure at every step, so a card only ever covers something
- * if the field has genuinely run out of room.
+ * The two thin rectangles the stepped leader occupies: the run out from the
+ * piece, then the elbow along the card's edge back to its centre line. A leader
+ * may cross empty grid, never a piece or another card, so these are what the
+ * placement search (and the build-time check) test against.
  */
-function placeLabels(bp: Breakpoint, pieces: PiecePlacement[], occupied: Rect[], tops: readonly number[]): void {
-  const taken: Rect[] = [...occupied];
-  for (let x = 0; x < bp.cols; x++) {
-    const h = tops[x] ?? 0;
-    if (h > 0) taken.push({ x, y: bp.rows - h, w: 1, h });
+export function leaderSegments(rect: Rect, piece: PiecePlacement, pw: number, ph: number): Rect[] {
+  const geo = labelGeometry(rect, piece, pw, ph);
+  const run = Math.max(geo.run, 0);
+  const cross = Math.abs(geo.cross);
+
+  if (geo.side === 'left' || geo.side === 'right') {
+    const line = piece.y + ph / 2;
+    const edge = geo.side === 'right' ? rect.x : rect.x + rect.w;
+    return [
+      { x: geo.side === 'right' ? edge - run : edge, y: line, w: run, h: 0 },
+      { x: edge, y: Math.min(line, rect.y + rect.h / 2), w: 0, h: cross },
+    ];
   }
 
-  // Protagonists first: they get the roomiest slots.
-  const ordered = [...pieces].sort((a, b) => (a.pool === b.pool ? 0 : a.pool === 'floating' ? -1 : 1));
-  let besideIndex = 0;
+  const line = piece.x + pw / 2;
+  const edge = geo.side === 'below' ? rect.y : rect.y + rect.h;
+  return [
+    { x: line, y: geo.side === 'below' ? edge - run : edge, w: 0, h: run },
+    { x: Math.min(line, rect.x + rect.w / 2), y: edge, w: cross, h: 0 },
+  ];
+}
+
+/** True when a leader segment cuts through `other` rather than skirting it. */
+export function leaderHits(segment: Rect, other: Rect): boolean {
+  if (segment.w <= 0 && segment.h <= 0) return false;
+  const c = LEADER_CLEARANCE;
+  return (
+    segment.x < other.x + other.w - c &&
+    other.x + c < segment.x + segment.w &&
+    segment.y < other.y + other.h - c &&
+    other.y + c < segment.y + segment.h
+  );
+}
+
+/** The band a leader occupies, for keeping later cards from covering it. */
+function leaderBand(segment: Rect): Rect {
+  const c = LEADER_CLEARANCE;
+  return { x: segment.x - c, y: segment.y - c, w: segment.w + 2 * c, h: segment.h + 2 * c };
+}
+
+/**
+ * Label cards, in order of preference (DESIGN §6):
+ *   1. the full card, at the nearest spot around its piece whose leader is
+ *      clear — the tagline is worth a slightly longer leader,
+ *   2. the same search with the tagline dropped,
+ *   3. the name-only card pinned against the piece.
+ * Overlap is a hard failure at every step, and so is a card that cannot be
+ * joined to its piece: the search only accepts a spot whose leader crosses
+ * nothing, and the last resort is adjacency, never a distant leaderless card.
+ *
+ * `priority` pieces are served first; the returned ids are the pieces that had
+ * to fall back onto an occupied slot, which is what the caller retries with.
+ */
+function placeLabels(
+  bp: Breakpoint,
+  pieces: PiecePlacement[],
+  occupied: Rect[],
+  tops: readonly number[],
+  reserved: ReadonlyMap<string, Rect>,
+  priority: readonly string[],
+): string[] {
+  const stack: Rect[] = [];
+  for (let x = 0; x < bp.cols; x++) {
+    const h = tops[x] ?? 0;
+    if (h > 0) stack.push({ x, y: bp.rows - h, w: 1, h });
+  }
+  // Two obstacle sets. A card may not cover anything at all; a leader may run
+  // over bare grid and over the anonymous stack filler, but never across a
+  // piece or another card (DESIGN §6).
+  const solid: Rect[] = [...occupied, ...stack];
+  // Slots the band layout earmarked count as occupied until their own piece
+  // claims them, so no card can wander into a neighbouring band.
+  let cards: Rect[] = [...reserved.values()];
+  let leaders: Rect[] = [];
+
+  // Most constrained first: a landed card has the stack on one side and its
+  // neighbours on the others, while a floating card has most of the sky. Giving
+  // the protagonists first pick used to strand the landed cards.
+  const rank = (piece: PiecePlacement): number => {
+    const promoted = priority.indexOf(piece.id);
+    if (promoted >= 0) return promoted - priority.length;
+    return piece.pool === 'landed' ? 0 : 1;
+  };
+  const ordered = [...pieces].sort((a, b) => rank(a) - rank(b));
+  const stranded: string[] = [];
+  let sideIndex = 0;
 
   for (const piece of ordered) {
     if (piece.shape === 'DOT') continue; // link tiles use a hover tooltip instead
     const shape = SHAPES[piece.shape];
-    const beside = piece.pool === 'floating' && bp.labelBeside;
-    const sides: LabelSide[] = besideIndex++ % 2 === 0 ? ['right', 'left'] : ['left', 'right'];
+    const pw = shape.width;
+    const ph = shape.height;
+    const flip = sideIndex++ % 2 === 0;
+    const sides: LabelSide[] = bp.labelBeside
+      ? flip
+        ? ['right', 'left', 'above', 'below']
+        : ['left', 'right', 'below', 'above']
+      : flip
+        ? ['below', 'above']
+        : ['above', 'below'];
 
-    const full: LabelSize = beside
-      ? { w: bp.labelWidth, h: bp.labelHeight, compact: false }
-      : { w: bp.compactWidth, h: bp.compactHeight, compact: true };
+    // Full cards are for the protagonists; landed pieces stay compact and put
+    // their tagline on hover (DESIGN §3.2).
+    const full: LabelSize =
+      piece.pool === 'floating'
+        ? { w: bp.labelWidth, h: bp.labelHeight, compact: false }
+        : { w: bp.compactWidth, h: bp.compactHeight, compact: true };
     const small: LabelSize = { w: bp.compactWidth, h: bp.compactHeight, compact: true };
 
+    const own = reserved.get(piece.id);
+    const otherCards = own ? cards.filter((rect) => rect !== own) : cards;
+    const available = [...solid, ...otherCards, ...leaders];
+    // The leader starts at the piece's own edge, so whatever it already sits
+    // inside (its column of the stack) cannot be an obstacle for it.
+    const pieceRect: Rect = { x: piece.x, y: piece.y, w: pw, h: ph };
+    const obstacles = [...occupied, ...otherCards, ...leaders].filter((rect) => !overlaps(rect, pieceRect));
+
     let chosen: { rect: Rect; size: LabelSize } | null = null;
-    for (const size of full.compact ? [full] : [full, small]) {
-      const hit = labelCandidates(bp, piece, shape.width, shape.height, size, beside, sides).find(
-        (rect) => penalty(rect, taken, bp) === 0,
-      );
-      if (hit) {
-        chosen = { rect: hit, size };
-        break;
-      }
+    if (own && penalty(own, available, bp) === 0 && leaderClear(own, piece, pw, ph, obstacles)) {
+      chosen = { rect: own, size: full };
     }
-    chosen ??= scanForSlot(bp, piece, shape.width, shape.height, small, taken);
-    chosen ??= {
-      rect: {
-        x: clamp(piece.x + shape.width / 2 - small.w / 2, 0, Math.max(0, bp.cols - small.w)),
-        y: clamp(piece.y - small.h - LABEL_GAP, 0, Math.max(0, bp.rows - small.h)),
-        w: small.w,
-        h: small.h,
-      },
-      size: small,
-    };
+    for (const size of full.compact ? [full] : [full, small]) {
+      if (chosen) break;
+      const rect = nearestSlot(bp, piece, pw, ph, size, sides, available, obstacles);
+      if (rect) chosen = { rect, size };
+    }
+    if (!chosen) {
+      const pinned = pinnedSlot(bp, piece, pw, ph, small, sides, available);
+      if (pinned.score > 0) stranded.push(piece.id);
+      chosen = { rect: pinned.rect, size: small };
+    }
 
     const { rect, size } = chosen;
-    taken.push(rect);
-
-    // The side is re-derived from the geometry rather than trusted from the
-    // candidate: the leader elbow only stays clear of the piece if it is drawn
-    // on an axis that actually separates the card from it.
-    const side = separatingSide(rect, piece, shape.width, shape.height);
-    const horizontal = side === 'left' || side === 'right';
-    const pieceCenter = horizontal ? piece.y + shape.height / 2 : piece.x + shape.width / 2;
-    const cardCenter = horizontal ? rect.y + rect.h / 2 : rect.x + rect.w / 2;
-    const run =
-      side === 'right'
-        ? rect.x - (piece.x + shape.width)
-        : side === 'left'
-          ? piece.x - (rect.x + rect.w)
-          : side === 'above'
-            ? piece.y - (rect.y + rect.h)
-            : rect.y - (piece.y + shape.height);
-
-    const cross = pieceCenter - cardCenter;
-    const connected = run <= LABEL_LEADER_MAX && Math.abs(cross) <= LABEL_LEADER_MAX;
+    const geo = labelGeometry(rect, piece, pw, ph);
+    const run = Math.max(geo.run, LABEL_GAP);
+    cards = [...otherCards, rect];
+    leaders = [...leaders, ...leaderSegments(rect, piece, pw, ph).map(leaderBand)];
 
     piece.label = {
       x: round(rect.x),
       y: round(rect.y),
       w: size.w,
       h: size.h,
-      side,
-      connected,
-      leader: connected ? round(Math.max(run, LABEL_GAP)) : 0,
-      cross: connected ? round(cross) : 0,
-      crossAbs: connected ? round(Math.abs(cross)) : 0,
+      side: geo.side,
+      connected: true,
+      leader: round(run),
+      cross: round(geo.cross),
+      crossAbs: round(Math.abs(geo.cross)),
       compact: size.compact,
     };
   }
+
+  return stranded;
+}
+
+/** True when the leader for a card at `rect` crosses nothing on its way over. */
+function leaderClear(
+  rect: Rect,
+  piece: PiecePlacement,
+  pw: number,
+  ph: number,
+  obstacles: readonly Rect[],
+): boolean {
+  return leaderSegments(rect, piece, pw, ph).every(
+    (segment) => !obstacles.some((other) => leaderHits(segment, other)),
+  );
+}
+
+/**
+ * The closest clear spot around the piece, found by walking outwards: run first
+ * (distance from the piece edge), then cross (slide along that edge). Sorting
+ * every candidate by its resulting leader length — rather than taking the first
+ * hit of a hand-ordered list — is what makes "nearest" actually true.
+ */
+function nearestSlot(
+  bp: Breakpoint,
+  piece: PiecePlacement,
+  pw: number,
+  ph: number,
+  size: LabelSize,
+  sides: readonly LabelSide[],
+  taken: readonly Rect[],
+  obstacles: readonly Rect[],
+): Rect | null {
+  let best: Rect | null = null;
+  let bestCost = Number.POSITIVE_INFINITY;
+
+  sides.forEach((side, order) => {
+    for (const run of LABEL_RUNS) {
+      for (const cross of LABEL_CROSSES) {
+        const rect = candidateRect(bp, piece, pw, ph, size, side, run, cross);
+        const geo = labelGeometry(rect, piece, pw, ph);
+        if (geo.run < -1e-9) continue;
+        // A tiny bias for the preferred side keeps cards alternating around the
+        // field; it never outweighs a genuinely closer spot.
+        const cost = geo.run + Math.abs(geo.cross) * 0.8 + order * 0.08;
+        if (cost >= bestCost) continue;
+        if (penalty(rect, taken, bp) !== 0) continue;
+        if (!leaderClear(rect, piece, pw, ph, obstacles)) continue;
+        bestCost = cost;
+        best = rect;
+      }
+    }
+  });
+
+  return best;
+}
+
+/**
+ * Last resort: pin the card against the piece on its least crowded side. It
+ * stays attached — the one thing we never trade away — but it may end up
+ * covering something, which is what `score > 0` reports back.
+ */
+function pinnedSlot(
+  bp: Breakpoint,
+  piece: PiecePlacement,
+  pw: number,
+  ph: number,
+  size: LabelSize,
+  sides: readonly LabelSide[],
+  taken: readonly Rect[],
+): { rect: Rect; score: number } {
+  const own: Rect = { x: piece.x, y: piece.y, w: pw, h: ph };
+  let best: Rect | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const side of [...sides, 'above' as const, 'below' as const, 'left' as const, 'right' as const]) {
+    for (const cross of LABEL_CROSSES) {
+      const rect = candidateRect(bp, piece, pw, ph, size, side, LABEL_GAP, cross);
+      // Covering its own piece defeats the point of the card entirely, so that
+      // counts for much more than covering a neighbour.
+      const score = penalty(rect, taken, bp) + penalty(rect, [own], bp) * 9;
+      if (score >= bestScore) continue;
+      bestScore = score;
+      best = rect;
+    }
+  }
+  return { rect: best!, score: bestScore };
+}
+
+/** One candidate position, kept inside the field. */
+function candidateRect(
+  bp: Breakpoint,
+  piece: PiecePlacement,
+  pw: number,
+  ph: number,
+  size: LabelSize,
+  side: LabelSide,
+  run: number,
+  cross: number,
+): Rect {
+  const { w, h } = size;
+  const maxX = Math.max(0, bp.cols - w);
+  const maxY = Math.max(0, bp.rows - h);
+
+  if (side === 'left' || side === 'right') {
+    const x = side === 'right' ? piece.x + pw + run : piece.x - run - w;
+    return { x: clamp(x, 0, maxX), y: clamp(piece.y + ph / 2 - h / 2 + cross, 0, maxY), w, h };
+  }
+  const y = side === 'below' ? piece.y + ph + run : piece.y - run - h;
+  return { x: clamp(piece.x + pw / 2 - w / 2 + cross, 0, maxX), y: clamp(y, 0, maxY), w, h };
 }
 
 /**
@@ -498,77 +854,6 @@ export function separatingSide(rect: Rect, piece: PiecePlacement, pw: number, ph
 
   if (horizontal && vertical) return horizontal.gap >= vertical.gap ? horizontal.side : vertical.side;
   return horizontal?.side ?? vertical?.side ?? 'above';
-}
-
-function labelCandidates(
-  bp: Breakpoint,
-  piece: PiecePlacement,
-  pw: number,
-  ph: number,
-  size: LabelSize,
-  beside: boolean,
-  sides: readonly LabelSide[],
-): Rect[] {
-  const { w, h } = size;
-  const centerX = clamp(piece.x + pw / 2 - w / 2, 0, Math.max(0, bp.cols - w));
-  const middleY = piece.y + ph / 2 - h / 2;
-  const candidates: Rect[] = [];
-
-  const pushBeside = () => {
-    for (const side of sides) {
-      for (const dy of LABEL_NUDGES) {
-        candidates.push({
-          x: side === 'right' ? piece.x + pw + LABEL_GAP : piece.x - LABEL_GAP - w,
-          y: middleY + dy,
-          w,
-          h,
-        });
-      }
-    }
-  };
-  const pushStacked = () => {
-    for (const dy of [0, -1.2, -2.4]) candidates.push({ x: centerX, y: piece.y - h - LABEL_GAP + dy, w, h });
-    for (const dy of [0, 1.2, 2.4]) candidates.push({ x: centerX, y: piece.y + ph + LABEL_GAP + dy, w, h });
-  };
-
-  // Narrow screens keep cards directly above or below their piece (DESIGN §6),
-  // so beside placement is not even offered there.
-  if (beside) {
-    pushBeside();
-    pushStacked();
-  } else {
-    pushStacked();
-  }
-  return candidates;
-}
-
-/** Last structured resort: the free slot nearest the piece, scanned on a half-cell grid. */
-function scanForSlot(
-  bp: Breakpoint,
-  piece: PiecePlacement,
-  pw: number,
-  ph: number,
-  size: LabelSize,
-  taken: readonly Rect[],
-): { rect: Rect; size: LabelSize } | null {
-  const anchorX = piece.x + pw / 2;
-  const anchorY = piece.y + ph / 2;
-  let best: { rect: Rect; size: LabelSize } | null = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (let y = 0; y <= bp.rows - size.h; y += 0.5) {
-    for (let x = 0; x <= bp.cols - size.w; x += 0.5) {
-      const rect: Rect = { x, y, w: size.w, h: size.h };
-      if (penalty(rect, taken, bp) !== 0) continue;
-      const dx = x + size.w / 2 - anchorX;
-      const dy = y + size.h / 2 - anchorY;
-      const distance = dx * dx + dy * dy;
-      if (distance >= bestDistance) continue;
-      bestDistance = distance;
-      best = { rect, size };
-    }
-  }
-  return best;
 }
 
 /** Overlap area against everything already placed, plus a penalty for leaving the field. */
