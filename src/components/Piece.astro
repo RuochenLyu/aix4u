@@ -1,6 +1,6 @@
 ---
 import type { SceneItem } from '../lib/content';
-import type { PiecePlacement } from '../lib/scene';
+import { crossDirection, type PiecePlacement } from '../lib/scene';
 import { SHAPES } from '../lib/tetromino';
 
 interface Props {
@@ -37,6 +37,7 @@ const labelStyle = label
       '--lw': String(label.w),
       '--lh': String(label.h),
       '--leader': String(label.leader),
+      '--cross': String(label.crossAbs),
       '--fall-delay': `${placement.order * 80}ms`,
       '--fall-duration': '560ms',
     }
@@ -52,8 +53,11 @@ const labelStyle = label
   id={`piece-${item.id}`}
   data-piece={item.id}
   data-pool={placement.pool}
+  data-name={item.name}
   href={item.url}
   rel={isProduct ? 'noopener' : 'me noopener'}
+  title={isProduct ? undefined : item.name}
+  aria-label={isProduct ? undefined : item.name}
   style={style}
 >
   <span class="piece__drop">
@@ -84,6 +88,8 @@ const labelStyle = label
       class:list={['label', label.compact && 'label--compact']}
       data-label={item.id}
       data-side={label.side}
+      data-cross={crossDirection(label.cross)}
+      data-connected={String(label.connected)}
       style={labelStyle}
       aria-hidden="true"
     >

@@ -8,7 +8,7 @@
 
 import { content } from '../lib/content';
 import { SHAPES } from '../lib/tetromino';
-import { buildScene, breakpointFor, randomSeed, type Scene } from '../lib/scene';
+import { buildScene, breakpointFor, crossDirection, randomSeed, type Scene } from '../lib/scene';
 
 const root = document.documentElement;
 const playfield = document.getElementById('playfield');
@@ -104,12 +104,15 @@ if (playfield && fillerLayer && ghost) {
       const label = labelElements.get(placement.id);
       if (!label || !placement.label) continue;
       label.dataset['side'] = placement.label.side;
+      label.dataset['cross'] = crossDirection(placement.label.cross);
+      label.dataset['connected'] = String(placement.label.connected);
       label.classList.toggle('label--compact', placement.label.compact);
       label.style.setProperty('--gx', String(placement.label.x));
       label.style.setProperty('--gy', String(placement.label.y));
       label.style.setProperty('--lw', String(placement.label.w));
       label.style.setProperty('--lh', String(placement.label.h));
       label.style.setProperty('--leader', String(placement.label.leader));
+      label.style.setProperty('--cross', String(placement.label.crossAbs));
       label.style.setProperty('--fall-delay', `${placement.order * 80}ms`);
     }
 
@@ -117,6 +120,7 @@ if (playfield && fillerLayer && ghost) {
       ...next.filler.map((cell) => {
         const span = document.createElement('span');
         span.className = 'filler';
+        span.dataset['tone'] = String(cell.tone);
         span.style.setProperty('--gx', String(cell.x));
         span.style.setProperty('--gy', String(cell.y));
         return span;

@@ -1,12 +1,14 @@
 ---
 import Piece from './Piece.astro';
 import { content } from '../lib/content';
-import { buildScene, DEFAULT_SEED } from '../lib/scene';
+import { buildScene, DEFAULT_SEED, DEFAULT_VIEWPORT } from '../lib/scene';
 import { SHAPES } from '../lib/tetromino';
 
 // The build-time frame uses the widest breakpoint and a fixed seed, so the
-// static HTML is a complete, readable scene even with scripting disabled.
-const scene = buildScene(DEFAULT_SEED, 1440, content.items);
+// static HTML is a complete, readable scene even with scripting disabled. The
+// client runs the same function, so `?seed=20260729` on a wide viewport
+// reproduces this exact frame.
+const scene = buildScene(DEFAULT_SEED, DEFAULT_VIEWPORT, content.items);
 const byId = new Map(content.items.map((item) => [item.id, item]));
 const ghostShape = SHAPES[scene.ghost.shape];
 ---
@@ -36,7 +38,11 @@ const ghostShape = SHAPES[scene.ghost.shape];
   <div class="filler-layer" id="filler-layer" aria-hidden="true">
     {
       scene.filler.map((cell) => (
-        <span class="filler" style={{ '--gx': String(cell.x), '--gy': String(cell.y) }} />
+        <span
+          class="filler"
+          data-tone={cell.tone}
+          style={{ '--gx': String(cell.x), '--gy': String(cell.y) }}
+        />
       ))
     }
   </div>
