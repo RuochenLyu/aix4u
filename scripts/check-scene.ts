@@ -1,10 +1,16 @@
 /**
  * Property check for the scene engine: across every breakpoint and a few
- * hundred seeds, no label card may overlap a piece, the stack or another card,
- * and nothing may leave the playfield. Run with `npm run check:scene`.
+ * hundred seeds,
+ *   - no label card may overlap a piece, the stack or another card, and
+ *     nothing may leave the playfield;
+ *   - every card must stay attached to its own piece — touching it, or joined
+ *     by a leader that crosses no piece and no other card (DESIGN §6);
+ *   - below the narrow breakpoint every product must float, with its card
+ *     directly above or below it.
+ * Run with `npm run check:scene`.
  */
 
-import { buildScene, DEFAULT_SEED, type Scene } from '../src/lib/scene';
+import { buildScene, DEFAULT_SEED, leaderHits, leaderSegments, type Scene } from '../src/lib/scene';
 import { SHAPES } from '../src/lib/tetromino';
 import { content } from '../src/lib/content';
 
@@ -80,6 +86,12 @@ function problems(scene: Scene): string[] {
       found.push(`piece ${piece.id} leaves the field`);
     }
 
+    // Narrow screens float every product, so that each card can sit in its own
+    // piece's band rather than somewhere on a crowded stack (DESIGN §6).
+    if (bp.floatAll && piece.shape !== 'DOT' && piece.pool !== 'floating') {
+      found.push(`piece ${piece.id} is landed on a float-all breakpoint`);
+    }
+
     // The leader elbow is drawn in the strip between the card and its piece, so
     // the recorded side must be one that actually separates the two.
     const label = piece.label;
@@ -93,6 +105,35 @@ function problems(scene: Scene): string[] {
             ? label.y + label.h <= piece.y + EPSILON
             : label.y >= piece.y + shape.height - EPSILON;
     if (!separates) found.push(`label ${piece.id} is not actually ${label.side} of its piece`);
+
+    // Association is a hard constraint: a card is either touching its piece or
+    // joined to it by a leader, and that leader may cross empty grid only.
+    if (!label.connected) found.push(`label ${piece.id} has no leader to its piece`);
+
+    // A leader may run over bare grid and over the anonymous stack filler; it
+    // may never cross a piece or another card.
+    const own = { x: piece.x, y: piece.y, w: shape.width, h: shape.height, what: `piece ${piece.id}` };
+    const others = [...pieceRects, ...labelRects].filter(
+      (rect) => rect.what !== own.what && rect.what !== `label ${piece.id}` && !overlaps(rect, own),
+    );
+    const card = { x: label.x, y: label.y, w: label.w, h: label.h };
+    for (const segment of leaderSegments(card, piece, shape.width, shape.height)) {
+      for (const other of others) {
+        if (leaderHits(segment, other)) found.push(`leader ${piece.id} crosses ${other.what}`);
+      }
+    }
+
+    if (bp.floatAll) {
+      if (label.side !== 'above' && label.side !== 'below') {
+        found.push(`label ${piece.id} sits ${label.side} of its piece on a float-all breakpoint`);
+      }
+      // "Directly above/below" — the card has to cover part of its own piece's
+      // columns, otherwise it reads as belonging to whatever is beside it.
+      if (label.x >= piece.x + shape.width - EPSILON || label.x + label.w <= piece.x + EPSILON) {
+        found.push(`label ${piece.id} does not sit over its own piece`);
+      }
+      if (label.leader > 1.2) found.push(`label ${piece.id} floats ${label.leader} cells from its piece`);
+    }
   }
 
   return found;
