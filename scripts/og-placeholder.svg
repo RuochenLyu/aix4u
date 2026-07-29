@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" shape-rendering="crispEdges">
+  <rect width="1200" height="630" fill="#c9d2dd"/>
+  <g fill="none" stroke="#22242a" stroke-opacity=".07">
+    <path d="M60.5 0V630M120.5 0V630M180.5 0V630M240.5 0V630M300.5 0V630M360.5 0V630M420.5 0V630M480.5 0V630M540.5 0V630M600.5 0V630M660.5 0V630M720.5 0V630M780.5 0V630M840.5 0V630M900.5 0V630M960.5 0V630M1020.5 0V630M1080.5 0V630M1140.5 0V630"/>
+    <path d="M0 60.5H1200M0 120.5H1200M0 180.5H1200M0 240.5H1200M0 300.5H1200M0 360.5H1200M0 420.5H1200M0 480.5H1200M0 540.5H1200"/>
+  </g>
+  <g stroke="#22242a" stroke-width="4">
+    <rect x="122" y="122" width="60" height="60" fill="#e8a33d"/>
+    <rect x="62" y="182" width="60" height="60" fill="#e8a33d"/>
+    <rect x="122" y="182" width="60" height="60" fill="#e8a33d"/>
+    <rect x="182" y="182" width="60" height="60" fill="#e8a33d"/>
+
+    <rect x="962" y="182" width="60" height="60" fill="#d9f24e"/>
+    <rect x="962" y="242" width="60" height="60" fill="#d9f24e"/>
+    <rect x="962" y="302" width="60" height="60" fill="#d9f24e"/>
+    <rect x="1022" y="302" width="60" height="60" fill="#d9f24e"/>
+
+    <rect x="242" y="482" width="60" height="60" fill="#20b8c8"/>
+    <rect x="302" y="482" width="60" height="60" fill="#20b8c8"/>
+    <rect x="242" y="542" width="60" height="60" fill="#20b8c8"/>
+    <rect x="302" y="542" width="60" height="60" fill="#20b8c8"/>
+
+    <rect x="662" y="542" width="60" height="60" fill="#3fae5a"/>
+    <rect x="722" y="542" width="60" height="60" fill="#3fae5a"/>
+    <rect x="782" y="542" width="60" height="60" fill="#3fae5a"/>
+    <rect x="842" y="542" width="60" height="60" fill="#3fae5a"/>
+
+    <rect x="482" y="422" width="60" height="60" fill="#f59e0b"/>
+    <rect x="542" y="422" width="60" height="60" fill="#f59e0b"/>
+    <rect x="422" y="482" width="60" height="60" fill="#f59e0b"/>
+    <rect x="482" y="482" width="60" height="60" fill="#f59e0b"/>
+  </g>
+  <text x="600" y="300" fill="#22242a" font-family="Courier New, monospace" font-size="96" font-weight="700" letter-spacing="10" text-anchor="middle">AIX4U</text>
+  <text x="600" y="356" fill="#545a66" font-family="Courier New, monospace" font-size="28" letter-spacing="2" text-anchor="middle">products by Ruochen — AI for you</text>
+</svg>
