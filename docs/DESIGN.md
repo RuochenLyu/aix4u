@@ -102,9 +102,10 @@ Implementation constraints: DOM pieces animated via `transform`/`opacity` only; 
 
 - Cell size: `clamp(44px, 4.5vw, 72px)` (tune visually). Playfield: fixed max width (~1140 px), centered, full viewport height.
 - On huge/ultrawide screens the playfield does **not** stretch; side areas show the faint grid + ghost piece ambience ("arcade screen" principle).
-- Narrow (<~700 px): 2 floating lanes, pieces staggered vertically, label cards placed directly above/below their piece.
+- Narrow (<~700 px): **all products float** — the landed pool holds only link tiles + filler. Vertical space is abundant on phones; pieces stagger vertically across alternating left/right positions, each label card placed directly above/below its own piece. Rationale: with a crowded stack, landed-product labels ended up distant from their pieces and read as labeling the wrong piece — mislabeling is worse than a taller page.
 - Mobile: stack condenses, HUD condenses (`AIX4U · 05 · NEXT`), reshuffle via tapping the hint.
 - Label collision: engine alternates label side (left/right) and nudges vertically; labels never overlap pieces or each other.
+- Label association is a hard constraint too: a card must be either **touching-adjacent** to its piece or **leader-connected**. A distant card with no leader is forbidden — it reads as labeling whichever piece it happens to sit near. Degrade ladder: full card → name-only card → adjacent name-only; never leaderless-distant.
 
 ## 7. Content (authoritative copy)
 
