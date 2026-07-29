@@ -1,0 +1,26 @@
+{
+  "name": "aix4u",
+  "version": "1.0.0",
+  "private": true,
+  "description": "aix4u.com — an indie developer's product portfolio, rendered as a frozen frame of an ongoing Tetris game.",
+  "license": "MIT",
+  "author": "Ruochen Lyu",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "sync-fonts": "node scripts/sync-fonts.mjs"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.0",
+    "astro": "^5.16.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@fontsource/ibm-plex-mono": "^5.2.11",
+    "@fontsource/silkscreen": "^5.2.11",
+    "typescript": "^5.9.3"
+  }
+}
