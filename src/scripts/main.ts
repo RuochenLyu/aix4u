@@ -1,10 +1,14 @@
 /**
- * Client entry: theme persistence, the seed/scene lifecycle, and the three
- * behaviours v2 added — the info panel, the eyes, and the NEXT easter egg.
+ * Client entry: theme persistence, the seed/scene lifecycle, and the behaviours
+ * v2 added — the info panel, the eyes, the NEXT easter egg — plus the v2.2
+ * round: attract mode, the sound system, the glance and the Konami downpour
+ * (DESIGN §13). `?seed=` stays a silent URL capability — §13.2's visible chip
+ * was cut, so nothing in the HUD reads it back.
  *
  * The DOM already contains every piece (rendered at build time from
  * DEFAULT_SEED). Nothing is created or destroyed here except the anonymous
- * stack filler — the engine only moves things, so links stay links.
+ * stack filler and the one-shot Konami rain layer — the engine only moves
+ * things, so links stay links.
  */
 
 import { content } from '../lib/content';
@@ -20,6 +24,7 @@ import {
   type PiecePlacement,
   type Scene,
 } from '../lib/scene';
+import * as soundKit from './sound';
 
 const root = document.documentElement;
 const shell = document.getElementById('shell');
@@ -31,6 +36,51 @@ const reshuffleButton = document.getElementById('reshuffle');
 
 const THEME_KEY = 'aix4u-theme';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/**
+ * `event.target` is an `EventTarget`, and a keyboard event's target is only
+ * *usually* an element — it is `document` itself when nothing is focused, and
+ * `window` for a few synthetic paths. Casting it to `HTMLElement` and calling
+ * `.closest()` therefore throws exactly where it matters least and hurts most:
+ * inside the global keydown handler, which is what routes R, Enter and the
+ * Konami code. Narrow once, here, instead of trusting a cast three times.
+ */
+function asElement(target: EventTarget | null): HTMLElement | null {
+  return target instanceof HTMLElement ? target : null;
+}
+
+/* --- sound (DESIGN §13.4) -------------------------------------------------- */
+
+/**
+ * Sound is default **on** (v2.2, overriding §13.4's "default muted"); the
+ * speaker toggle persists the choice and `createSoundSystem` arms the first
+ * user gesture to wake the AudioContext, since the autoplay policy keeps it
+ * parked until then. Everything below just calls the scene-named methods at the
+ * frames the scenes already own.
+ */
+const sound = soundKit.createSoundSystem();
+const soundToggle = document.getElementById('sound-toggle');
+
+function syncSpeaker(on: boolean): void {
+  soundToggle?.setAttribute('aria-pressed', String(on));
+  soundToggle?.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
+}
+
+syncSpeaker(sound.enabled);
+soundToggle?.addEventListener('click', () => {
+  const on = sound.toggle();
+  syncSpeaker(on);
+  // The key press is the only sound a *mute* can make — the last thing you hear
+  // on the way out, and the first thing on the way back in.
+  if (on) sound.key();
+});
+
+// The timbres take any BaseAudioContext, so a dev console can render each one
+// through an OfflineAudioContext and measure it (duration, peak) without a
+// speaker in the loop.
+if (import.meta.env.DEV) {
+  (window as Window & { __soundKit?: unknown }).__soundKit = soundKit;
+}
 
 /* --- theme ---------------------------------------------------------------- */
 
@@ -53,6 +103,10 @@ themeToggle?.addEventListener('click', () => {
   const next = root.dataset['theme'] === 'dark' ? 'light' : 'dark';
   root.dataset['theme'] = next;
   syncToggle(next);
+  // The chassis key first, then what it did: the press is the finger, the
+  // flick is the theme (§13.4 + v2.2's "machine keys click too").
+  sound.key();
+  sound.theme(next === 'light');
   try {
     localStorage.setItem(THEME_KEY, next);
   } catch {
@@ -92,6 +146,14 @@ if (playfield && fillerLayer && ghost && shell) {
 
   const gated: HTMLElement[] = [...pieceElements.values(), ...(egg ? [egg] : [])];
 
+  /**
+   * Each product's rank in priority order = its note on the landing scale
+   * (§13.4): rank 0 owns the top of the pentatonic, the last rank the bottom.
+   * Link tiles and the egg have no rank and land silent — the egg has its own
+   * jingle, and only products play the melody.
+   */
+  const noteRanks = new Map(content.products.map((product, index) => [product.id, index]));
+
   for (const el of gated) {
     const release = (event: AnimationEvent): void => {
       // `piece-fall` is the entry drop; the reshuffle's `hard-drop` ends into
@@ -102,6 +164,16 @@ if (playfield && fillerLayer && ghost && shell) {
     el.addEventListener('animationend', release);
     // A cancelled fall (breakpoint change mid-entry) must not strand the piece.
     el.addEventListener('animationcancel', release);
+
+    // The landing tap plays on the same frame the gate opens — the animationend
+    // of the fall *is* the impact (§13.4: an entry cascade plays a tiny melody).
+    const rank = noteRanks.get(el.dataset['piece'] ?? '');
+    if (rank !== undefined) {
+      el.addEventListener('animationend', (event: AnimationEvent) => {
+        if (event.animationName !== 'piece-fall') return;
+        sound.landing(rank, el.dataset['motion']);
+      });
+    }
   }
 
   function gateAll(): void {
@@ -273,6 +345,9 @@ if (playfield && fillerLayer && ghost && shell) {
 
   function updateEyes(): void {
     eyeFrame = 0;
+    // A glance in progress owns the pupils (§13.5); the pointer gets them back
+    // when the hold releases.
+    if (performance.now() < glanceUntil) return;
     if (pointerX < 0) return;
     for (const eye of eyes) {
       const rect = eye.getBoundingClientRect();
@@ -283,6 +358,40 @@ if (playfield && fillerLayer && ghost && shell) {
       eye.style.setProperty('--pupil-x', String(Math.round((dx / len) * PUPIL_STEPS)));
       eye.style.setProperty('--pupil-y', String(Math.round((dy / len) * PUPIL_STEPS)));
     }
+  }
+
+  /* --- the glance (DESIGN §13.5) ------------------------------------------ */
+
+  /**
+   * The instant a product (or the egg) is activated — pointer down or Enter,
+   * never mere hover — every *other* piece's pupils snap towards it, in the
+   * same pixel steps all tracking uses, hold ~400ms, then release back to the
+   * pointer. The hold works by timestamp rather than by class: `updateEyes`
+   * simply declines to run while the glance owns the pupils.
+   */
+  const GLANCE_MS = 400;
+  let glanceUntil = 0;
+
+  function glanceAt(target: HTMLElement): void {
+    if (reducedMotion.matches) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const tx = rect.left + rect.width / 2;
+    const ty = rect.top + rect.height / 2;
+    for (const eye of eyes) {
+      if (target.contains(eye)) continue; // nobody stares at themself
+      const r = eye.getBoundingClientRect();
+      if (r.width === 0) continue;
+      const dx = tx - (r.left + r.width / 2);
+      const dy = ty - (r.top + r.height / 2);
+      const len = Math.hypot(dx, dy) || 1;
+      eye.style.setProperty('--pupil-x', String(Math.round((dx / len) * PUPIL_STEPS)));
+      eye.style.setProperty('--pupil-y', String(Math.round((dy / len) * PUPIL_STEPS)));
+    }
+    glanceUntil = performance.now() + GLANCE_MS;
+    window.setTimeout(() => {
+      if (performance.now() >= glanceUntil) scheduleEyes();
+    }, GLANCE_MS + 20);
   }
 
   function scheduleEyes(): void {
@@ -404,6 +513,8 @@ if (playfield && fillerLayer && ghost && shell) {
     }
     selected = id;
     if (panel) panel.dataset['state'] = 'piece';
+    // A cursor move on the wall, the quietest voice in the kit (§13.4).
+    sound.select();
     // Row one lands whole, on the frame you select: the name and the two tags are
     // the answer to "what is this", and an answer that types itself is a delay.
     if (panelName) panelName.textContent = (el!.dataset['name'] ?? '').toUpperCase();
@@ -437,16 +548,48 @@ if (playfield && fillerLayer && ghost && shell) {
     const el = pieceElements.get(selected);
     const href = el?.getAttribute('href');
     if (!href) return;
+    if (el) activate(el);
     window.open(href, '_blank', 'noopener,noreferrer');
   }
 
+  /**
+   * The moment of activation, wherever it comes from: the glance (§13.5) and
+   * the confirm chirp (§13.4) are the same event seen by the eyes and the ears,
+   * so they fire from one place rather than from every listener that can open a
+   * piece. Idempotent within a frame — a pointerdown followed by the anchor's
+   * own click is one activation, not two.
+   */
+  let lastActivated = 0;
+
+  function activate(el: HTMLElement): void {
+    const now = performance.now();
+    if (now - lastActivated < 120) return;
+    lastActivated = now;
+    glanceAt(el);
+    sound.open();
+  }
+
   const coarse = window.matchMedia('(pointer: coarse)');
+
+  // Activation on the *whole* field, captured: a product anchor, the egg, and
+  // the keyboard's Enter on a focused piece all land here, including the paths
+  // that leave the page immediately afterwards. Capture, so the glance starts
+  // on the same frame the browser begins the navigation.
+  for (const el of gated) {
+    el.addEventListener('pointerdown', () => activate(el));
+    el.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') activate(el);
+    });
+  }
 
   for (const [id, el] of pieceElements) {
     if (!el.dataset['flavor']) continue; // link tiles carry their own name-plate
 
     el.addEventListener('pointerenter', () => {
       if (coarse.matches) return;
+      // Landing on a piece is a deliberate act even though `pointermove` is not,
+      // so it interrupts the demo before it takes the cursor for itself.
+      interrupt();
       selectPiece(id);
     });
     el.addEventListener('pointerleave', () => {
@@ -474,7 +617,7 @@ if (playfield && fillerLayer && ghost && shell) {
   }
 
   document.addEventListener('click', (event) => {
-    const target = event.target as HTMLElement | null;
+    const target = asElement(event.target);
     if (target?.closest('.piece, .panel')) return;
     if (selected) clearSelection();
   });
@@ -509,6 +652,8 @@ if (playfield && fillerLayer && ghost && shell) {
       // By now every landing frame has passed; anything still gated missed its
       // `animationend` (a hidden tab throttling the fall) and gets it here.
       releaseAll();
+      // The idle clock for the demo starts here, not at parse time (§13.1).
+      armAttract();
     }, lastOrder * STAGGER_MS + FALL_MS + SETTLE_MS);
   }
 
@@ -533,6 +678,8 @@ if (playfield && fillerLayer && ghost && shell) {
     eggDropped = true;
     rememberSession(EGG_KEY, '1');
     if (reducedMotion.matches) return;
+    // The riddle plays with the fall, not after it (§13.4).
+    sound.egg();
     egg.classList.remove('is-dropping');
     void egg.offsetWidth; // restart the fall if one is somehow still on
     egg.classList.add('is-dropping');
@@ -570,10 +717,11 @@ if (playfield && fillerLayer && ghost && shell) {
    * the distance, which is what gravity does and what makes the impacts arrive
    * ragged instead of in chorus.
    *
-   * Collision is per-column (v2.1.4): `settleShape` measures every column of
-   * the piece against every column of the skyline, so a T slots its stem into
-   * a notch and an S bites into an uneven bed instead of perching its bounding
-   * box on the highest shoulder.
+   * Collision is by bounding box (v2.2.1): a product's skin is one PNG across
+   * its whole box, so an S's notch is reserved airspace rather than a shelf.
+   * The v2.1.4 per-column version slid bed cells and perched tiles into those
+   * notches on every reshuffle — see `restingRow`, which still offers the
+   * per-column mode for the pieces that have no skin to protect.
    */
   function planDrops(cell: number): Landing[] {
     const bp = scene.breakpoint;
@@ -656,6 +804,9 @@ if (playfield && fillerLayer && ghost && shell) {
    */
   async function reshuffle(): Promise<void> {
     if (shuffling) return;
+    // The lever, on the frame the handle is pulled — before any of the ride
+    // that follows, and regardless of whether motion is welcome (§13.4).
+    sound.lever();
     const seed = randomSeed();
     writeSeedToUrl(seed);
     clearSelection();
@@ -681,7 +832,11 @@ if (playfield && fillerLayer && ghost && shell) {
     // shuts as it lands, and the machine takes the hit on the first impact.
     const impacts = [...landings].sort((a, b) => a.at - b.at);
     for (const landing of impacts) {
-      window.setTimeout(() => squeeze(landing.el), landing.at);
+      window.setTimeout(() => {
+        squeeze(landing.el);
+        // Each piece's own impact — the felt thud, lower than any entry tap.
+        sound.hardDrop();
+      }, landing.at);
     }
     const first = impacts[0]?.at ?? DROP_MIN_MS;
     const last = impacts[impacts.length - 1]?.at ?? DROP_MIN_MS;
@@ -715,6 +870,10 @@ if (playfield && fillerLayer && ghost && shell) {
     if (egg) bottoms.set(egg, Number(egg.style.getPropertyValue('--gy') || 0));
 
     field.classList.add('is-scanning');
+    // One rising swish across the whole clear, started on the frame the light
+    // starts moving and told how long it has to travel. Per-row bursts were ten
+    // transients in half a second — a rattle, not a sweep (§13.4 v2.2.1).
+    sound.sweep(swept.length * SCAN_ROW_MS);
     for (const row of swept) {
       field.style.setProperty('--scan-row', String(row));
       for (const el of rows.get(row) ?? []) {
@@ -726,6 +885,8 @@ if (playfield && fillerLayer && ghost && shell) {
       await wait(SCAN_ROW_MS);
     }
     field.classList.remove('is-scanning');
+    // The full stop at the top of the board (§13.4).
+    sound.sweepEnd();
 
     // The motes are still flying when the last row is swept; let them land, then
     // hold the empty field for a beat — a board that clears and instantly refills
@@ -834,9 +995,274 @@ if (playfield && fillerLayer && ghost && shell) {
     prefetchIdle();
   })();
 
+  /* --- attract mode (DESIGN §13.1) ---------------------------------------- */
+
+  /**
+   * After ~8s of a visitor doing nothing, the machine demos itself: the cursor
+   * hops piece to piece in priority order and the panel types each line, ~3.5s
+   * apiece. At the end of a pass it goes quiet for another idle window and, if
+   * still nobody has touched anything, runs again — indefinitely.
+   *
+   * That loop is a v2.2.1 reversal of §13.1's "one loop then stop". The original
+   * reasoning ("a shop machine loops, a proud one shows its wares once") is a
+   * nice line about a machine somebody is already watching; for a page left open
+   * on a second monitor it just means the demo happened once, in the minute
+   * nobody was looking. Looping with a full idle gap between passes keeps the
+   * pause — the machine still stops and waits — it simply does not give up.
+   *
+   * Three things this had to get right, and the first two are why the original
+   * pass never appeared on a real visit at all:
+   *
+   * 1. The idle clock cannot start at parse time. The entry cascade runs for
+   *    well over a second, and the pieces are `is-inert` for all of it — a demo
+   *    that opened at t+8s from parse would begin on a scene that was still
+   *    arriving. It starts when the entry finishes, and again after every
+   *    reshuffle's entry.
+   * 2. `pointermove` is not an interaction. The pointer sitting still over a
+   *    trackpad emits stray moves, and a page opened in a background tab gets a
+   *    `pointermove` on the very first frame it is looked at. Only deliberate
+   *    acts count: a press, a key, a wheel, a touch, a focus. That distinction
+   *    is the whole difference between "never fires" and "fires on schedule".
+   * 3. An interaction cancels the *current* pass instantly and re-arms the clock
+   *    from zero, rather than retiring the feature for the session. A visitor who
+   *    looks once and then leaves the tab open is exactly who the demo is for.
+   */
+  const ATTRACT_IDLE_MS = 8000;
+  const ATTRACT_STEP_MS = 3500;
+  let attractTimer = 0;
+  let attractStep = 0;
+  let attracting = false;
+
+  /** The demo's running order: products by priority, the way the panel ranks them. */
+  const attractOrder = content.products.map((product) => product.id);
+
+  /** Leave the demo without touching the idle clock — the callers own that. */
+  function stopAttract(): void {
+    window.clearTimeout(attractTimer);
+    attractTimer = 0;
+    if (!attracting) return;
+    attracting = false;
+    field.classList.remove('is-attracting');
+    clearSelection();
+  }
+
+  function attractTick(): void {
+    if (attractStep >= attractOrder.length) {
+      // End of a pass: drop the cursor and the panel, then wait out a full idle
+      // window before going round again.
+      stopAttract();
+      armAttract();
+      return;
+    }
+    const id = attractOrder[attractStep]!;
+    attractStep += 1;
+    // selectPiece drives the cursor, the panel and the blip — the demo uses the
+    // same path a visitor's pointer does, so there is no second code path to
+    // keep in sync.
+    selectPiece(id);
+    attractTimer = window.setTimeout(attractTick, ATTRACT_STEP_MS);
+  }
+
+  function startAttract(): void {
+    if (attracting || shuffling) return;
+    if (reducedMotion.matches) return; // §13.1: skipped, not merely shortened
+    if (document.hidden) {
+      // §13.1 pauses when the tab is hidden: re-arm rather than demo to nobody.
+      armAttract();
+      return;
+    }
+    attracting = true;
+    attractStep = 0;
+    field.classList.add('is-attracting');
+    attractTick();
+  }
+
+  function armAttract(): void {
+    window.clearTimeout(attractTimer);
+    if (reducedMotion.matches) return;
+    attractTimer = window.setTimeout(startAttract, ATTRACT_IDLE_MS);
+  }
+
+  /**
+   * A real interaction: cancel whatever pass is running and start the idle clock
+   * over. The visitor now owns the cursor; the machine waits its 8s again.
+   */
+  function interrupt(): void {
+    stopAttract();
+    armAttract();
+  }
+
+  for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focusin'] as const) {
+    window.addEventListener(type, interrupt, { passive: true });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAttract();
+    else armAttract();
+  });
+
+  /* --- the Konami downpour (DESIGN §13.6) --------------------------------- */
+
+  /**
+   * `↑↑↓↓←→←→BA`: a dozen ghost-styled tetrominoes rain through the field, pile
+   * on the bed for a beat, then clear away floor-first. Once per session, pure
+   * spectacle — the layer is `pointer-events: none` and sits under the product
+   * pieces, so a link is a link right through the storm.
+   *
+   * The sequence is matched against a rolling window rather than an index, so a
+   * stray key mid-code does not force the visitor to start over — `↑↑↑↓↓←→←→BA`
+   * still lands, which is what anyone typing this from memory actually does.
+   */
+  const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
+  const konamiWindow: string[] = [];
+  /**
+   * Once per *session*, like the mystery tile's drop — not once per page. A
+   * reload is not a new visit, and a spectacle you can re-summon with F5 is a
+   * button, not an easter egg.
+   */
+  const KONAMI_KEY = 'aix4u-konami';
+  let konamiSpent = Boolean(session(KONAMI_KEY));
+
+  /**
+   * Storm dimensions (v2.2.1). The first pass rained twelve dotted outlines and
+   * the device verdict was that it looked like the ambient background, not like
+   * a secret: a rare egg has to be worth finding. So: twice the pieces, falling
+   * faster and closer together, in solid product colours, with sparks at every
+   * impact and a tremble under the whole thing. ~4.5s end to end.
+   */
+  const RAIN_PIECES = 26;
+  const RAIN_STAGGER_MS = 110;
+  const RAIN_FALL_MS = 420;
+  const RAIN_HOLD_MS = 600;
+  const RAIN_CLEAR_ROW_MS = 45;
+  const RAIN_SPARK_MS = 320;
+
+  /**
+   * The storm's palette: the wall's own accent colours, in the theme's variant.
+   * Reusing the products' accents rather than inventing a rainbow is what makes
+   * the gag land — for a few seconds the machine is raining the things it sells.
+   */
+  function rainPalette(): string[] {
+    const dark = themeName() === 'dark';
+    return content.products.map((product) => (dark ? product.accentDark : product.accent));
+  }
+
+  async function konamiRain(): Promise<void> {
+    if (konamiSpent || reducedMotion.matches) return;
+    konamiSpent = true;
+    rememberSession(KONAMI_KEY, '1');
+
+    const bp = scene.breakpoint;
+    const palette = rainPalette();
+    const layer = document.createElement('div');
+    layer.className = 'rain-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    // A seeded generator, so `?seed=` reproduces the storm along with the scene.
+    const rng = createRandom((scene.seed ^ 0x5bf03635) >>> 0);
+    const tops = [...scene.stackTops];
+
+    const drops: { el: HTMLElement; row: number; x: number; at: number; fill: string }[] = [];
+    for (let i = 0; i < RAIN_PIECES; i++) {
+      const shape = GHOST_SHAPES[Math.floor(rng() * GHOST_SHAPES.length)]!;
+      const x = Math.floor(rng() * Math.max(1, bp.cols - shape.width + 1));
+      // `solid: false` — a storm piece is a bare tetromino with no skin across
+      // its box, so it may interlock tooth against tooth, and the heap grows as
+      // it fills. The product wall is the opposite case and gets the default.
+      const row = settleShape(shape, x, tops, bp.rows, false);
+      const fill = palette[Math.floor(rng() * palette.length)] ?? '#9dabbb';
+      const el = document.createElement('div');
+      el.className = 'rain-piece';
+      el.style.setProperty('--gx', String(x));
+      el.style.setProperty('--gy', String(row));
+      el.style.setProperty('--pw', String(shape.width));
+      el.style.setProperty('--ph', String(shape.height));
+      el.style.setProperty('--rain-fill', fill);
+      el.style.setProperty('--rain-dur', `${RAIN_FALL_MS}ms`);
+      el.style.setProperty('--rain-delay', `${i * RAIN_STAGGER_MS}ms`);
+      for (const [cx, cy] of shape.cells) {
+        const cell = document.createElement('span');
+        cell.className = 'cell';
+        cell.style.setProperty('--cx', String(cx));
+        cell.style.setProperty('--cy', String(cy));
+        el.append(cell);
+      }
+      layer.append(el);
+      drops.push({ el, row, x, at: i * RAIN_STAGGER_MS + RAIN_FALL_MS, fill });
+    }
+
+    field.append(layer);
+    field.classList.add('is-storming');
+
+    const stormMs = (RAIN_PIECES - 1) * RAIN_STAGGER_MS + RAIN_FALL_MS + RAIN_HOLD_MS;
+    sound.rain(stormMs);
+
+    // Each landing: a hail tap and a spray of pixel sparks at the impact point.
+    for (const drop of drops) {
+      window.setTimeout(() => {
+        sound.hail();
+        const spark = document.createElement('span');
+        spark.className = 'rain-spark';
+        spark.style.setProperty('--sx', String(drop.x + 0.5));
+        spark.style.setProperty('--sy', String(drop.row));
+        spark.style.setProperty('--rain-fill', drop.fill);
+        layer.append(spark);
+        window.setTimeout(() => spark.remove(), RAIN_SPARK_MS + 40);
+      }, drop.at);
+    }
+
+    await wait(stormMs);
+
+    // The finish: one white wash over the field while the pile clears floor-row
+    // first, plus the sweep's own sparkle. This is what the storm was building to.
+    const flash = document.createElement('span');
+    flash.className = 'rain-flash';
+    layer.append(flash);
+
+    const deepest = drops.reduce((max, drop) => Math.max(max, drop.row), 0);
+    for (const drop of drops) {
+      drop.el.style.setProperty('--clear-delay', `${(deepest - drop.row) * RAIN_CLEAR_ROW_MS}ms`);
+    }
+    layer.classList.add('is-clearing');
+    sound.sweep(deepest * RAIN_CLEAR_ROW_MS);
+    sound.sweepEnd();
+
+    // A last spray from every piece as its row goes, so the clear throws sparks
+    // the way the landings did rather than merely fading.
+    for (const drop of drops) {
+      window.setTimeout(
+        () => {
+          const spark = document.createElement('span');
+          spark.className = 'rain-spark';
+          spark.style.setProperty('--sx', String(drop.x + 0.5));
+          spark.style.setProperty('--sy', String(drop.row));
+          spark.style.setProperty('--rain-fill', drop.fill);
+          layer.append(spark);
+          window.setTimeout(() => spark.remove(), RAIN_SPARK_MS + 40);
+        },
+        (deepest - drop.row) * RAIN_CLEAR_ROW_MS,
+      );
+    }
+
+    await wait(deepest * RAIN_CLEAR_ROW_MS + 500);
+    field.classList.remove('is-storming');
+    layer.remove();
+  }
+
   document.addEventListener('keydown', (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
-    const target = event.target as HTMLElement | null;
+    const target = asElement(event.target);
+    if (target?.closest('input, textarea, [contenteditable]')) return;
+    konamiWindow.push(event.key.toLowerCase());
+    if (konamiWindow.length > KONAMI.length) konamiWindow.shift();
+    if (konamiWindow.length === KONAMI.length && konamiWindow.every((key, i) => key === KONAMI[i])) {
+      konamiWindow.length = 0;
+      void konamiRain();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = asElement(event.target);
     if (target?.closest('input, textarea, [contenteditable]')) return;
 
     if (event.key === 'Enter') {

@@ -248,12 +248,14 @@ button {
 
 .hud__logo:focus-visible,
 .theme-toggle:focus-visible,
+.sound-toggle:focus-visible,
 .panel__hint:focus-visible {
   outline: 1px solid var(--key);
   outline-offset: 2px;
 }
 
-.theme-toggle:focus-visible .icon {
+.theme-toggle:focus-visible .icon,
+.sound-toggle:focus-visible .icon {
   opacity: 1;
   transform: translateY(-1px);
 }
@@ -415,15 +417,17 @@ button {
 
 .hud__logo {
   flex: none;
+  /* Every child of the bar centres on one axis by flex, not by hand-tuned
+     offsets (v2.2): the wordmark is its own flex box whose single line box is
+     centred in it, so the glyph cap-height — not Silkscreen's slack below the
+     baseline — is what the eye reads as sitting on the bar's midline. The
+     earlier `translate: 0 0.09em` overcorrected and hung the logo low. */
+  display: flex;
+  align-items: center;
   color: #fdfbf4;
   font-size: clamp(1.1rem, 2.5vw, 1.85rem);
   letter-spacing: 0.08em;
   line-height: 1;
-  /* Optical centring (DESIGN §12.3 v2.1.4): Silkscreen keeps its slack below
-     the baseline and the outline's drop step hangs under the glyphs, so the
-     metric centre parks the wordmark high; a nudge of half that drop reads
-     centred on the bar. */
-  translate: 0 0.09em;
   text-decoration: none;
   /* A pixel wordmark is drawn, not typeset: the outline is eight offset copies
      of the glyph plus one drop step, exactly as the mockup does it. */
@@ -437,6 +441,15 @@ button {
     2px -2px 0 var(--logo-outline),
     -2px -2px 0 var(--logo-outline),
     0 4px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* The outline's drop step (`0 4px`) hangs below the glyphs and nothing else in
+   the bar carries one, so a box centred on its own content still *looks* one
+   step low. Reserving the drop as bottom padding puts the glyph block itself
+   back on the midline — geometry, not a guessed nudge. */
+.hud__logo > span {
+  display: block;
+  padding-bottom: 4px;
 }
 
 .hud__logo:hover {
@@ -529,10 +542,24 @@ button {
   white-space: nowrap;
 }
 
-.theme-toggle {
+/* The machine keys, as one group pinned to the right end (v2.2). Before this
+   they were two loose flex children after an `auto` margin, and on a narrow
+   bar the last one rode out past the chassis' rounded corner. Grouping them
+   means one flex child owns the right end, and the chassis' own inline padding
+   is the gap between the final icon and the capsule edge. */
+.hud__keys {
   display: flex;
   flex: none;
   align-items: center;
+  gap: clamp(0.1rem, 0.6vw, 0.5rem);
+}
+
+.theme-toggle,
+.sound-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.3rem 0.4rem;
   border: 0;
@@ -541,10 +568,27 @@ button {
   cursor: pointer;
 }
 
-.theme-toggle .icon {
+.theme-toggle .icon,
+.sound-toggle .icon {
   width: clamp(1rem, 1.7vw, 1.45rem);
   height: clamp(1rem, 1.7vw, 1.45rem);
   transition: opacity 130ms steps(2, end), transform 130ms steps(2, end);
+}
+
+/* The speaker's two states (DESIGN §13.4): waves lit when the sound is on, the
+   mute cross when it is not — one drawing, two truths, like the sun and moon. */
+.sound-toggle .icon {
+  opacity: 0.55;
+}
+
+.sound-toggle .spk-wave,
+.sound-toggle[aria-pressed='true'] .spk-mute {
+  opacity: 0;
+}
+
+.sound-toggle[aria-pressed='true'] .icon,
+.sound-toggle[aria-pressed='true'] .spk-wave {
+  opacity: 1;
 }
 
 /* The theme you are in is the lit lamp; the other sits dark until you reach. */
@@ -557,7 +601,8 @@ button {
   opacity: 1;
 }
 
-.theme-toggle:hover .icon {
+.theme-toggle:hover .icon,
+.sound-toggle:hover .icon {
   opacity: 1;
   transform: translateY(-1px);
 }
@@ -1594,6 +1639,10 @@ button {
   width: var(--arm);
   height: var(--arm);
   border: 0 solid var(--cursor-ink);
+  /* One hard pixel step of near-black behind the amber, so the bracket keeps its
+     edge over a bright skin as well as a dark one. No blur — a soft shadow on a
+     pixel bracket is the one thing that would make it read as a web widget. */
+  filter: drop-shadow(1px 1px 0 rgba(8, 9, 12, 0.85));
 }
 
 .cursor__corner:nth-child(1) {
@@ -1624,12 +1673,16 @@ button {
   border-right-width: var(--thick);
 }
 
-:root {
-  --cursor-ink: #22242a;
-}
-
+/* The selection brackets are a *signal*, not ink (v2.2.1, from a device shot):
+   they were the theme's foreground colour, which in light mode is near-black —
+   and a near-black bracket laid over a dark product skin is invisible, which is
+   the one thing a selection cursor may never be. They now wear `--key`, the
+   amber of the PRESS-R keycap: one colour in both themes, owned by nothing else
+   on the page, and legible against every skin in the wall. The drop shadow is
+   what keeps it legible over the few light skins too. */
+:root,
 :root[data-theme='dark'] {
-  --cursor-ink: #f3ecdb;
+  --cursor-ink: var(--key);
 }
 
 /* --- the mystery tile ---------------------------------------------------- */
@@ -1660,6 +1713,183 @@ button {
     trail-out 200ms linear 700ms both;
 }
 
+
+/* --- attract mode (DESIGN §13.1) ------------------------------------------ */
+
+/* The demo drives the ordinary cursor and the ordinary panel, so there is
+   almost nothing to style — except the one honest difference: this cursor was
+   not put there by a hand. It glides between pieces instead of teleporting, and
+   it pulses, so a visitor watching from across the room reads "the machine is
+   showing you something" rather than "someone is moving my mouse". */
+.playfield.is-attracting .cursor {
+  transition: left 320ms steps(6, end), top 320ms steps(6, end), width 320ms steps(6, end),
+    height 320ms steps(6, end);
+  animation: attract-pulse 1.1s steps(2, end) infinite;
+}
+
+@keyframes attract-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* --- konami downpour (DESIGN §13.6, escalated in v2.2.1) ------------------ */
+
+/* The first version rained the *background ghost's* dotted outlines, and the
+   device verdict was fair: "只飘了线框图形，不够震撼". A rare easter egg that
+   looks like the ambient scenery is not an easter egg. So the storm is now made
+   of the real thing — solid keycaps in the products' own accent colours, twice
+   as many, falling faster and closer together, throwing sparks where they land,
+   under a field that trembles for the whole downpour and one white flash at the
+   end.
+
+   What does *not* change: the layer takes no pointer events and sits under the
+   product pieces (z2 — above the bed filler, behind the wall), so a link is a
+   link right through the storm. */
+.rain-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.rain-piece {
+  position: absolute;
+  left: calc(var(--gx) * var(--cell));
+  top: calc(var(--gy) * var(--cell));
+  width: calc(var(--pw) * var(--cell));
+  height: calc(var(--ph) * var(--cell));
+  --fall-from: calc(-1 * (var(--gy) * var(--cell) + 5 * var(--cell)));
+  animation: piece-fall var(--rain-dur, 420ms) var(--gravity) var(--rain-delay, 0ms) both;
+}
+
+/* A storm cell is a real keycap — the page's own candy recipe (radius, bevel,
+   sheen, scanline), wearing `--rain-fill` from the accent pool instead of a
+   piece's own colour. Deliberately the *same* material as the wall: the joke is
+   that the machine has started raining product. */
+.rain-piece .cell {
+  --bev-hi: var(--bevel-light);
+  --bev-lo: var(--bevel-dark);
+
+  background-color: var(--rain-fill, var(--tile-fill));
+  background-image:
+    repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px),
+    linear-gradient(to bottom, var(--cell-sheen-top) 0%, transparent 38%, transparent 70%, var(--cell-sheen-bottom) 100%);
+  border-radius: var(--cell-radius);
+  box-shadow:
+    inset 0 0 0 var(--seam-w) var(--seam),
+    inset 0 var(--bevel-hi-w) 0 calc(-1 * var(--seam-w)) var(--bev-hi),
+    inset 0 calc(-1 * var(--bevel-lo-w)) 0 calc(-1 * var(--seam-w)) var(--bev-lo);
+}
+
+/* Impact sparks: four pixel motes thrown out of the landing point, on the same
+   two-frame beat as everything else. Drawn as one element's box-shadows so a
+   dozen impacts cost a dozen nodes rather than fifty. */
+.rain-spark {
+  position: absolute;
+  left: calc(var(--sx) * var(--cell));
+  top: calc(var(--sy) * var(--cell));
+  width: max(2px, calc(var(--cell) * 0.08));
+  height: max(2px, calc(var(--cell) * 0.08));
+  background: var(--rain-fill, var(--flash));
+  animation: rain-spark 320ms steps(4, end) forwards;
+}
+
+@keyframes rain-spark {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 0 var(--rain-fill, var(--flash)),
+      0 0 0 0 var(--rain-fill, var(--flash)),
+      0 0 0 0 var(--rain-fill, var(--flash)),
+      0 0 0 0 var(--rain-fill, var(--flash));
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    /* Four motes flung to the corners — a real spray, not a puff. */
+    box-shadow:
+      calc(var(--cell) * -0.42) calc(var(--cell) * -0.3) 0 0 var(--rain-fill, var(--flash)),
+      calc(var(--cell) * 0.42) calc(var(--cell) * -0.3) 0 0 var(--rain-fill, var(--flash)),
+      calc(var(--cell) * -0.28) calc(var(--cell) * 0.22) 0 0 var(--rain-fill, var(--flash)),
+      calc(var(--cell) * 0.28) calc(var(--cell) * 0.22) 0 0 var(--rain-fill, var(--flash));
+    transform: translate3d(0, calc(var(--cell) * -0.12), 0);
+  }
+}
+
+/* The field trembles for the whole downpour — a low, continuous rumble rather
+   than the single 190ms jolt a hard drop gets. Sub-pixel amplitude on purpose:
+   it should be felt more than seen, and a page that visibly jumps for five
+   seconds is a bug report, not a spectacle. */
+.js .playfield.is-ready.is-storming {
+  animation: storm-tremble 130ms steps(3, end) infinite;
+}
+
+@keyframes storm-tremble {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  33% {
+    transform: translate3d(1px, 1px, 0);
+  }
+  66% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* The finish: one white wash over the whole field, then out. This is the
+   line-clear flash the storm has been earning. */
+.rain-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--flash);
+  opacity: 0;
+  pointer-events: none;
+  animation: rain-flash 420ms steps(3, end) forwards;
+}
+
+@keyframes rain-flash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The clear: pieces dissolve floor-row first on the sweep's two-frame beat —
+   the engine writes each piece's `--clear-delay` from its resting row. */
+.rain-layer.is-clearing .rain-piece {
+  animation: rain-clear 260ms steps(3, end) var(--clear-delay, 0ms) forwards;
+}
+
+@keyframes rain-clear {
+  0% {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+  40% {
+    opacity: 1;
+    /* One frame of swelling before it goes — the row lighting up as it clears. */
+    transform: scale3d(1.06, 1.06, 1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale3d(0.9, 0.6, 1);
+  }
+}
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
 
@@ -1968,9 +2198,16 @@ button {
 
 /* Mobile HUD condenses to `AIX4U · 05 · NEXT ?` (DESIGN §6). */
 @media (max-width: 699px) {
+  /* The narrow bar is a width budget, and v2.2's device shot showed it blown:
+     the chassis' content measured wider than its box, so the last flex child —
+     the theme key — was pushed past the capsule's rounded corner. Three
+     shavings pay for it (tighter gap, tighter wells, no dividers above), and
+     `overflow: hidden` on the chassis is the backstop: whatever a future font
+     or a longer teaser does, nothing renders outside the moulding again. */
   .hud__chassis {
-    gap: 0.6rem;
-    padding-inline: 0.6rem;
+    gap: 0.35rem;
+    padding-inline: 0.45rem;
+    overflow: hidden;
   }
 
   .hud__divider {
@@ -1983,7 +2220,25 @@ button {
 
   .hud__counter,
   .hud__next {
-    padding-inline: 0.5rem;
+    padding-inline: 0.4rem;
+  }
+
+  .theme-toggle,
+  .sound-toggle {
+    padding-inline: 0.15rem;
+  }
+
+  /* Two more shavings, measured rather than guessed: at 360px the four sections
+     plus their gaps came to 264px inside a 252px content box. The wordmark is
+     the largest single item and the counter's internal gap the most redundant,
+     so those two pay the 12px — the logo stays the loudest thing on the bar,
+     and every key stays inside the moulding. */
+  .hud__logo {
+    font-size: clamp(0.95rem, 4.4vw, 1.85rem);
+  }
+
+  .hud__counter {
+    gap: 0.45em;
   }
 
   .hud__next {
@@ -2423,8 +2678,17 @@ button {
   animation-timing-function: steps(2, end);
 }
 
+/* `backwards` is the whole fix (v2.2.1): the ghost carries a per-cycle
+   `--ghost-delay` of up to six seconds, and with the default `fill: none` it
+   spent that delay sitting at its untransformed `top: 0` — parked *inside* the
+   field at the very top edge, in full view, and then snapping up to −3 cells the
+   instant the animation began. Which is exactly the reported symptom: a piece
+   that appears out of nowhere partway down instead of drifting in from above.
+   `backwards` applies the `from` frame during the delay, so it waits off-screen
+   where it belongs. The keyframe starts at −3 cells and the shapes are two rows
+   tall, so it enters a full row clear of the top edge. */
 .js .playfield.is-idle .ghost {
-  animation: ghost-fall var(--ghost-duration, 20s) linear var(--ghost-delay, 0s) infinite;
+  animation: ghost-fall var(--ghost-duration, 20s) linear var(--ghost-delay, 0s) infinite backwards;
 }
 
 /* The hard drop is real physics now (DESIGN §6.3 v2.1): the engine measures each
@@ -2566,8 +2830,16 @@ button {
   .piece--link::after,
   .eye__track,
   .panel__hint,
-  .theme-toggle .icon {
+  .theme-toggle .icon,
+  .sound-toggle .icon {
     transition: none !important;
+  }
+
+  /* The storm is skipped entirely under reduced motion (the engine returns
+     early), but the tremble is a field-wide transform and gets an explicit stop
+     in case anything else ever reaches for the class. */
+  .js .playfield.is-ready.is-storming {
+    animation: none !important;
   }
 
   /* The face stays open and still — the one anthropomorphism that must not move

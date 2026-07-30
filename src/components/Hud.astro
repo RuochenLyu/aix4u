@@ -5,7 +5,7 @@
  * Near-black in both themes — it is the machine's chassis, not part of the
  * screen, so it does not invert with the theme. Inside: an outlined pixel
  * wordmark, dotted dividers between inset sections, a lime seven-segment
- * counter, the NEXT crate, and the sun/moon toggle.
+ * counter, the NEXT crate, and the two machine keys (speaker, sun/moon).
  */
 import { content } from '../lib/content';
 
@@ -52,62 +52,93 @@ const teaser = content.next.teaser.trim();
 
     <span class="hud__divider" aria-hidden="true"></span>
 
-    <button
-      type="button"
-      class="theme-toggle"
-      id="theme-toggle"
-      aria-pressed="false"
-      aria-label="Switch to dark mode"
-    >
-      <svg class="icon icon-sun" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-        <g fill="#f2911e">
-          <rect x="7" y="0" width="2" height="3"></rect>
-          <rect x="7" y="13" width="2" height="3"></rect>
-          <rect x="0" y="7" width="3" height="2"></rect>
-          <rect x="13" y="7" width="3" height="2"></rect>
-          <rect x="2" y="2" width="2" height="2"></rect>
-          <rect x="12" y="2" width="2" height="2"></rect>
-          <rect x="2" y="12" width="2" height="2"></rect>
-          <rect x="12" y="12" width="2" height="2"></rect>
-        </g>
-        <g fill="#ffc93c">
-          <rect x="6" y="4" width="4" height="1"></rect>
-          <rect x="5" y="5" width="6" height="1"></rect>
-          <rect x="4" y="6" width="8" height="4"></rect>
-          <rect x="5" y="10" width="6" height="1"></rect>
-          <rect x="6" y="11" width="4" height="1"></rect>
-        </g>
-        <g fill="#fff3b0">
-          <rect x="6" y="6" width="2" height="1"></rect>
-          <rect x="5" y="7" width="2" height="1"></rect>
-        </g>
-      </svg>
+    {/* The two machine keys ride as one group on the right end of the bar, so
+        the bezel's inline padding is the only thing between the last icon and
+        the capsule's rounded edge — a button that overhangs the chassis reads
+        as a bug in the moulding. */}
+    <div class="hud__keys">
+      {/* The speaker (DESIGN §13.4, revised): sound is default-ON, and the
+          choice persists. Rendered pressed so the icon never flashes the wrong
+          state before the engine reads localStorage; the first user gesture is
+          what actually wakes the AudioContext. */}
+      <button type="button" class="sound-toggle" id="sound-toggle" aria-pressed="true" aria-label="Turn sound off">
+        <svg class="icon icon-speaker" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+          <g fill="#e9e3d3">
+            <rect x="2" y="6" width="3" height="4"></rect>
+            <rect x="5" y="5" width="2" height="6"></rect>
+            <rect x="7" y="3" width="2" height="10"></rect>
+          </g>
+          <g class="spk-wave" fill="#ffc93c">
+            <rect x="11" y="6" width="1" height="4"></rect>
+            <rect x="13" y="4" width="1" height="8"></rect>
+          </g>
+          <g class="spk-mute" fill="#a9a292">
+            <rect x="11" y="6" width="1" height="1"></rect>
+            <rect x="12" y="7" width="1" height="1"></rect>
+            <rect x="13" y="8" width="1" height="1"></rect>
+            <rect x="13" y="6" width="1" height="1"></rect>
+            <rect x="11" y="8" width="1" height="1"></rect>
+          </g>
+        </svg>
+      </button>
 
-      {/* A waxing crescent, not a "C" (DESIGN §12.3 v2.1.4): a full disc with a
-          clear bite taken out of its upper right, horns pointing up and right,
-          and one 1px star parked in the concavity. Placeholder until the final
-          asset batch — swap the rects, keep the classes. */}
-      <svg class="icon icon-moon" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-        <g fill="#7fb2ff">
-          <rect x="6" y="2" width="1" height="1"></rect>
-          <rect x="4" y="3" width="3" height="1"></rect>
-          <rect x="3" y="4" width="3" height="1"></rect>
-          <rect x="3" y="5" width="3" height="1"></rect>
-          <rect x="2" y="6" width="4" height="1"></rect>
-          <rect x="2" y="7" width="5" height="1"></rect>
-          <rect x="2" y="8" width="5" height="1"></rect>
-          <rect x="2" y="9" width="6" height="1"></rect>
-          <rect x="3" y="10" width="10" height="1"></rect>
-          <rect x="3" y="11" width="10" height="1"></rect>
-          <rect x="4" y="12" width="8" height="1"></rect>
-          <rect x="6" y="13" width="4" height="1"></rect>
-        </g>
-        <g fill="#cfe2ff">
-          <rect x="4" y="4" width="1" height="1"></rect>
-          <rect x="3" y="6" width="1" height="1"></rect>
-          <rect x="12" y="4" width="1" height="1"></rect>
-        </g>
-      </svg>
-    </button>
+      <button
+        type="button"
+        class="theme-toggle"
+        id="theme-toggle"
+        aria-pressed="false"
+        aria-label="Switch to dark mode"
+      >
+        <svg class="icon icon-sun" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+          <g fill="#f2911e">
+            <rect x="7" y="0" width="2" height="3"></rect>
+            <rect x="7" y="13" width="2" height="3"></rect>
+            <rect x="0" y="7" width="3" height="2"></rect>
+            <rect x="13" y="7" width="3" height="2"></rect>
+            <rect x="2" y="2" width="2" height="2"></rect>
+            <rect x="12" y="2" width="2" height="2"></rect>
+            <rect x="2" y="12" width="2" height="2"></rect>
+            <rect x="12" y="12" width="2" height="2"></rect>
+          </g>
+          <g fill="#ffc93c">
+            <rect x="6" y="4" width="4" height="1"></rect>
+            <rect x="5" y="5" width="6" height="1"></rect>
+            <rect x="4" y="6" width="8" height="4"></rect>
+            <rect x="5" y="10" width="6" height="1"></rect>
+            <rect x="6" y="11" width="4" height="1"></rect>
+          </g>
+          <g fill="#fff3b0">
+            <rect x="6" y="6" width="2" height="1"></rect>
+            <rect x="5" y="7" width="2" height="1"></rect>
+          </g>
+        </svg>
+
+        {/* A waxing crescent, not a "C" (DESIGN §12.3 v2.1.4): a full disc with a
+            clear bite taken out of its upper right, horns pointing up and right,
+            and one 1px star parked in the concavity. Placeholder until the final
+            asset batch — swap the rects, keep the classes. */}
+        <svg class="icon icon-moon" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+          <g fill="#7fb2ff">
+            <rect x="6" y="2" width="1" height="1"></rect>
+            <rect x="4" y="3" width="3" height="1"></rect>
+            <rect x="3" y="4" width="3" height="1"></rect>
+            <rect x="3" y="5" width="3" height="1"></rect>
+            <rect x="2" y="6" width="4" height="1"></rect>
+            <rect x="2" y="7" width="5" height="1"></rect>
+            <rect x="2" y="8" width="5" height="1"></rect>
+            <rect x="2" y="9" width="6" height="1"></rect>
+            <rect x="3" y="10" width="10" height="1"></rect>
+            <rect x="3" y="11" width="10" height="1"></rect>
+            <rect x="4" y="12" width="8" height="1"></rect>
+            <rect x="6" y="13" width="4" height="1"></rect>
+          </g>
+          <g fill="#cfe2ff">
+            <rect x="4" y="4" width="1" height="1"></rect>
+            <rect x="3" y="6" width="1" height="1"></rect>
+            <rect x="12" y="4" width="1" height="1"></rect>
+          </g>
+        </svg>
+      </button>
+    </div>
   </div>
 </header>
