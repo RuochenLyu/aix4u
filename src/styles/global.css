@@ -520,16 +520,58 @@ a {
   height: calc(var(--rows) * var(--cell));
 }
 
-/* Narrow: every product floats in its own band (DESIGN §7), so the field is as
-   tall as that column needs and the page scrolls. Binding the cell to the
-   viewport height instead would shrink the whole scene to a thumbnail. */
+/* Narrow: one screen, no scroll (DESIGN §7 v2.1.3).
+ *
+ * The phone used to be the one page on this site you had to scroll — an
+ * eighteen-row field with the bezels hanging off either end of it. A handheld
+ * console has exactly one screen, so the whole machine now lives inside
+ * `100svh` and the document cannot move at all.
+ *
+ * `svh` rather than `dvh` on purpose: `dvh` grows when iOS retracts the address
+ * bar, which would mean the layout is correct only in the state the visitor is
+ * not in yet, and jumps into it mid-scroll. The *small* viewport height is the
+ * one that is always available, so the machine is composed for it and the extra
+ * strip, when it appears, is just more sky.
+ *
+ * The cell then takes the smaller of the width budget and the height budget with
+ * a 34px floor — which on every phone in the table is the width that binds, so
+ * the height budget is headroom rather than a squeeze. `check:scene` asserts the
+ * row count against the same numbers from the other side.
+ *
+ * Order of sacrifice: the gaps go first. The bezels keep their fixed heights
+ * (a status bar that reflows is the thing v2.1.2 went to some trouble to kill),
+ * the field keeps its cell, and what shrinks is the air between them. */
 @media (max-width: 699px) {
-  .shell {
-    --cell: clamp(16px, var(--cell-fit-w), 72px);
+  html,
+  body {
+    height: 100svh;
+    overflow: hidden;
   }
 
+  .shell {
+    --chassis-pad: 0.4rem;
+    --hud-height: 3rem;
+    --panel-height: 3.05rem;
+    /* Declared here rather than inherited from :root, because a custom property
+       that contains var() resolves against the element that *declares* it — the
+       two heights above would otherwise be read at their desktop values. */
+    --field-height-budget: calc(100svh - var(--hud-height) - var(--panel-height) - 1.6rem);
+    --cell: clamp(34px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
+
+    height: 100svh;
+    min-height: 0;
+  }
+
+  .hud {
+    padding-top: 0.35rem;
+  }
+
+  /* The field sits on the bezel and the leftover height becomes sky above it.
+     Centred, a short field leaves the bed floating in the middle of the screen
+     with a gap under it — and a Tetris floor with air beneath it is not a floor. */
   .stage {
-    align-items: start;
+    align-items: end;
+    padding-block: 0.25rem;
   }
 }
 
@@ -1791,21 +1833,15 @@ a {
   --panel-chip-ink: #c3bdac;
 }
 
-/* On a phone the field is taller than the screen, so the panel rides the bottom
-   of the viewport: the line describing the piece you just tapped has to be
-   readable without scrolling away from the piece (DESIGN §7). This has to sit
-   *after* the base rule above, or `position: relative` wins on source order. */
+/* On a phone the bezel is the bottom edge of the machine, and the machine is the
+   screen (DESIGN §7 v2.1.3). Nothing scrolls any more, so the sticky positioning
+   this rule used to carry is gone with the scrolling it existed for; what is left
+   is the height, which `.shell` sets so the field budget can be computed from it.
+   Still two rows, still one height — a phone is where a reflowing status bar
+   would be most felt, not least (DESIGN §4.4 v2.1.2). */
 @media (max-width: 699px) {
   .panel {
-    position: sticky;
-    bottom: 0;
-    padding-bottom: 0.4rem;
-  }
-
-  /* Still two rows, still one height — a phone is where a reflowing status bar
-     would be most felt, not least (DESIGN §4.4 v2.1.2). */
-  .panel {
-    --panel-height: 3.05rem;
+    padding-bottom: 0.35rem;
   }
 
   .panel__screen {

@@ -39,6 +39,24 @@ const MIN_AIR = 0.4;
 const EYE_SCALE_MIN = 0.8;
 const EYE_SCALE_MAX = 1.25;
 
+/**
+ * The one-screen budget (DESIGN §7 v2.1.3). A phone shows the whole machine —
+ * HUD, field, bezel — inside `100svh` and never scrolls, so the field's row
+ * count is not a free parameter: it is whatever survives after the two bezels
+ * are paid for, at the smallest cell the design allows.
+ *
+ * The numbers are the stylesheet's, read off the narrow media query:
+ *   3rem   HUD chassis        + 0.35rem of padding above it
+ *   3.05rem bottom bezel      + 0.35rem of padding below it
+ *   0.25rem of stage padding, twice
+ * which is 7.25rem ≈ 116px at the root font size, rounded up to 130 so a font
+ * scale or a fatter bezel does not silently eat the last row.
+ */
+const NARROW_VIEWPORT_H = 667; // iPhone SE — the shortest phone this has to hold
+const NARROW_CHROME_H = 130;
+const NARROW_MIN_CELL = 34;
+const NARROW_MAX_ROWS = Math.floor((NARROW_VIEWPORT_H - NARROW_CHROME_H) / NARROW_MIN_CELL);
+
 function overlaps(a: Rect, b: Rect): boolean {
   return (
     a.x < b.x + b.w - EPSILON &&
@@ -128,6 +146,20 @@ function problems(scene: Scene): string[] {
   }
   const bumps = bedTops.filter((h) => h > 2).length;
   if (bumps > 2) found.push(`${bumps} columns of bed rise above two rows — that is a pile, not a bed`);
+
+  // A phone screen is the budget (DESIGN §7 v2.1.3). Two assertions carry it:
+  // the field must fit the shortest phone at the smallest cell the design allows,
+  // and the bed must stay one or two rows, since every extra grey row is a row
+  // the sky does not get.
+  if (bp.floatAll) {
+    if (bp.rows > NARROW_MAX_ROWS) {
+      found.push(
+        `the phone field is ${bp.rows} rows; ${NARROW_MAX_ROWS} is all that fits ${NARROW_VIEWPORT_H}px at a ${NARROW_MIN_CELL}px cell`,
+      );
+    }
+    const deepBed = bedTops.filter((h) => h > 2).length;
+    if (deepBed > 0) found.push(`${deepBed} columns of phone bed are three rows deep; the phone bed is one or two`);
+  }
 
   // Holes, both kinds: the dashed slots the engine draws and the plain voids it
   // leaves by not emitting a block. Every one of them has to be covered from

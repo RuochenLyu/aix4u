@@ -58,9 +58,15 @@ export interface Breakpoint {
 export const BREAKPOINTS: Breakpoint[] = [
   { name: 'wide', minWidth: 980, cols: 16, rows: 12, lanes: 4, stackRows: 3, stackRatio: 0.85, floatAll: false },
   { name: 'medium', minWidth: 700, cols: 12, rows: 12, lanes: 3, stackRows: 3, stackRatio: 0.85, floatAll: false },
-  // `lanes` is unused here: every product floats, and `rows` is only the floor —
-  // the field grows to whatever the column of pieces needs.
-  { name: 'narrow', minWidth: 0, cols: 9, rows: 13, lanes: 0, stackRows: 3, stackRatio: 0.85, floatAll: true },
+  // `lanes` is unused here: every product floats, and `rows` is only a floor —
+  // the field grows to whatever the two columns of pieces need. v2.1.3 dropped
+  // that floor from 13 to 8: the whole machine has to fit one screen now
+  // (DESIGN §7), so rows are a budget, and a floor nothing reaches is a budget
+  // spent on nothing. `check:scene` asserts the ceiling.
+  // Eight columns rather than nine: with the field now bound by the phone's
+  // *width*, a column is pure cell size, and a 45px cell fills the screen — and
+  // draws a face — where a 40px one left a band of empty sky under the HUD.
+  { name: 'narrow', minWidth: 0, cols: 8, rows: 8, lanes: 0, stackRows: 3, stackRatio: 0.85, floatAll: true },
 ];
 
 export function breakpointFor(viewportWidth: number): Breakpoint {
@@ -178,8 +184,15 @@ const round = (v: number, places = 2): number => {
 
 /** Clearance kept between a floating piece and whatever is under it, in cells. */
 const SKY_CLEARANCE = 0.6;
-/** Vertical breathing room between two stacked bands on a narrow screen. */
-const BAND_GAP = 0.75;
+/**
+ * How far down the field each successive phone piece starts (DESIGN §7 v2.1.3).
+ * Pieces alternate between the two edges, so consecutive ones interleave and the
+ * *same-side* pair — two steps apart — is what has to clear: at 1.5 a pair of
+ * two-row pieces keeps a one-row gap, which is the rhythm the design asks for.
+ */
+const COLUMN_STEP = 1.5;
+/** Air two phone pieces must keep between them when they do share columns. */
+const BAND_GAP = 0.4;
 
 function shapeOf(item: SceneItem): ShapeName {
   return item.type === 'product' ? item.shape : 'DOT';
@@ -347,8 +360,11 @@ function layoutStack(
     }
   }
 
-  // …and at most one bump, one or two columns wide, somewhere inside the bed.
-  if (stackWidth >= 6 && rng() < 0.6) {
+  // …and at most one bump, one or two columns wide, somewhere inside the bed —
+  // except on a phone, where the whole machine is fighting for a single screen
+  // and a third row of grey is the first thing that should lose (DESIGN §7
+  // v2.1.3: the bed compresses to one or two rows).
+  if (stackWidth >= 6 && !bp.floatAll && rng() < 0.6) {
     const spots: number[] = [];
     for (let x = stackStart + 1; x < stackEnd - 1; x++) if (!claimed[x] && heights[x]! > 0) spots.push(x);
     if (spots.length > 0) {
@@ -523,11 +539,20 @@ function layoutSky(
 }
 
 /**
- * Narrow screens: every product floats (DESIGN §7). The pieces run down the
- * field as one column, alternating between the left and right edge — with the
- * name now riding on the piece, a band only has to hold the piece itself, so
- * the phone layout is just a rhythm, not a packing problem. Returns the bottom
- * of the last piece.
+ * Narrow screens: every product floats (DESIGN §7). Until v2.1.3 they ran down
+ * the field as one column, one band each — which cost eighteen rows and made the
+ * phone the only page on the site you had to scroll.
+ *
+ * Now they interleave in **two tight columns**: each piece pinned to the left or
+ * the right edge, alternating, stepping down by `COLUMN_STEP` rather than by its
+ * own height. Neighbours overlap vertically and miss each other horizontally,
+ * which is what buys the height back and, incidentally, is what a real board
+ * looks like — pieces do not queue up in a line.
+ *
+ * The step is a rhythm, not a guarantee, so each piece is nudged down until it
+ * clears everything already placed: five products of four different widths in
+ * nine columns is exactly the case where a rhythm alone eventually collides.
+ * Returns the bottom of the lowest piece.
  */
 function layoutColumn(
   rng: Rng,
@@ -536,20 +561,35 @@ function layoutColumn(
   pieces: PiecePlacement[],
 ): number {
   let left = rng() < 0.5;
-  let y = 0.4;
+  let y = 0.3;
+  let bottom = 0;
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
 
   for (const item of floating) {
     const shape = SHAPES[shapeOf(item)];
-    const slack = Math.max(0, bp.cols - shape.width);
-    const inset = Math.min(int(rng, 0, 1), slack);
-    const x = left ? inset : slack - inset;
+    const x = left ? 0 : Math.max(0, bp.cols - shape.width);
+
+    // Clearance is measured in both axes: two pieces on opposite edges may share
+    // rows freely, two on the same edge may not.
+    let top = y;
+    while (
+      placed.some(
+        (r) =>
+          x < r.x + r.w &&
+          r.x < x + shape.width &&
+          top < r.y + r.h + BAND_GAP &&
+          r.y < top + shape.height + BAND_GAP,
+      )
+    ) {
+      top += 0.1;
+    }
 
     pieces.push({
       id: item.id,
       pool: 'floating',
       shape: shapeOf(item),
       x,
-      y: round(y, 1),
+      y: round(top, 1),
       order: 0,
       bobPeriod: round(5.6 + rng() * 2.8, 1),
       bobDelay: round(rng() * 4, 1),
@@ -557,9 +597,11 @@ function layoutColumn(
       blinkDelay: 0,
     });
 
-    y += shape.height + BAND_GAP + rng() * 0.4;
+    placed.push({ x, y: top, w: shape.width, h: shape.height });
+    bottom = Math.max(bottom, top + shape.height);
+    y = top + COLUMN_STEP + rng() * 0.3;
     left = !left;
   }
 
-  return y;
+  return bottom;
 }

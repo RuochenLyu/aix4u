@@ -88,7 +88,7 @@ Shared behaviors (all presets): pupils track the pointer in pixel steps; seeded 
 - **Lids**: thick 2–3px strokes with rounded pixel ends. Half-lid = straight lid over the top ~40% of the sclera; squint = lid closed to a curved 2px seam; sleep/blink = downward bow. One stroke weight across all presets.
 - **Mouth (mascot only)**: a small capsule/ring with its own 1px dark outline and a 1px under-light — a rubbery sticker, same as the reference's colored mouths.
 
-Same anatomy in both themes (dark mode may tint sclera slightly warm and glow the lids, but the outline ring stays). Five faces, one anatomy, five expressions — the variety must come from lids/count/placement, never from differing construction quality.
+Same anatomy in both themes (dark mode may tint sclera slightly warm and glow the lids, but the outline ring stays). Implementation note from the build: the *lit* lid is the shut-eye/squint stroke, which is drawn on the artwork; the half-lid sits on the sclera and stays dark in both themes, or a pale lid over a pale white is two washes on top of each other. The shut stroke carries a 1px light backing in the light theme for the same reason the sclera has a ring — the collector's closed eyes were invisible on its own night meadow. Five faces, one anatomy, five expressions — the variety must come from lids/count/placement, never from differing construction quality.
 
 ### 3.4 Motion personality
 All pieces share one parameterized animation system (same keyframes, per-piece CSS variables), but each gets a distinct parameter set derived from its shape mechanics:
@@ -155,7 +155,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 ## 7. Layout & responsiveness
 - Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.
 - No label-collision engine anymore (labels are gone). Floating pieces occupy seeded lanes with staggered heights; sky spans the upper ~2/3 above the real stack height.
-- Narrow **(v2.1.3: one screen, no scroll)**: all-float (§4.1), and the whole machine — HUD, field, bezel — fits `100svh`; the page never scrolls. Cell size is the smaller of the width-bound and the height-bound (floor ~34px); pieces stagger in two tight columns with ~1-row gaps; the bed compresses to 1–2 rows. Vertical breathing room shrinks before anything scrolls — a handheld console has exactly one screen.
+- Narrow **(v2.1.3: one screen, no scroll)**: all-float (§4.1), and the whole machine — HUD, field, bezel — fits `100svh`; the page never scrolls. Cell size is the smaller of the width-bound and the height-bound (floor ~34px); pieces stagger in two tight columns with ~1-row gaps; the bed compresses to 1–2 rows (no three-row bump). Vertical breathing room shrinks before anything scrolls — a handheld console has exactly one screen. The narrow grid is **8 columns**, down from 9: once the field is width-bound, a column is nothing but cell size, and 8 buys a ~45px cell on a 375px phone where 9 left a band of dead sky under the HUD. The field is bottom-anchored in the stage, so whatever height is left over becomes sky rather than a gap under the floor. `svh`, not `dvh`: `dvh` grows when iOS retracts the address bar, which composes the layout for a state the visitor is not in yet. `check:scene` asserts the row count against the same budget from the other side (shortest phone, smallest cell).
 
 ## 8. Content (authoritative copy)
 
