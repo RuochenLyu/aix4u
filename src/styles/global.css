@@ -94,10 +94,11 @@
   --ambient-cell: 48px;
   --ambient-x: 0px;
   --ambient-y: 0px;
-  /* The field shares the viewport with the bezel, the info panel and the hint,
-     so the budget is a height minus that chrome, not a bare vh. */
-  --field-height-budget: calc(72vh - 3.4rem);
+  /* The field shares the viewport with the two bezels, so the budget is the
+     height that is left over once they and their gaps are paid for — not a bare
+     vh, which would leave the scene either cropped or floating. */
   --hud-height: 3.4rem;
+  --field-height-budget: calc(100dvh - var(--hud-height) - var(--panel-height) - 7rem);
 }
 
 :root[data-theme='dark'] {
@@ -225,7 +226,35 @@ a {
 
 /* --- shell --------------------------------------------------------------- */
 
+/* One chassis, three sections (DESIGN §2 v2.1). The cell size — and with it the
+   width of the machine — is resolved here, on the common ancestor of the HUD, the
+   field and the bottom bezel, because all three are sized from it. Three
+   independently computed widths read as three unrelated widgets, which is exactly
+   what the real device did not look like.
+
+   `--cols`/`--rows` come from the scene (inline style at build time, rewritten by
+   the engine on every breakpoint change), so the chassis narrows with the grid
+   the way a handheld's screen does — never as a separate decision.
+
+   The cell-derived geometry has to be declared here too: a custom property's
+   var() references are substituted on the element that declares it, so putting
+   these on :root would resolve `--cell` to nothing. */
 .shell {
+  --chassis-pad: clamp(0.5rem, 2.4vw, 1.75rem);
+  --chassis-max: 1160px;
+  --chassis-avail: min(100vw - 2 * var(--chassis-pad), var(--chassis-max));
+  --cell-fit-w: calc(var(--chassis-avail) / var(--cols));
+  --cell-fit-h: calc(var(--field-height-budget) / var(--rows));
+  --cell: clamp(16px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
+  --chassis-w: calc(var(--cols) * var(--cell));
+
+  /* Cell geometry, tied to the cell size so a 20px block is not all outline. */
+  --cell-radius: clamp(2px, calc(var(--cell) * 0.055), 4px);
+  --seam-w: clamp(2px, calc(var(--cell) * 0.065), 5px);
+  --bevel-w: clamp(2px, calc(var(--cell) * 0.1), 7px);
+  /* The extruded bottom edge: the piece's own thickness (DESIGN §2 v2.1). */
+  --extrude-w: clamp(3px, calc(var(--cell) * 0.085), 6px);
+
   position: relative;
   z-index: 1;
   display: flex;
@@ -241,10 +270,13 @@ a {
      slides in behind the bezel rather than across it. `.shell` is its own
      stacking context, so this never climbs over the CRT overlay. */
   z-index: 8;
-  padding: clamp(0.5rem, 1.4vw, 1rem) clamp(0.5rem, 2.4vw, 1.75rem) 0;
+  padding: clamp(0.5rem, 1.4vw, 1rem) var(--chassis-pad) 0;
 }
 
 .hud__chassis {
+  /* Exactly as wide as the screen below it. */
+  width: var(--chassis-w);
+  margin-inline: auto;
   display: flex;
   align-items: center;
   gap: clamp(0.5rem, 1.5vw, 1.25rem);
@@ -423,40 +455,26 @@ a {
   display: grid;
   flex: 1;
   place-items: center;
-  padding: clamp(0.5rem, 2vh, 1.5rem) 1rem;
+  padding: clamp(0.5rem, 2vh, 1.5rem) var(--chassis-pad);
 }
 
 .playfield {
-  --cell-fit-w: calc(min(100vw - 2rem, 1160px) / var(--cols));
-  --cell-fit-h: calc(var(--field-height-budget) / var(--rows));
-  --cell: clamp(16px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
-
-  /* Cell geometry, tied to the cell size so a 20px block is not all outline.
-     These have to live here, next to `--cell`: a custom property's var()
-     references are substituted on the element that declares it, so declaring
-     them on :root would resolve `--cell` to nothing and freeze the seam at one
-     width for every viewport. */
-  --cell-radius: clamp(2px, calc(var(--cell) * 0.055), 4px);
-  --seam-w: clamp(2px, calc(var(--cell) * 0.065), 5px);
-  --bevel-w: clamp(2px, calc(var(--cell) * 0.1), 7px);
-
   position: relative;
-  width: calc(var(--cols) * var(--cell));
+  width: var(--chassis-w);
   height: calc(var(--rows) * var(--cell));
 }
 
-/* Narrow: every product floats in its own band (DESIGN §6), so the field is as
+/* Narrow: every product floats in its own band (DESIGN §7), so the field is as
    tall as that column needs and the page scrolls. Binding the cell to the
    viewport height instead would shrink the whole scene to a thumbnail. */
 @media (max-width: 699px) {
-  .playfield {
+  .shell {
     --cell: clamp(16px, var(--cell-fit-w), 72px);
   }
 
   .stage {
     align-items: start;
   }
-
 }
 
 /* The engine repaints the scene on load, so the build-time frame stays hidden
@@ -1145,23 +1163,25 @@ a {
 
 /* --- info panel ---------------------------------------------------------- */
 
-/* The item-description slot (DESIGN §4.4). It is a fixed part of the machine,
-   docked above the footer: a recessed screen with its own scanlines, sized so
-   two lines of copy never make the page jump. Not a popover — the whole point of
-   v2 is that nothing floats over the scene any more. */
+/* The item-description slot (DESIGN §4.4) and, since v2.1, the machine's status
+   bar: a recessed screen with its own scanlines, the read-out on the left and the
+   reshuffle legend on its right end. Sized so two lines of copy never make the
+   page jump. Not a popover — the whole point of v2 is that nothing floats over
+   the scene any more. */
 .panel {
   position: relative;
   z-index: 8;
-  padding: 0 clamp(0.5rem, 2.4vw, 1.75rem);
+  padding: 0 var(--chassis-pad) clamp(0.85rem, 2vh, 1.4rem);
 }
 
 .panel__screen {
   display: flex;
   align-items: center;
+  gap: clamp(0.5rem, 1.5vw, 1.1rem);
   min-height: var(--panel-height);
+  width: var(--chassis-w);
   margin-inline: auto;
-  padding: 0.5rem clamp(0.6rem, 1.6vw, 1.1rem);
-  max-width: 1160px;
+  padding: 0.4rem clamp(0.45rem, 1.2vw, 0.7rem);
   border: 2px solid var(--panel-edge);
   border-radius: 6px;
   background-color: var(--panel-bg);
@@ -1173,7 +1193,10 @@ a {
 }
 
 .panel__line {
+  flex: 1;
+  min-width: 0;
   margin: 0;
+  padding-inline: clamp(0.2rem, 0.6vw, 0.45rem);
   color: var(--panel-ink);
   font-family: var(--font-mono);
   font-size: clamp(0.62rem, 1.15vw, 0.86rem);
@@ -1224,6 +1247,65 @@ a {
   color: var(--panel-bg);
 }
 
+/* The button legend at the right end of the status bar (DESIGN §2 v2.1). It is a
+   raised key on a recessed screen — the one thing in the bezel you can press — so
+   it keeps the chassis material the old footer pill had, at status-bar scale. */
+.panel__hint {
+  flex: none;
+  align-self: stretch;
+  padding: 0.3em 0.9em;
+  border: 2px solid var(--chassis-edge);
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--chassis-top) 0%, var(--chassis-bottom) 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-inlay),
+    inset 0 2px 0 -1px rgba(255, 255, 255, 0.1),
+    0 2px 0 rgba(0, 0, 0, 0.45);
+  color: var(--chassis-ink);
+  font-family: var(--font-pixel);
+  font-size: clamp(0.55rem, 1vw, 0.72rem);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 90ms steps(2, end), box-shadow 90ms steps(2, end);
+}
+
+.panel__hint:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-inlay),
+    inset 0 2px 0 -1px rgba(255, 255, 255, 0.14),
+    0 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+.panel__hint:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 0 0 2px var(--chassis-inlay), 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.panel__key {
+  display: inline-block;
+  padding: 0.05em 0.4em;
+  border: 2px solid var(--key);
+  border-radius: 3px;
+  color: var(--key);
+}
+
+/* Touch has no R key, so the legend names the gesture it does have. */
+.panel__hint-coarse {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .panel__hint-fine {
+    display: none;
+  }
+
+  .panel__hint-coarse {
+    display: inline;
+  }
+}
+
 :root {
   --panel-height: 3rem;
   --panel-bg: #0d0f13;
@@ -1251,69 +1333,15 @@ a {
 
   .panel__screen {
     min-height: 2.7rem;
+    gap: 0.35rem;
   }
-}
 
-/* --- footer hint: a dark pill between chevrons --------------------------- */
-
-.hint {
-  position: relative;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(0.5rem, 2.5vw, 2rem);
-  padding: 0.85rem 1rem 1.35rem;
-}
-
-.hint__chevrons {
-  color: var(--ink-soft);
-  font-family: var(--font-pixel);
-  font-size: clamp(0.6rem, 1.15vw, 0.85rem);
-  letter-spacing: 0.18em;
-  opacity: 0.55;
-}
-
-.hint__button {
-  padding: 0.55em 1.35em;
-  border: 2px solid var(--chassis-edge);
-  border-radius: 6px;
-  background: linear-gradient(to bottom, var(--chassis-top) 0%, var(--chassis-bottom) 100%);
-  box-shadow:
-    inset 0 0 0 2px var(--chassis-inlay),
-    inset 0 2px 0 -1px rgba(255, 255, 255, 0.1),
-    0 3px 0 rgba(0, 0, 0, 0.35);
-  color: var(--chassis-ink);
-  font-family: var(--font-pixel);
-  font-size: clamp(0.6rem, 1.1vw, 0.78rem);
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  transition: transform 90ms steps(2, end), box-shadow 90ms steps(2, end);
-}
-
-.hint__button:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 0 0 2px var(--chassis-inlay),
-    inset 0 2px 0 -1px rgba(255, 255, 255, 0.14),
-    0 4px 0 rgba(0, 0, 0, 0.4);
-}
-
-.hint__button:active {
-  transform: translateY(2px);
-  box-shadow: inset 0 0 0 2px var(--chassis-inlay), 0 1px 0 rgba(0, 0, 0, 0.35);
-}
-
-.hint__key {
-  display: inline-block;
-  padding: 0.05em 0.4em;
-  border: 2px solid var(--key);
-  border-radius: 3px;
-  color: var(--key);
-}
-
-.hint__coarse {
-  display: none;
+  /* A phone bezel has no room for a roomy key: the legend keeps its words and
+     gives up its padding. */
+  .panel__hint {
+    padding-inline: 0.5em;
+    letter-spacing: 0.02em;
+  }
 }
 
 /* Mobile HUD condenses to `AIX4U · 05 · NEXT ?` (DESIGN §6). */
@@ -1361,16 +1389,6 @@ a {
 
   :root[data-theme='dark'] .theme-toggle .icon-sun {
     display: none;
-  }
-}
-
-@media (pointer: coarse) {
-  .hint__fine {
-    display: none;
-  }
-
-  .hint__coarse {
-    display: inline;
   }
 }
 
@@ -1719,7 +1737,7 @@ a {
   .piece--link::after,
   .eye__pupil,
   .egg__cell,
-  .hint__button,
+  .panel__hint,
   .theme-toggle .icon {
     transition: none !important;
   }

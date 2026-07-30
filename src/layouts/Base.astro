@@ -5,9 +5,17 @@ import { content } from '../lib/content';
 interface Props {
   title: string;
   description: string;
+  /**
+   * The scene's grid geometry, set on `.shell` rather than on the playfield.
+   * One chassis width (DESIGN §2 v2.1) means the HUD, the field and the bottom
+   * bezel are all sized from `--cols` × `--cell` — so the columns and rows have
+   * to be visible to all three, which makes their common ancestor the only place
+   * they can live.
+   */
+  geometry: Record<string, string>;
 }
 
-const { title, description } = Astro.props;
+const { title, description, geometry } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://aix4u.com');
 const ogImage = new URL('/og.png', canonical);
 
@@ -90,7 +98,7 @@ const itemList = {
   <body>
     <div class="ambience" aria-hidden="true"></div>
     <div class="scanlines" aria-hidden="true"></div>
-    <div class="shell">
+    <div class="shell" id="shell" style={geometry}>
       <slot />
     </div>
   </body>

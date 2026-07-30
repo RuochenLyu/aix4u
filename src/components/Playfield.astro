@@ -1,16 +1,17 @@
 ---
 import Piece from './Piece.astro';
 import { content } from '../lib/content';
-import { buildScene, DEFAULT_SEED, DEFAULT_VIEWPORT } from '../lib/scene';
-import { SHAPES } from '../lib/tetromino';
+import type { Scene } from '../lib/scene';
+import { GHOST_SHAPES } from '../lib/tetromino';
 
-// The build-time frame uses the widest breakpoint and a fixed seed, so the
-// static HTML is a complete, readable scene even with scripting disabled. The
-// client runs the same function, so `?seed=20260729` on a wide viewport
-// reproduces this exact frame.
-const scene = buildScene(DEFAULT_SEED, DEFAULT_VIEWPORT, content.items);
+interface Props {
+  /** Built in index.astro — the same geometry also sizes the HUD and the bezel. */
+  scene: Scene;
+}
+
+const { scene } = Astro.props;
 const placements = new Map(scene.pieces.map((piece) => [piece.id, piece]));
-const ghostShape = SHAPES[scene.ghost.shape];
+const ghostShape = GHOST_SHAPES[scene.ghost.shape]!;
 ---
 
 <div
@@ -18,9 +19,6 @@ const ghostShape = SHAPES[scene.ghost.shape];
   id="playfield"
   data-seed={scene.seed}
   style={{
-    '--cols': String(scene.breakpoint.cols),
-    '--rows': String(scene.breakpoint.rows),
-    '--stack-rows': String(scene.breakpoint.stackRows),
     '--ghost-duration': `${scene.ghost.duration}s`,
     '--ghost-delay': `${scene.ghost.delay}s`,
   }}

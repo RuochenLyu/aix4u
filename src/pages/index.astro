@@ -3,30 +3,36 @@ import Base from '../layouts/Base.astro';
 import Hud from '../components/Hud.astro';
 import Playfield from '../components/Playfield.astro';
 import InfoPanel from '../components/InfoPanel.astro';
+import { content } from '../lib/content';
+import { buildScene, DEFAULT_SEED, DEFAULT_VIEWPORT } from '../lib/scene';
 
 const title = 'aix4u — products by Ruochen';
 const description =
   'Indie products by Ruochen — daily puzzles, idea feeds, open data and developer tools. aix4u = AI for you.';
+
+// The build-time frame uses the widest breakpoint and a fixed seed, so the static
+// HTML is a complete, readable scene even with scripting disabled. The client runs
+// the same function, so `?seed=20260729` on a wide viewport reproduces this frame.
+//
+// The scene is built here, not inside the playfield, because its grid geometry now
+// sizes the whole chassis (DESIGN §2 v2.1), not just the field.
+const scene = buildScene(DEFAULT_SEED, DEFAULT_VIEWPORT, content.items);
+const geometry = {
+  '--cols': String(scene.breakpoint.cols),
+  '--rows': String(scene.breakpoint.rows),
+  '--stack-rows': String(scene.breakpoint.stackRows),
+};
 ---
 
-<Base title={title} description={description}>
+<Base title={title} description={description} geometry={geometry}>
   <Hud />
 
   <main class="stage">
     <h1 class="visually-hidden">{title}</h1>
-    <Playfield />
+    <Playfield scene={scene} />
   </main>
 
   <InfoPanel />
-
-  <footer class="hint">
-    <span class="hint__chevrons hint__chevrons--in" aria-hidden="true">&gt;&gt;&gt;</span>
-    <button type="button" class="hint__button" id="reshuffle">
-      <span class="hint__fine">press <span class="hint__key">R</span> to reshuffle</span>
-      <span class="hint__coarse">tap to reshuffle</span>
-    </button>
-    <span class="hint__chevrons hint__chevrons--out" aria-hidden="true">&lt;&lt;&lt;</span>
-  </footer>
 </Base>
 
 <script>

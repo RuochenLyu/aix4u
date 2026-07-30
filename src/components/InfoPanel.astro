@@ -1,11 +1,15 @@
 ---
 /**
- * The one fixed info slot (DESIGN §4.4) — everything the old label cards used to
- * say, in a single place that never moves.
+ * The bottom bezel: the one fixed info slot (DESIGN §4.4) plus the reshuffle key
+ * legend (§2 v2.1) — everything the old label cards used to say, in a single
+ * place that never moves, and the machine's one button legend at its right end.
  *
  * It is styled as part of the machine, not as chrome floating over it: pixel
  * border, inset well, its own scanlines. Idle it carries the site's one-liner;
  * hover/focus/tap on a piece types out `NAME · TYPE · STATUS — flavour ▸ PLAY`.
+ *
+ * The hint used to be a free-floating pill under the field. A status bar carries
+ * its legend inside itself, and one bezel is one widget where two were two.
  *
  * The idle line is in the static HTML, so a no-JS visitor gets a real sentence
  * rather than an empty box.
@@ -22,5 +26,10 @@ import { content } from '../lib/content';
         >{content.panel.cta}</a
       >
     </p>
+
+    <button type="button" class="panel__hint" id="reshuffle">
+      <span class="panel__hint-fine">press <span class="panel__key">R</span> to reshuffle</span>
+      <span class="panel__hint-coarse">tap to reshuffle</span>
+    </button>
   </div>
 </div>

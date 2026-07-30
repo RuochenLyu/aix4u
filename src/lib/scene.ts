@@ -26,7 +26,7 @@
  * of the playfield. The renderer multiplies them by the CSS `--cell` length.
  */
 
-import { SHAPES, type ShapeName } from './tetromino';
+import { SHAPES, GHOST_SHAPES, type ShapeName } from './tetromino';
 import type { SceneItem } from './content';
 
 export const DEFAULT_SEED = 20260729;
@@ -93,11 +93,27 @@ export interface FillerCell {
   empty: boolean;
 }
 
+/**
+ * The background ghost (DESIGN §6.2). `shape` indexes `GHOST_SHAPES`, the full
+ * bag of seven standard tetrominoes — the ghost is scenery, so it is not limited
+ * to the five silhouettes the products claimed. Each cycle draws again (see
+ * `rollGhost`), which is why this is a roll rather than a fixed placement.
+ */
 export interface GhostPlacement {
-  shape: ShapeName;
+  shape: number;
   x: number;
   duration: number;
   delay: number;
+}
+
+export function rollGhost(rng: Rng, cols: number): GhostPlacement {
+  const shape = int(rng, 0, GHOST_SHAPES.length - 1);
+  return {
+    shape,
+    x: int(rng, 0, Math.max(0, cols - GHOST_SHAPES[shape]!.width)),
+    duration: int(rng, 16, 26),
+    delay: 0,
+  };
 }
 
 /** Where the NEXT mystery block lands if the easter egg fires (DESIGN §6.5). */
@@ -201,13 +217,7 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
     piece.blinkDelay = round(rng() * piece.blinkPeriod, 1);
   });
 
-  const ghostShapes: ShapeName[] = ['T', 'L', 'S', 'O', 'I'];
-  const ghost: GhostPlacement = {
-    shape: ghostShapes[int(rng, 0, ghostShapes.length - 1)]!,
-    x: int(rng, 0, bp.cols - 4),
-    duration: int(rng, 16, 26),
-    delay: int(rng, 0, 6),
-  };
+  const ghost: GhostPlacement = { ...rollGhost(rng, bp.cols), delay: int(rng, 0, 6) };
 
   return { seed, breakpoint: bp, pieces, filler, stackTops: tops, ghost, egg: eggSlot(rng, bp, tops, pieces) };
 }

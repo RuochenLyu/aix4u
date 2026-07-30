@@ -8,10 +8,20 @@
  */
 
 import { content } from '../lib/content';
-import { SHAPES } from '../lib/tetromino';
-import { buildScene, breakpointFor, randomSeed, type PiecePlacement, type Scene } from '../lib/scene';
+import { SHAPES, GHOST_SHAPES } from '../lib/tetromino';
+import {
+  buildScene,
+  breakpointFor,
+  createRandom,
+  randomSeed,
+  rollGhost,
+  type GhostPlacement,
+  type PiecePlacement,
+  type Scene,
+} from '../lib/scene';
 
 const root = document.documentElement;
+const shell = document.getElementById('shell');
 const playfield = document.getElementById('playfield');
 const fillerLayer = document.getElementById('filler-layer');
 const ghost = document.getElementById('ghost');
@@ -45,7 +55,7 @@ themeToggle?.addEventListener('click', () => {
 
 /* --- scene ---------------------------------------------------------------- */
 
-if (playfield && fillerLayer && ghost) {
+if (playfield && fillerLayer && ghost && shell) {
   const field = playfield;
   const pieceElements = new Map<string, HTMLElement>();
   for (const el of field.querySelectorAll<HTMLElement>('[data-piece]')) {
@@ -81,9 +91,11 @@ if (playfield && fillerLayer && ghost) {
     placements = new Map(next.pieces.map((piece) => [piece.id, piece]));
     const { breakpoint: bp } = next;
     field.dataset['seed'] = String(next.seed);
-    field.style.setProperty('--cols', String(bp.cols));
-    field.style.setProperty('--rows', String(bp.rows));
-    field.style.setProperty('--stack-rows', String(bp.stackRows));
+    // The grid geometry lives on the shell: it sizes the HUD and the bottom bezel
+    // as well as the field (one chassis width, DESIGN §2 v2.1).
+    shell!.style.setProperty('--cols', String(bp.cols));
+    shell!.style.setProperty('--rows', String(bp.rows));
+    shell!.style.setProperty('--stack-rows', String(bp.stackRows));
     field.style.setProperty('--ghost-duration', `${next.ghost.duration}s`);
     field.style.setProperty('--ghost-delay', `${next.ghost.delay}s`);
 
@@ -119,17 +131,8 @@ if (playfield && fillerLayer && ghost) {
       }),
     );
 
-    const ghostShape = SHAPES[next.ghost.shape];
-    ghost!.style.setProperty('--gx', String(next.ghost.x));
-    ghost!.replaceChildren(
-      ...ghostShape.cells.map(([cx, cy]) => {
-        const span = document.createElement('span');
-        span.className = 'cell';
-        span.style.setProperty('--cx', String(cx));
-        span.style.setProperty('--cy', String(cy));
-        return span;
-      }),
-    );
+    ghostRng = createRandom((next.seed ^ 0x9e3779b9) >>> 0);
+    drawGhost(next.ghost);
 
     // The mystery block, once it has dropped, is part of the world: it finds a
     // new resting place in every scene after that rather than vanishing.
@@ -140,6 +143,36 @@ if (playfield && fillerLayer && ghost) {
 
     moveCursor();
   }
+
+  /* --- the background ghost ---------------------------------------------- */
+
+  /**
+   * The ghost is one piece falling forever, and forever with the same silhouette
+   * in the same lane read as a broken loop rather than as a game (DESIGN §6.2
+   * v2.1). So every cycle draws again from the bag of seven, at a new x — off a
+   * seeded generator, so `?seed=` still reproduces the whole sequence, not just
+   * the first pass.
+   */
+  let ghostRng = createRandom(0);
+
+  function drawGhost(roll: GhostPlacement): void {
+    ghost!.style.setProperty('--gx', String(roll.x));
+    ghost!.style.setProperty('--gw', String(GHOST_SHAPES[roll.shape]!.width));
+    field.style.setProperty('--ghost-duration', `${roll.duration}s`);
+    ghost!.replaceChildren(
+      ...GHOST_SHAPES[roll.shape]!.cells.map(([cx, cy]) => {
+        const span = document.createElement('span');
+        span.className = 'cell';
+        span.style.setProperty('--cx', String(cx));
+        span.style.setProperty('--cy', String(cy));
+        return span;
+      }),
+    );
+  }
+
+  ghost.addEventListener('animationiteration', () => {
+    drawGhost(rollGhost(ghostRng, scene.breakpoint.cols));
+  });
 
   /**
    * Hand the background lattice the playfield's real cell size and origin, so
