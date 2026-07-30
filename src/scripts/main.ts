@@ -15,6 +15,7 @@ import {
   createRandom,
   randomSeed,
   rollGhost,
+  settleShape,
   type GhostPlacement,
   type PiecePlacement,
   type Scene,
@@ -568,6 +569,11 @@ if (playfield && fillerLayer && ghost && shell) {
    * above it can know where the floor is. Fall time goes with the square root of
    * the distance, which is what gravity does and what makes the impacts arrive
    * ragged instead of in chorus.
+   *
+   * Collision is per-column (v2.1.4): `settleShape` measures every column of
+   * the piece against every column of the skyline, so a T slots its stem into
+   * a notch and an S bites into an uneven bed instead of perching its bounding
+   * box on the highest shoulder.
    */
   function planDrops(cell: number): Landing[] {
     const bp = scene.breakpoint;
@@ -581,12 +587,8 @@ if (playfield && fillerLayer && ghost && shell) {
     for (const placement of falling) {
       const el = pieceElements.get(placement.id);
       if (!el) continue;
-      const shape = SHAPES[placement.shape];
-      let top = 0;
-      for (let dx = 0; dx < shape.width; dx++) top = Math.max(top, tops[placement.x + dx] ?? 0);
-      const row = bp.rows - top - shape.height;
+      const row = settleShape(SHAPES[placement.shape], placement.x, tops, bp.rows);
       const cells = Math.max(0, row - placement.y);
-      for (let dx = 0; dx < shape.width; dx++) tops[placement.x + dx] = top + shape.height;
       deepest = Math.max(deepest, cells);
       plans.push({ placement, el, row, cells });
     }

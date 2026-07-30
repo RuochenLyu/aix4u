@@ -26,7 +26,7 @@
  * of the playfield. The renderer multiplies them by the CSS `--cell` length.
  */
 
-import { SHAPES, GHOST_SHAPES, type ShapeName } from './tetromino';
+import { SHAPES, GHOST_SHAPES, columnProfile, type Shape, type ShapeName } from './tetromino';
 import type { SceneItem } from './content';
 
 export const DEFAULT_SEED = 20260729;
@@ -165,6 +165,40 @@ export function randomSeed(): number {
 
 type Rng = () => number;
 
+/**
+ * Per-column skyline collision (v2.1.4 device review). The row a shape comes
+ * to rest at when dropped over column `x`: each column of the piece measures
+ * its own fall — the bottom of the piece's lowest cell there against that
+ * column's skyline — and the piece stops at the tightest one. The bounding-box
+ * version this replaces perched a T on the bed's shoulders with its stem
+ * hanging over the very notch it should have slotted into; now the stem slots,
+ * the bar shoulders, and an S bites into an uneven bed. One collision, three
+ * callers: the reshuffle hard drop, the landed pool's placement, and the
+ * mystery tile's perch.
+ */
+export function restingRow(shape: Shape, x: number, tops: readonly number[], rows: number): number {
+  const profile = columnProfile(shape);
+  let rest = Number.POSITIVE_INFINITY;
+  for (let dx = 0; dx < shape.width; dx++) {
+    rest = Math.min(rest, rows - (tops[x + dx] ?? 0) - profile.bottoms[dx]!);
+  }
+  return rest;
+}
+
+/**
+ * Drop a shape onto the skyline and raise it: returns the resting row and
+ * lifts each column's top to the piece's own silhouette there, so the next
+ * drop lands on this one tooth-against-tooth as well.
+ */
+export function settleShape(shape: Shape, x: number, tops: number[], rows: number): number {
+  const y = restingRow(shape, x, tops, rows);
+  const profile = columnProfile(shape);
+  for (let dx = 0; dx < shape.width; dx++) {
+    tops[x + dx] = Math.max(tops[x + dx] ?? 0, rows - (y + profile.tops[dx]!));
+  }
+  return y;
+}
+
 const int = (rng: Rng, min: number, max: number): number => min + Math.floor(rng() * (max - min + 1));
 
 function shuffled<T>(rng: Rng, input: readonly T[]): T[] {
@@ -268,7 +302,10 @@ function eggSlot(
   for (let x = 0; x < bp.cols; x++) {
     const depth = tops[x] ?? 0;
     if (depth === 0) continue;
-    const y = bp.rows - depth - 1;
+    // The same per-column collision as every other landing — a DOT is the
+    // degenerate one-column case, so this is `rows - depth - 1` spelled the
+    // shared way.
+    const y = restingRow(SHAPES.DOT, x, tops, bp.rows);
     if (y < 0 || taken(x, y)) continue;
     slots.push({ x, y, depth });
   }
@@ -329,7 +366,10 @@ function layoutStack(
       if (free) spots.push(x);
     }
     const x = spots.length > 0 ? spots[int(rng, 0, spots.length - 1)]! : stackStart;
-    const y = bp.rows - shape.height;
+    // The shared collision (heights are all zero in an unclaimed window, so
+    // this is the floor — but it is the same function the hard drop uses, and
+    // the day the bed is built first, the piece will bite into it correctly).
+    const y = restingRow(shape, x, heights, bp.rows);
 
     pieces.push({
       id: item.id,
@@ -346,6 +386,9 @@ function layoutStack(
 
     for (let dx = 0; dx < shape.width; dx++) {
       claimed[x + dx] = true;
+      // The skyline over a landed product is its *box* top, not its per-column
+      // silhouette: the skin spans the whole box, so nothing may perch or drop
+      // inside it — an L's empty corner is reserved airspace, not a shelf.
       heights[x + dx] = shape.height;
       for (let dy = 0; dy < shape.height; dy++) reserved.add(`${x + dx}:${y + dy}`);
     }

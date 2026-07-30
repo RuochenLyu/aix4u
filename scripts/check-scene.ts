@@ -21,7 +21,7 @@
  */
 
 import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
-import { SHAPES, hasCell } from '../src/lib/tetromino';
+import { SHAPES, columnProfile, hasCell, type ShapeName } from '../src/lib/tetromino';
 import { content, EYE_SIZE, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
 interface Rect {
@@ -189,9 +189,35 @@ function problems(scene: Scene): string[] {
   for (const [x, count] of perColumn) {
     if (count > 1) found.push(`column ${x} has ${count} holes stacked in it`);
   }
-  for (const tile of tiles) {
-    if (tile.y === bp.rows - 1) continue;
-    if (!solid.has(`${tile.x}:${tile.y + 1}`)) found.push(`link tile ${tile.id} perches on nothing`);
+
+  // Landing is per-column skyline collision (v2.1.4), so *resting* is the same
+  // test read backwards: for every landed piece, each column measures the gap
+  // between its lowest cell and the first solid thing (or the floor) below it,
+  // and the tightest column must measure zero — a piece whose every column has
+  // open air under it could still fall, which means it never landed. Columns
+  // other than the tightest may keep their hollows: a T's wings on the floor
+  // overhang two voids the stem makes unreachable, and the bed's deliberate
+  // covered holes are not solid, not support, and not to be filled.
+  const supportGap = (what: string, shapeName: ShapeName, px: number, py: number): void => {
+    const profile = columnProfile(SHAPES[shapeName]);
+    let min = Number.POSITIVE_INFINITY;
+    for (let dx = 0; dx < profile.bottoms.length; dx++) {
+      const from = py + profile.bottoms[dx]!;
+      let stop = bp.rows;
+      for (let y = from; y < bp.rows; y++) {
+        if (solid.has(`${px + dx}:${y}`)) {
+          stop = y;
+          break;
+        }
+      }
+      min = Math.min(min, stop - from);
+    }
+    if (min !== 0) found.push(`${what} floats ${min} row(s) above its tightest column support`);
+  };
+
+  for (const piece of scene.pieces) {
+    if (piece.pool !== 'landed') continue;
+    supportGap(`piece ${piece.id}`, piece.shape, piece.x, piece.y);
   }
 
   // The mystery `?` is a 1x1 tile on the bed (DESIGN §6.5 v2.1.2), so it answers
@@ -204,9 +230,7 @@ function problems(scene: Scene): string[] {
   for (const rect of [...pieceRects, ...fillerRects]) {
     if (overlaps(egg, rect)) found.push(`the mystery tile overlaps ${rect.what}`);
   }
-  if (egg.y + 1 < bp.rows && !solid.has(`${egg.x}:${egg.y + 1}`)) {
-    found.push('the mystery tile perches on nothing');
-  }
+  supportGap('the mystery tile', 'DOT', egg.x, egg.y);
 
   return found;
 }

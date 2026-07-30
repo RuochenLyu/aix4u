@@ -60,6 +60,29 @@ export const GHOST_SHAPES: readonly Shape[] = [
   shape([[2, 0], [0, 1], [1, 1], [2, 1]], 'L'),
 ];
 
+/**
+ * Per-column silhouette extremes, in piece coordinates: for each column of the
+ * bounding box, the top edge of its highest cell and the bottom edge of its
+ * lowest (`bottoms[cx]` = cy + 1). This is what turns landing collision from
+ * box-vs-box into tooth-vs-tooth (v2.1.4 device review): a T's stem column
+ * reaches one row deeper than its shoulders, and the drop math has to know
+ * that to slot the stem into a notch instead of perching the box on it.
+ */
+export interface ColumnProfile {
+  tops: readonly number[];
+  bottoms: readonly number[];
+}
+
+export function columnProfile(shape: Shape): ColumnProfile {
+  const tops = new Array<number>(shape.width).fill(Number.POSITIVE_INFINITY);
+  const bottoms = new Array<number>(shape.width).fill(0);
+  for (const [x, y] of shape.cells) {
+    tops[x] = Math.min(tops[x]!, y);
+    bottoms[x] = Math.max(bottoms[x]!, y + 1);
+  }
+  return { tops, bottoms };
+}
+
 /** True when `cell` is one of the shape's cells. */
 export function hasCell(shape: Shape, cx: number, cy: number): boolean {
   return shape.cells.some(([x, y]) => x === cx && y === cy);
