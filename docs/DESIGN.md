@@ -48,12 +48,12 @@ The entire piece is the product's texture — no plain fills, no "icon cell + bl
 | Product | Shape (canonical) | Skin concept | Accent (light) |
 |---|---|---|---|
 | Meikyu | **T** — 3-wide bar up | Dungeon stone bricks; glowing arched door + torch in the lower-center cell; faint maze scratches in the mortar | `#e8a33d` |
-| RayTally | **L** — 3-wide horizontal arm, vertical arm as "Y-axis" | The piece is a chart: rising pixel bars along the horizontal arm, firefly perched glowing at the top of the vertical arm | `#d9f24e` |
+| RayTally | **L** — vertical arm upper-left, 3-wide horizontal arm at bottom | **Firefly jar on a night meadow**. Brand concept: fireflies = opportunities that glow ("每天收录正在发亮的机会"). Vertical arm is a glass jar holding 2–3 glowing fireflies (collected ideas); horizontal arm is a dark meadow with grass blades and more fireflies still hovering free. NOT a chart, NOT a lamp — the story is *collecting glowing things, daily* | `#d9f24e` |
 | AHR999 Dataset | **S** — horizontal | Solidified amber/honey with a candlestick-wick pattern; one cell embeds a `₿` seal — "a fossilized market wave" | `#f59e0b` |
 | X2Markdown | **O** — 2×2 | A page mid-fold: upper-left cell messy webpage fragments, lower-right cell clean `M↓` glyph — conversion painted on the skin | `#20b8c8` |
 | Health Analyst | **I** — 4-wide horizontal | An ECG paper strip: heartbeat line runs through all four cells | `#3fae5a` |
 
-Shape assignments are **semantic** (L = axes, S = wave, I = strip, O = page, T = door) — a new product must pick a shape whose geometry means something for it.
+Shape assignments are **semantic** (L = jar on the meadow, S = wave, I = strip, O = page, T = door) — a new product must pick a shape whose geometry means something for it.
 
 ### 3.2 Sticker band (the name)
 A slightly inset label strip — like a cartridge sticker — crosses each piece, carrying the **full product name** in the pixel font. High contrast against the skin; glows softly in dark mode. Per shape:
@@ -108,7 +108,7 @@ Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/Ruoche
 ### 4.4 Info panel (replaces all labels/popovers)
 A **fixed slot** docked above the footer hint — a game item-description panel, styled as part of the scene (pixel border, scanlines; Scott Pilgrim rule: the panel is scene, not chrome):
 
-- Idle state: one-line site intro — `AIX4U — indie products, dropping like tetrominoes.`
+- Idle state: one-line site intro — `AIX4U — indie products by Ruochen.`
 - On piece hover/focus (desktop) or first tap (touch): panel types out (typewriter, ~24 chars/s, skippable):
   `MEIKYU · WEB · DAILY — Deduce the daily dungeon in six tries. ▸ PLAY`
   Template: `NAME · TYPE · STATUS — flavor line. ▸ CTA`.
@@ -140,7 +140,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 | Product | URL | Type · Status | Flavor line (info panel) |
 |---|---|---|---|
 | Meikyu | https://meikyu.app | WEB · DAILY | Deduce the daily dungeon in six tries |
-| RayTally | https://raytally.com | WEB · DAILY | Product ideas mined daily from search trends |
+| RayTally | https://raytally.com | WEB · DAILY | Glowing product ideas, collected daily |
 | AHR999 Dataset | https://ahr999.aix4u.com | DATA · DAILY | The Bitcoin AHR999 index, as open data |
 | X2Markdown | chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo | CHROME · FREE | Right-click any page into clean Markdown |
 | Health Analyst | https://github.com/RuochenLyu/apple-health-analyst | CLI · OSS | Apple Health reports, private and agent-ready |
@@ -154,7 +154,7 @@ Longer descriptions (meta/JSON-LD): unchanged from v1 —
 - **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
 - **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.
 
-Site meta: title `aix4u — products by Ruochen`, description "An indie developer's products, dropping like tetrominoes. AI for you."
+Site meta: title `aix4u — products by Ruochen`, description "Indie products by Ruochen — daily puzzles, idea feeds, open data and developer tools. aix4u = AI for you." OG subtitle: `indie products by Ruochen` (the "dropping like tetrominoes" phrasing is retired — the visual says it, the copy doesn't need to).
 
 ## 9. SEO & meta
 Astro SSG; pieces are real `<a>`s at build time with visible name text (sticker band) + sr-only flavor line. Deterministic no-JS frame. `<title>`/description/canonical/OG/Twitter, JSON-LD ItemList, sitemap, robots. No analytics, no third-party runtime requests; fonts self-hosted.

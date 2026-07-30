@@ -457,18 +457,6 @@ a {
     align-items: start;
   }
 
-  /* The field is taller than the phone, so the panel rides the bottom of the
-     viewport: the selected piece's line has to be readable without scrolling
-     back down for it (DESIGN §7). */
-  .panel {
-    position: sticky;
-    bottom: 0;
-    padding-bottom: 0.4rem;
-  }
-
-  .panel__screen {
-    min-height: 2.7rem;
-  }
 }
 
 /* The engine repaints the scene on load, so the build-time frame stays hidden
@@ -794,9 +782,11 @@ a {
    font. Real text inside the piece's own <a>, so the name is in the HTML.
 
    Type size is computed, not guessed: the smaller of "as tall as the band
-   allows" and "as wide as the longest line allows", where 0.62 is Silkscreen's
-   advance-to-em ratio. That keeps the static, script-free HTML correct — the
-   JS refit (see main.ts) is only a safety net for a fallback font. */
+   allows" and "as wide as the longest line allows", where 0.86 is Silkscreen's
+   worst-case advance-to-em ratio (measured on MARKDOWN — the font is not
+   monospaced, so the average would under-size wide caps). That keeps the static,
+   script-free HTML correct; the JS refit in main.ts is only a safety net for the
+   moment before the webfont lands. */
 .band {
   --band-shrink: 1;
   position: absolute;
@@ -817,14 +807,14 @@ a {
 }
 
 .band__text {
-  padding-inline: 0.2em;
+  padding-inline: 0.16em;
   color: var(--band-ink);
   font-family: var(--font-pixel);
   font-size: calc(
     var(--band-shrink) *
       min(
-        var(--band-h) * var(--cell) * 0.58 / var(--band-lines),
-        var(--band-w) * var(--cell) * 0.9 / (var(--band-chars) * 0.62)
+        var(--band-h) * var(--cell) * 0.62 / var(--band-lines),
+        var(--band-w) * var(--cell) * 0.9 / (var(--band-chars) * 0.86)
       )
   );
   line-height: 1.16;
@@ -904,35 +894,55 @@ a {
 .eye {
   --pupil-x: 0;
   --pupil-y: 0;
-  --eye-size: max(7px, calc(var(--cell) * 0.3));
-  --eye-step: calc(var(--eye-size) * 0.17);
+  --eye-size: max(8px, calc(var(--cell) * 0.34));
+  --eye-step: calc(var(--eye-size) * 0.15);
 
   position: absolute;
   left: calc(var(--eye-x) * var(--cell));
   top: calc(var(--eye-y) * var(--cell));
   z-index: 4;
   width: var(--eye-size);
-  height: var(--eye-size);
+  height: calc(var(--eye-size) * 0.86);
   overflow: hidden;
-  border-radius: 1px;
+  /* Wider than it is tall, and rounded off at the corners: a square with a dot
+     in it reads as a button or a little screen, which is exactly the wrong
+     reading for the one feature that makes the piece alive. */
+  border-radius: 42% 42% 46% 46%;
   background: var(--eye-white);
-  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-size) * 0.12)) var(--eye-rim);
+  box-shadow:
+    inset 0 0 0 1px var(--eye-rim),
+    inset 0 -1px 0 1px var(--eye-rim);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
+/* The specular pixel. One lit corner is the whole difference between "an eye"
+   and "a hole". */
+.eye::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  left: 16%;
+  width: 18%;
+  height: 22%;
+  background: var(--eye-spark);
+  z-index: 1;
+}
+
 .piece--product {
-  --eye-white: #f7f4ea;
+  --eye-white: #fbf9f2;
   --eye-rim: #1b1d22;
   --eye-pupil: #1b1d22;
-  --eye-lid: color-mix(in srgb, var(--accent) 70%, #1b1d22);
+  --eye-spark: #ffffff;
+  --eye-lid: color-mix(in srgb, var(--accent) 62%, #1b1d22);
 }
 
 :root[data-theme='dark'] .piece--product {
-  --eye-white: color-mix(in srgb, var(--accent-dark) 82%, #fdfaf0);
-  --eye-rim: rgba(0, 0, 0, 0.75);
-  --eye-pupil: #0a0b0e;
-  --eye-lid: color-mix(in srgb, var(--accent-dark) 34%, #0a0b0e);
+  --eye-white: color-mix(in srgb, var(--accent-dark) 74%, #fdfaf0);
+  --eye-rim: rgba(0, 0, 0, 0.8);
+  --eye-pupil: #07080b;
+  --eye-spark: #fffdf6;
+  --eye-lid: color-mix(in srgb, var(--accent-dark) 30%, #07080b);
 }
 
 /* The pupil moves in whole steps of a pixel grid — smooth tracking would make
@@ -941,8 +951,10 @@ a {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 42%;
-  height: 42%;
+  z-index: 2;
+  width: 46%;
+  height: 54%;
+  border-radius: 1px;
   background: var(--eye-pupil);
   transform: translate(-50%, -50%)
     translate(calc(var(--pupil-x) * var(--eye-step)), calc(var(--pupil-y) * var(--eye-step)));
@@ -953,7 +965,8 @@ a {
    as a shrinking square. */
 .eye__lid {
   position: absolute;
-  inset: 0;
+  inset: -1px;
+  z-index: 3;
   background: var(--eye-lid);
   box-shadow: inset 0 -1px 0 var(--eye-rim);
   transform: scaleY(0);
@@ -968,14 +981,19 @@ a {
 }
 
 /* Sleep after 30s of nothing (DESIGN §3.3), and squeeze shut on a hard-drop
-   impact. Both beat the blink, so they stop it rather than layering onto it. */
+   impact. Both beat the blink, so they stop it rather than layering onto it —
+   which needs the same `.js` reach as the blink rule above, because a running
+   animation outranks a plain declaration and a less specific selector loses the
+   `animation: none` that would have stopped it. */
+.js .playfield.is-asleep .eye__lid,
+.js .playfield.is-squeezing .eye__lid,
 .playfield.is-asleep .eye__lid,
 .playfield.is-squeezing .eye__lid {
   animation: none;
   transform: scaleY(1);
 }
 
-.playfield.is-asleep .eye__lid {
+.js .playfield.is-asleep .eye__lid {
   transition: transform 260ms steps(3, end);
 }
 
@@ -1117,6 +1135,12 @@ a {
   width: var(--cell);
   height: var(--cell);
   text-decoration: none;
+}
+
+/* `display: grid` above outranks the UA's `[hidden] { display: none }`, so the
+   crate has to be told to stay in the HUD until it is earned. */
+.egg[hidden] {
+  display: none;
 }
 
 .egg__cell {
@@ -1269,6 +1293,22 @@ a {
   --panel-ink-soft: #8d8878;
   --panel-caret: #a8f533;
   --panel-cta: #ffc93c;
+}
+
+/* On a phone the field is taller than the screen, so the panel rides the bottom
+   of the viewport: the line describing the piece you just tapped has to be
+   readable without scrolling away from the piece (DESIGN §7). This has to sit
+   *after* the base rule above, or `position: relative` wins on source order. */
+@media (max-width: 699px) {
+  .panel {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: 0.4rem;
+  }
+
+  .panel__screen {
+    min-height: 2.7rem;
+  }
 }
 
 /* --- footer hint: a dark pill between chevrons --------------------------- */
