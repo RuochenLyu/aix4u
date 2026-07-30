@@ -33,7 +33,13 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 /* --- theme ---------------------------------------------------------------- */
 
+/** The two chassis backgrounds, mirrored in Base.astro's first-paint script. */
+const THEME_COLORS = { light: '#c9d2dd', dark: '#141519' } as const;
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+
 function syncToggle(theme: string): void {
+  // The browser chrome wears the machine's colour (DESIGN §12.6 v2.1.4).
+  themeMeta?.setAttribute('content', THEME_COLORS[theme === 'dark' ? 'dark' : 'light']);
   if (!themeToggle) return;
   const dark = theme === 'dark';
   themeToggle.setAttribute('aria-pressed', String(dark));
@@ -67,6 +73,45 @@ if (playfield && fillerLayer && ghost && shell) {
 
   let placements = new Map<string, PiecePlacement>();
   let shuffling = false;
+
+  /* --- interaction gating (DESIGN §12.1 v2.1.4) --------------------------- */
+
+  /**
+   * A piece in flight is scenery: no hover, no cursor, no tab stop. The gate
+   * closes on every piece the frame a reshuffle or entry starts, and each
+   * piece opens its own — on the `animationend` of its entry fall, which *is*
+   * its landing frame. No global timer: the pieces land 80ms apart, and a
+   * timer tuned to the last one would leave the first four dead on the floor.
+   */
+  function setInert(el: HTMLElement, inert: boolean): void {
+    el.classList.toggle('is-inert', inert);
+    if (inert) el.setAttribute('tabindex', '-1');
+    else el.removeAttribute('tabindex');
+  }
+
+  const gated: HTMLElement[] = [...pieceElements.values(), ...(egg ? [egg] : [])];
+
+  for (const el of gated) {
+    const release = (event: AnimationEvent): void => {
+      // `piece-fall` is the entry drop; the reshuffle's `hard-drop` ends into
+      // the sweep, where the piece stays scenery until the next entry.
+      if (event.animationName !== 'piece-fall') return;
+      setInert(el, false);
+    };
+    el.addEventListener('animationend', release);
+    // A cancelled fall (breakpoint change mid-entry) must not strand the piece.
+    el.addEventListener('animationcancel', release);
+  }
+
+  function gateAll(): void {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('.piece')) active.blur();
+    for (const el of gated) setInert(el, true);
+  }
+
+  function releaseAll(): void {
+    for (const el of gated) setInert(el, false);
+  }
 
   /* --- the session ------------------------------------------------------- */
 
@@ -347,6 +392,9 @@ if (playfield && fillerLayer && ghost && shell) {
     const el = pieceElements.get(id);
     const flavor = el?.dataset['flavor'];
     if (!flavor) return;
+    // Mid-flight pieces are scenery (DESIGN §12.1): pointer-events already
+    // blocks the pointer path, and this blocks the programmatic ones.
+    if (el!.classList.contains('is-inert')) return;
     // Interacting again while it is still typing skips to the end, which is what
     // an item panel in a game does when you mash the button (DESIGN §4.4).
     if (selected === id) {
@@ -441,6 +489,10 @@ if (playfield && fillerLayer && ghost && shell) {
   let entryTimer = 0;
 
   function playEntry(): void {
+    // Reduced motion has no falls, so nothing would ever fire the per-piece
+    // release — the gate stays open there instead.
+    if (reducedMotion.matches) releaseAll();
+    else gateAll();
     field.classList.remove('is-entering', 'is-idle');
     void field.offsetWidth; // restart the CSS animations
     field.classList.add('is-entering', 'is-idle');
@@ -451,10 +503,12 @@ if (playfield && fillerLayer && ghost && shell) {
     // every animation's final frame equals the resting style, so nothing moves.
     const lastOrder = scene.pieces.reduce((max, piece) => Math.max(max, piece.order), 0);
     window.clearTimeout(entryTimer);
-    entryTimer = window.setTimeout(
-      () => field.classList.remove('is-entering'),
-      lastOrder * STAGGER_MS + FALL_MS + SETTLE_MS,
-    );
+    entryTimer = window.setTimeout(() => {
+      field.classList.remove('is-entering');
+      // By now every landing frame has passed; anything still gated missed its
+      // `animationend` (a hidden tab throttling the fall) and gets it here.
+      releaseAll();
+    }, lastOrder * STAGGER_MS + FALL_MS + SETTLE_MS);
   }
 
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -611,6 +665,9 @@ if (playfield && fillerLayer && ghost && shell) {
     }
 
     shuffling = true;
+    // Every piece goes inert for the whole ride — hard drop, sweep, re-entry —
+    // and comes back one by one on the next entry's landing frames (§12.1).
+    gateAll();
     const cell = field.clientHeight / scene.breakpoint.rows;
     const landings = planDrops(cell);
 
@@ -687,11 +744,93 @@ if (playfield && fillerLayer && ghost && shell) {
     maybeDropEgg();
   }
 
+  /* --- skins: the decode gate (DESIGN §12.4 v2.1.4) ----------------------- */
+
+  /**
+   * No loading screen — the entry *is* the loading screen's job. The first
+   * entry waits on every current-theme skin decoding, capped at 600ms: on a
+   * fast network the pieces fall fully dressed, and on a slow one they fall on
+   * time as accent placeholders and each one puts its skin on the moment its
+   * PNG arrives (`decode()` resolving re-adds `piece--skinned`, so the swap is
+   * atomic — never a half-painted texture). A PNG that outright fails stays a
+   * placeholder: `piece--skinned` without an image is an empty frame.
+   */
+  const SKIN_GATE_MS = 600;
+
+  function themeName(): 'light' | 'dark' {
+    return root.dataset['theme'] === 'dark' ? 'dark' : 'light';
+  }
+
+  function prefetchSkins(theme: 'light' | 'dark'): void {
+    for (const product of content.products) {
+      const url = product.skin[theme];
+      if (url) new Image().src = url;
+    }
+  }
+
+  async function gateEntryOnSkins(): Promise<void> {
+    const theme = themeName();
+    const pending: { el: HTMLElement; done: boolean; promise: Promise<void> }[] = [];
+    for (const product of content.products) {
+      const url = product.skin[theme];
+      const el = pieceElements.get(product.id);
+      if (!url || !el) continue;
+      const img = new Image();
+      img.src = url;
+      // decode() is the flicker-proof signal, but a hidden tab (opened in the
+      // background, the common cmd-click) defers decode work indefinitely and
+      // can reject it spuriously — so it races the plain load event, and a
+      // fetched bitmap counts as success either way. Only a fetch that truly
+      // failed keeps the accent placeholder.
+      const loaded = new Promise<boolean>((resolve) => {
+        const settle = (): void => resolve(img.naturalWidth > 0);
+        if (img.complete) settle();
+        else {
+          img.addEventListener('load', settle, { once: true });
+          img.addEventListener('error', settle, { once: true });
+        }
+      });
+      const decoded = img.decode().then(
+        () => true,
+        () => img.naturalWidth > 0,
+      );
+      const entry = { el, done: false, promise: Promise.resolve() };
+      entry.promise = Promise.race([decoded, loaded]).then((ok) => {
+        entry.done = true;
+        el.classList.toggle('piece--skinned', ok);
+      });
+      pending.push(entry);
+    }
+    if (pending.length === 0) return;
+    await Promise.race([Promise.all(pending.map((entry) => entry.promise)), wait(SKIN_GATE_MS)]);
+    // Whatever is still in flight falls as its accent placeholder, on time.
+    for (const entry of pending) {
+      if (!entry.done) entry.el.classList.remove('piece--skinned');
+    }
+  }
+
+  // The other theme's skins are fetched when the machine is idle, so the first
+  // toggle does not flash five naked pieces (§12.4).
+  function prefetchIdle(): void {
+    const other = themeName() === 'dark' ? 'light' : 'dark';
+    // Safari still has no requestIdleCallback; a late timeout is idle enough.
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => prefetchSkins(other));
+    else window.setTimeout(() => prefetchSkins(other), 1500);
+  }
+
+  themeToggle?.addEventListener('click', prefetchIdle);
+
+  /* --- boot --------------------------------------------------------------- */
+
   applyScene(scene);
-  field.classList.add('is-ready');
   alignAmbience();
-  playEntry();
   wake();
+  void (async () => {
+    await gateEntryOnSkins();
+    field.classList.add('is-ready');
+    playEntry();
+    prefetchIdle();
+  })();
 
   document.addEventListener('keydown', (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
