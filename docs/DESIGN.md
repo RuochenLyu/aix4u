@@ -1,145 +1,170 @@
-# aix4u.com — Design Document
+# aix4u.com — Design Document (v2)
 
-The homepage of aix4u.com is a product portfolio built as a **frozen frame of an ongoing Tetris game** ("Mid-game" concept). Every product is a real tetromino piece. Shipping a new product means a new piece drops into the world.
+The homepage of aix4u.com is a product portfolio built as a **frozen frame of an ongoing Tetris game** ("Mid-game" concept). Every product **is** a tetromino piece — not a card with a tetromino theme. Shipping a new product means a new piece drops into the world.
 
-This document is the single source of truth for design decisions. Implementation must follow it; changes to the design go through this file first.
+This document is the single source of truth. Implementation follows it; design changes go through this file first.
+
+**v2 supersedes v1**: external label cards are removed (replaced by piece-integrated identity + a fixed info panel), pieces gained a full identity system (skin, sticker band, eye, motion personality), and canonical orientations replace free placement of shapes.
 
 ## 1. Concept & non-goals
 
-- The page reads, at first glance, as **a Tetris game in progress**: an airy playfield, a few pieces resting on an uneven stack at the bottom, other pieces suspended mid-fall.
-- Breathing room is a feature. Most of the playfield is empty grid. Never pack pieces into a tight wall (that reads as a cartridge shelf, which we explicitly rejected).
-- Motion conveys "the game is still being played": pieces fall in on load, idle-float afterwards, and a ghost piece drifts forever in the background.
-- **Non-goals**: no warm-paper/cream backgrounds (rejected as template aesthetics), no playable Tetris, no CMS — the config file is the CMS.
+- First glance reads as **a Tetris game in progress**: airy playfield, uneven stack at the bottom, pieces suspended mid-fall.
+- Breathing room is a feature. Never pack pieces into a tight wall.
+- The pieces are **alive but not childish**: Mino-style minimal anthropomorphism (a single eye), motion with per-piece personality.
+- **Non-goals**: no warm-paper/cream palettes, no playable Tetris, no floating popovers/modals (web language, not game language), no CMS — `products.json` is the CMS.
 
 ## 2. Visual language
 
 Pixel/retro handheld-console aesthetic. Cute but gender-neutral.
 
+**Fidelity reference:** `docs/reference/m1.png` (light desktop), `m2.png` (dark desktop), `m3.png` (light ultrawide), `m4.png` (dark mobile) define the level of finish. Flat rectangles with plain fills are below the bar:
+
+- **Cells are candy, not paint chips**: slightly rounded corners (~3px), bright top/top-left bevel, darker bottom edge, subtle vertical gradient, faint horizontal scanline texture inside cells. Dark seams between cells stay.
+- **HUD is a console bezel in both themes**: near-black bar, inset bordered sections with dotted dividers, accent-outlined pixel logo, seven-segment counter, `NEXT` crate slot, full-color pixel sun/moon toggle.
+- **Falling pieces carry motion trails** (2–3 dashed ticks above, fading after landing).
+- **The stack contains 1–2 dashed empty slots.**
+- **Footer hint is a dark pill** flanked by `>>>` / `<<<` chevrons.
+- **Background grid has two scales** (fine + every-4-cells coarse line) plus a subtle vignette. It is **one page-wide lattice**, aligned by the engine to the playfield's measured cell and origin — drawing the grid inside the field instead makes the field read as a rectangle of denser hatching, i.e. an outline nobody asked for.
+- **The bezel is opaque and sits above the field**: pieces falling in slide *behind* the HUD and the footer pill, which is what sells "a screen inside a machine".
+
 ### Light mode ("TV gray")
-- Background: pale gray-blue TV gray (reference `#c9d2dd` ± tuning), overlaid with a **very faint pixel grid** matching the cell size.
-- Pieces: saturated brand colors, thick near-black outlines (`~#22242a`), visible inner seams between the 4 cells, hard pixel drop-shadows (offset steps, no blur).
-- Optional: extremely subtle CRT scanline overlay (must stay below "instagram filter" visibility).
+Pale gray-blue background (`#c9d2dd` ± tuning), saturated piece colors, thick near-black outlines (`~#22242a`), hard two-step pixel shadows.
 
 ### Dark mode ("backlit console")
-- Not an inversion — the metaphor is a handheld console with the backlight on at night.
-- Background: deep charcoal (`~#141519`), faint darker grid.
-- Pieces: brighter/glowing variants of their accent colors, warm off-white outlines (`~#f3ecdb`), a soft glow (box-shadow) around each piece.
-- Theme resolution: `prefers-color-scheme` default → manual toggle persisted in `localStorage` → inline `<head>` script applies the class before first paint (no FOUC).
+Deep charcoal (`~#141519`), soft accent glow around each piece. Not an inversion — "the backlight is on at night". Theme: `prefers-color-scheme` → manual toggle → `localStorage`, inline head script prevents FOUC; `?theme=light|dark` forces a theme for one load without persisting it (a debug/share override in the same spirit as `?seed=`).
+
+A piece in dark mode is a **dim pane of its own colour behind a lit accent frame**: the cell fill is the accent mixed down into the background (~24 %), the seam is the bright `accentDark`. Warm off-white (`~#f3ecdb`) stays the ink for chrome with no accent of its own — link tiles, the ghost piece, body copy. (This bullet used to call for warm off-white outlines over a bright fill; `m2.png`/`m4.png` show the accent-framed version, and a bright slab behind a pale outline is not what a backlit LCD looks like, so the mockups won.)
 
 ### Typography
-- HUD / product names / labels: a pixel display font (Silkscreen or similar, subset).
-- Taglines / body: a monospace font (IBM Plex Mono or system mono fallback).
-- English only. No i18n infrastructure.
+Pixel display font (Silkscreen) for HUD/names; monospace (IBM Plex Mono) for taglines/panel body. English only.
 
-## 3. Scene model
+## 3. Piece identity system
 
-### 3.1 Pieces
+Each product is one tetromino in a **canonical orientation** (never rotated by the engine), designed as a whole. Four layers, back to front:
 
-Each product is one tetromino defined in `src/data/products.json`:
+### 3.1 Skin
+The entire piece is the product's texture — no plain fills, no "icon cell + blank cells". Skins are art assets (see §10) laid across the whole piece under the CSS seams/bevels:
 
-| Product | Shape | Accent (light) | Priority |
+| Product | Shape (canonical) | Skin concept | Accent (light) |
 |---|---|---|---|
-| Meikyu | T | `#e8a33d` | 1 |
-| RayTally | L | `#d9f24e` | 2 |
-| AHR999 Dataset | S | `#f59e0b` | 3 |
-| X2Markdown | O | `#20b8c8` | 4 |
-| Health Analyst | I | `#3fae5a` | 5 |
+| Meikyu | **T** — 3-wide bar up | Dungeon stone bricks; glowing arched door + torch in the lower-center cell; faint maze scratches in the mortar | `#e8a33d` |
+| RayTally | **L** — 3-wide horizontal arm, vertical arm as "Y-axis" | The piece is a chart: rising pixel bars along the horizontal arm, firefly perched glowing at the top of the vertical arm | `#d9f24e` |
+| AHR999 Dataset | **S** — horizontal | Solidified amber/honey with a candlestick-wick pattern; one cell embeds a `₿` seal — "a fossilized market wave" | `#f59e0b` |
+| X2Markdown | **O** — 2×2 | A page mid-fold: upper-left cell messy webpage fragments, lower-right cell clean `M↓` glyph — conversion painted on the skin | `#20b8c8` |
+| Health Analyst | **I** — 4-wide horizontal | An ECG paper strip: heartbeat line runs through all four cells | `#3fae5a` |
 
-- A piece = 4 chunky square cells. One designated cell holds the product's pixel icon (asset placeholder for now — plain colored cell with the product's initial letter until real pixel art lands).
-- The whole piece is a single `<a href>` to the product URL (real link in static HTML — SEO/a11y non-negotiable).
-- Next to each piece floats a **label card**: pale card, thin border, product name (pixel font) + one-line tagline (mono font), connected to the piece by a 1px stepped "pixel leader line". Text never goes inside the piece.
+Shape assignments are **semantic** (L = axes, S = wave, I = strip, O = page, T = door) — a new product must pick a shape whose geometry means something for it.
 
-### 3.2 Two pools
+### 3.2 Sticker band (the name)
+A slightly inset label strip — like a cartridge sticker — crosses each piece, carrying the **full product name** in the pixel font. High contrast against the skin; glows softly in dark mode. Per shape:
 
-The layout engine assigns every piece to one of two pools:
+- **I**: band across all 4 cells (`HEALTH ANALYST` fits one line).
+- **T**: band across the 3-wide bar (`MEIKYU`).
+- **L**: band across the 3-wide horizontal arm (`RAYTALLY`).
+- **S**: band wraps the waist row where all 3 columns have coverage (`AHR999`).
+- **O**: two-line band (`X2` / `MARKDOWN`).
 
-- **Floating pool** (high priority): suspended mid-air, each in its own vertical *lane*; staggered heights; these are the visual protagonists.
-- **Landed pool** (low priority + link tiles): resting on an uneven stack at the bottom. The stack must contain 1–2 hollow gaps (real Tetris stacks have holes). Landed product pieces get a compact label (name only, tagline on hover).
+Band text is real HTML text inside the piece's `<a>` (SEO keeps the name; no image text). Text auto-fits: font-size steps down once, then two-line fallback — never truncate a name.
 
-Overflow rule: if the floating pool would exceed ~5 pieces (or lanes get too narrow on the current viewport), lowest-priority pieces spill into the stack. More products ⇒ a taller, prouder stack — never a cramped sky.
+### 3.3 Eye (anthropomorphism level: Mino)
+One single pixel eye per piece (position fixed per design, never on the band). Behavior:
 
-### 3.3 Link tiles & widgets
+- Pupil tracks the pointer (small range, stepped movement — pixel, not smooth).
+- Blinks every 4–8 s (seeded phase so pieces don't blink in sync).
+- Closes (sleeps) after ~30 s idle; wakes on pointer move.
+- Squeezes shut (`>_<` equivalent for a single eye: pressed shut) for ~300 ms on hard-drop impact.
+- `prefers-reduced-motion`: eye static, open.
 
-Plain 1×1 gray tiles living in the landed stack, visually quieter than product pieces (thinner outline, muted fill):
+One eye, not two; no mouth, no limbs. This is the line between "alive" and "toy".
 
-- GitHub → `https://github.com/RuochenLyu`
-- kshift.me → `https://kshift.me`
-- X → `https://x.com/kshift`
+### 3.4 Motion personality
+All pieces share one parameterized animation system (same keyframes, per-piece CSS variables), but each gets a distinct parameter set derived from its shape mechanics:
 
-Also configured in the JSON (`type: "link"`), so adding/removing is config-only.
+| Piece | Personality parameters |
+|---|---|
+| T (Meikyu) | Does a quick 90°→0° tease-rotation just before landing (T-spin wink) |
+| L (RayTally) | Lands, then the vertical arm "props up" with a 1-step overshoot |
+| S (AHR999) | Sways ±2px horizontally while falling (the wave) |
+| O (X2Markdown) | Falls straight and dumb, biggest squash on landing (the mascot) |
+| I (Health Analyst) | Falls perfectly straight, steady metronome bob afterwards |
 
-### 3.4 HUD
+## 4. Scene model
 
-Slim top bar, game-HUD style:
+### 4.1 Two pools
+- **Floating pool** (high priority): suspended mid-air, staggered heights, the protagonists.
+- **Landed pool** (low priority + link tiles): resting in the uneven bottom stack (with 1–2 hollow gaps and 1–2 dashed empty slots).
+- Overflow: floating pool caps at ~5 (or when lanes get tight); lowest priority spills into the stack. More products ⇒ prouder stack.
+- Narrow (<~700px): **all products float**, stack holds only link tiles + filler.
 
-- Pixel logo `AIX4U` (links to `/`, i.e. itself — it's the home).
-- `PRODUCTS 05` counter (derived from config length, seven-segment / pixel digits).
-- `NEXT` slot: a small frame holding a translucent question-mark block. Configurable via JSON (`next: { teaser: "..." }`) to tease an upcoming product; empty teaser renders the mystery block.
-- Sun/moon theme toggle (accessible button, `aria-pressed`).
+### 4.2 Link tiles
+Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/RuochenLyu`), kshift.me (a pixel keycap with `⇧`), X (`x.com/kshift`). Configured in JSON (`type: "link"`); `title` + `aria-label` required.
 
-Footer hint: `press R to reshuffle` (desktop) / `tap to reshuffle` (coarse pointers, the hint itself is the tap target).
+### 4.3 HUD
+- Pixel logo `AIX4U`.
+- Counter: `COLLECTED 05/??` (seven-segment; count from config; `??` hints more pieces will drop — collection framing).
+- `NEXT` crate slot: translucent question block. See §6.4 for its easter egg.
+- Sun/moon theme toggle (accessible).
 
-## 4. Randomness
+### 4.4 Info panel (replaces all labels/popovers)
+A **fixed slot** docked above the footer hint — a game item-description panel, styled as part of the scene (pixel border, scanlines; Scott Pilgrim rule: the panel is scene, not chrome):
 
-One integer **seed** drives the entire composition (lane order, floating heights, stack arrangement, ghost piece path). PRNG is a small deterministic hash (mulberry32 or the GLSL-style `sin` hash) — same seed, same scene, always.
+- Idle state: one-line site intro — `AIX4U — indie products, dropping like tetrominoes.`
+- On piece hover/focus (desktop) or first tap (touch): panel types out (typewriter, ~24 chars/s, skippable):
+  `MEIKYU · WEB · DAILY — Deduce the daily dungeon in six tries. ▸ PLAY`
+  Template: `NAME · TYPE · STATUS — flavor line. ▸ CTA`.
+- A pixel selection cursor (corner brackets) frames the hovered/selected piece.
+- Desktop click on piece = navigate (as before). Touch: first tap selects, `▸ PLAY` (or second tap on the same piece) navigates.
+- Keyboard: pieces are focusable in priority order; panel follows focus; Enter navigates.
+- The panel is `aria-live="polite"`; piece `<a>`s still contain name (band) + sr-only tagline, so no-JS/SEO keeps full content.
 
-- New visit → random seed.
-- `R` / tap → new seed, replayed through the reshuffle animation.
-- `?seed=<n>` URL param reproduces a scene exactly (debugging + shareable easter egg). The current seed is written to the URL via `history.replaceState` after each shuffle.
+## 5. Randomness
+One integer seed drives everything (composition, blink phases, stagger jitter, ghost path) via a deterministic PRNG. New visit → random seed; `R`/tap → new seed; `?seed=<n>` reproduces a scene (written back via `history.replaceState`).
 
-## 5. Animation
+## 6. Animation
 
-All motion is **quantized, not smooth** — the Tetris feel is stepped.
+Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` skips entry/reshuffle, freezes bob/ghost/eye.
 
-1. **Entry (~1.2 s total)**: pieces fall from above the viewport to their targets using stepped easing (`steps(n)` or rAF snapping to grid rows), stagger 80–120 ms, landed pieces first. Landing = 1px settle-bounce. Label cards fade in 150 ms after their piece stops, leader line "grows" in pixel steps.
-2. **Idle**: floating pieces bob ±2–3 px, each with a different period/phase (pure CSS). A **ghost piece** (very low-contrast outline) falls slowly through the background forever: reaches the stack, vanishes, respawns at the top elsewhere.
-3. **Reshuffle (~1.5 s)**: floating pieces hard-drop onto the stack → full-stack **line-clear flash** (two-frame blink) → everything gone → new seed → entry replays. Vanishing has an in-game reason (line clear), never an unexplained fade.
-4. **`prefers-reduced-motion`**: skip entry and reshuffle animations (jump to final state), ghost piece static, no bobbing.
+1. **Entry (~1.2s)**: gravity-curve fall, seeded stagger 80–120ms, landed pieces first; landing = 2-frame squash (scaleY ≈ 0.94, origin bottom) + shadow snap + **3–4 pixel sparks** (tiny stars/plus glyphs, one-shot); dashed motion trails fade ~200ms after landing. Personality parameters (§3.4) modulate each piece's run.
+2. **Idle**: bob ±2px, per-piece period/phase ("breathing, not elevators"); ghost piece falls slowly forever in the background; eyes blink/track/sleep (§3.3).
+3. **Reshuffle (~1.5s)**: hard-drop with trails → 2px playfield shake on impact (eyes squeeze) → full-stack line-clear flash → new seed → entry replays.
+4. **Hover/press**: two-step 2px lift + shadow/glow deepen; active sinks 2px (key-press feel).
+5. **NEXT easter egg**: after the 3rd reshuffle in a session, the mystery block actually drops from the NEXT slot into the stack — a gray `?` mini-piece. Clicking it opens `https://github.com/RuochenLyu/aix4u/issues/new` ("tell me what to build next"). Once per session.
 
-Implementation constraints: DOM pieces animated via `transform`/`opacity` only; no canvas for content (canvas allowed for the background grid/ghost if simpler, since it's decorative).
+## 7. Layout & responsiveness
+- Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.
+- No label-collision engine anymore (labels are gone). Floating pieces occupy seeded lanes with staggered heights; sky spans the upper ~2/3 above the real stack height.
+- Narrow: all-float (§4.1), pieces alternate left/right down the field; info panel docks bottom (sticky within viewport on mobile so the selected piece's info is always visible).
 
-## 6. Layout & responsiveness
+## 8. Content (authoritative copy)
 
-- Cell size: `clamp(44px, 4.5vw, 72px)` (tune visually). Playfield: fixed max width (~1140 px), centered, full viewport height.
-- On huge/ultrawide screens the playfield does **not** stretch; side areas show the faint grid + ghost piece ambience ("arcade screen" principle).
-- Narrow (<~700 px): **all products float** — the landed pool holds only link tiles + filler. Vertical space is abundant on phones; pieces stagger vertically across alternating left/right positions, each label card placed directly above/below its own piece. Rationale: with a crowded stack, landed-product labels ended up distant from their pieces and read as labeling the wrong piece — mislabeling is worse than a taller page.
-- Mobile: stack condenses, HUD condenses (`AIX4U · 05 · NEXT`), reshuffle via tapping the hint.
-- Label collision: engine alternates label side (left/right) and nudges vertically; labels never overlap pieces or each other.
-- Label association is a hard constraint too: a card must be either **touching-adjacent** to its piece or **leader-connected**. A distant card with no leader is forbidden — it reads as labeling whichever piece it happens to sit near. Degrade ladder: full card → name-only card → adjacent name-only; never leaderless-distant.
+| Product | URL | Type · Status | Flavor line (info panel) |
+|---|---|---|---|
+| Meikyu | https://meikyu.app | WEB · DAILY | Deduce the daily dungeon in six tries |
+| RayTally | https://raytally.com | WEB · DAILY | Product ideas mined daily from search trends |
+| AHR999 Dataset | https://ahr999.aix4u.com | DATA · DAILY | The Bitcoin AHR999 index, as open data |
+| X2Markdown | chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo | CHROME · FREE | Right-click any page into clean Markdown |
+| Health Analyst | https://github.com/RuochenLyu/apple-health-analyst | CLI · OSS | Apple Health reports, private and agent-ready |
 
-## 7. Content (authoritative copy)
+Voice rules: verb-first where possible, ≤ 7 words, no "AI-powered" filler, states *what you get*.
 
-| Product | URL | Tagline (label card) |
-|---|---|---|
-| Meikyu | https://meikyu.app | A daily dungeon deduction puzzle |
-| RayTally | https://raytally.com | Daily product ideas mined from search-trend shifts |
-| AHR999 Dataset | https://ahr999.aix4u.com | Open, daily-updated Bitcoin AHR999 index data |
-| X2Markdown | https://chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo | Any webpage → clean Markdown, one right-click |
-| Health Analyst | https://github.com/RuochenLyu/apple-health-analyst | Privacy-first Apple Health reports, built for AI agents |
-
-Longer descriptions (used in meta/JSON-LD, and available for a future detail view):
-
-- **Meikyu** — "Five residents are hiding in today's dungeon. You have six tries to place them." (official copy, quote verbatim)
+Longer descriptions (meta/JSON-LD): unchanged from v1 —
+- **Meikyu** — "Five residents are hiding in today's dungeon. You have six tries to place them." (official copy, verbatim)
 - **RayTally** — A daily brainstorm feed that mines verifiable search-trend shifts for product ideas.
 - **AHR999 Dataset** — Open dataset + dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.
-- **X2Markdown** — Chrome extension that converts the visible page (or selection) into clean Markdown via right-click; dedicated extraction for x.com posts and articles; local-only processing.
-- **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, then renders narrative HTML reports with SVG charts.
+- **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
+- **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.
 
-Site meta: title `aix4u — products by Ruochen`, description along the lines of "An indie developer's products, dropping like tetrominoes. AI for you."
+Site meta: title `aix4u — products by Ruochen`, description "An indie developer's products, dropping like tetrominoes. AI for you."
 
-## 8. SEO & meta
+## 9. SEO & meta
+Astro SSG; pieces are real `<a>`s at build time with visible name text (sticker band) + sr-only flavor line. Deterministic no-JS frame. `<title>`/description/canonical/OG/Twitter, JSON-LD ItemList, sitemap, robots. No analytics, no third-party runtime requests; fonts self-hosted.
 
-- Astro SSG: everything above the fold is real HTML at build time; the engine only *positions* elements client-side. With JS disabled the page must still show all products as a readable list (a `<noscript>`-friendly static arrangement: pieces render at deterministic default positions via CSS).
-- Per-page: `<title>`, meta description, canonical, OG + Twitter card (og-image placeholder for now), `JSON-LD ItemList` of the products, `sitemap.xml`, `robots.txt`.
+## 10. Tech & repo standards
+Astro latest, TypeScript strict, zero UI framework; one vanilla TS engine module; CSS custom properties for theming. `products.json` schema-validated at build (piece shape, orientation, skin path, eye cell, personality preset all config). `scripts/check-scene.ts` asserts layout invariants across seeds × viewports in `npm run build`. MIT, README with "add a product = one JSON entry (+ one skin asset)" walkthrough. Cloudflare Pages deploy (deferred until the site is right).
 
-## 9. Tech & repo standards
-
-- **Astro** (latest), TypeScript, zero UI framework — one vanilla TS module for the engine (~200–300 lines), CSS custom properties for theming.
-- `src/data/products.json` validated at build time (zod or hand-rolled assert) — a bad entry fails the build, not production.
-- Repo: MIT `LICENSE`, `README.md` (concept, screenshot placeholder, **"add a product = edit one JSON entry" walkthrough**, dev commands, deploy notes for Cloudflare Pages), `.gitignore`, `.editorconfig`.
-- CI-free by design: Cloudflare Pages builds on push (`npm run build`, output `dist/`).
-- No analytics, no cookies, no external requests except self-hosted/subset fonts.
-
-## 10. Asset pipeline (deferred)
-
-Pixel icons per product, og-image, favicon are produced separately (image-gen) and land in `public/icons/`. Until then: placeholder cells with the product initial. Favicon placeholder: a single tetromino pixel glyph generated as inline SVG.
+## 11. Asset pipeline
+Produced via image-gen (see `docs/assets-brief.md`), landing in `public/skins/` and `public/icons/`:
+- **Per-piece skins**: one transparent PNG per product per theme (light/dark), drawn at the piece's exact cell proportions (e.g. T = 3×2), laid under CSS seams/bevel/band. Multiple candidates; final picks wired in `products.json`.
+- Link-tile glyphs, favicon, og-image, NEXT crate.
+- The eye, sticker band, seams, bevels, sparks are **code, not assets** (they animate).
+- Until skins land: placeholder = accent fill + product name band (no letters-in-cells).

@@ -48,16 +48,20 @@ If a card ends up far from its piece the leader line is dropped rather than drag
 the scene. `npm run check:scene` asserts these invariants over 2 800 scenes (seven viewport
 widths × four hundred seeds) and runs as part of every build.
 
-**Motion** is quantized (`steps()`, never smooth): pieces drop in with a settle-bounce,
-label cards fade in behind them, floating pieces bob out of phase, and a ghost piece
-falls through the background forever. Pressing <kbd>R</kbd> (or tapping the footer hint)
-hard-drops the sky onto the stack, flashes a line clear, and replays the entry with a new
-seed — the pieces never just vanish, they get cleared. `prefers-reduced-motion` skips
+**Motion is physical first, pixel second.** Pieces fall on a gravity curve, squash two
+frames on impact and snap their shadow in on the landing frame; dashed motion trails hang
+above them on the way down and fade once they land. Label cards pop in behind them and
+their leader lines draw in pixel steps. Floating pieces breathe ±2px out of phase, and a
+ghost piece falls through the background forever. Pressing <kbd>R</kbd> (or tapping the footer hint)
+hard-drops the sky onto the stack, shakes the field 2px on impact, flashes a line clear,
+and replays the entry with a new seed — the pieces never just vanish, they get cleared. `prefers-reduced-motion` skips
 straight to the final frame. Only `transform` and `opacity` are ever animated.
 
 **Themes.** Light is "TV gray", dark is "backlit console" — not an inversion, but the same
 handheld with the backlight on. An inline `<head>` script resolves the theme before first
-paint, so there is no flash; the choice persists in `localStorage`.
+paint, so there is no flash; the choice persists in `localStorage`. `?theme=light|dark`
+forces a theme for one load without persisting it, which is how the fidelity screenshots
+are taken.
 
 No analytics, no cookies, no third-party requests. The two fonts (Silkscreen, IBM Plex
 Mono) are self-hosted latin subsets.
@@ -94,9 +98,11 @@ Field notes:
 | `accent` / `accentDark` | `#rrggbb`; the dark variant should read as *backlit*, not merely lighter |
 | `priority` | unique integer, `1` = most prominent. Beyond the lane count, pieces land in the stack |
 | `tagline` | one line — it has to fit a card roughly four cells wide |
+| `icon` | *optional* root-relative path (`/icons/foo.png`) to a pixel icon for the piece's icon cell; omit it and the cell shows the product's initial |
 
 Link tiles are 1×1 and use `{"type": "link", "id", "name", "label", "url"}`, where `label`
-is at most two characters. Set `next.teaser` to a string to tease the next product in the
+is at most two characters. They also accept `icon` (as above) or `logo` (`"github"` /
+`"x"`, drawn as an inline pixel SVG); with neither, `label` is rendered as text. Set `next.teaser` to a string to tease the next product in the
 HUD; leave it empty and the HUD renders the mystery block.
 
 Validation lives in `src/lib/content.ts` and runs during the build, so a typo fails
