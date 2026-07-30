@@ -68,18 +68,27 @@ export interface CellPoint {
 /* --- faces (DESIGN §3.3 v2.1) --------------------------------------------- */
 
 /**
- * One eye's geometry. `lid` is the whole trick: a constant horizontal bar over
- * the top of the eyeball, expressed as a fraction of its height. 0 is a wide
- * open eye, ~1/3 is the keeper's half-lidded stare, ~2/3 is the watcher's squint
- * — one mechanism, three characters, no second drawing.
+ * (v2.1.3) One eye size for the whole board, in cells (DESIGN §3.3, "the
+ * googly-sticker anatomy"). Every preset scales *this*; nothing states a size of
+ * its own. The first pass let each preset pick its own width and the board came
+ * out with a white pill on the T and two lost dots on the L — five eyes that
+ * plainly did not come from the same factory.
  */
+export const EYE_SIZE = 0.3;
+
+/**
+ * What the lid is doing, and the only axis a preset is allowed to vary besides
+ * count and placement. `half` covers the top of the sclera with a straight lid;
+ * `squint` closes the eye down to a curved seam. Both are drawn at the one
+ * stroke weight the stylesheet holds.
+ */
+export type LidMode = 'open' | 'half' | 'squint';
+
+/** One eye: how big, relative to `EYE_SIZE`, and what its lid is doing. */
 export interface FaceEyeSpec {
-  /** Eye box width, in cells. */
-  size: number;
-  /** Height ÷ width. 1 is a round eye. */
-  aspect: number;
-  /** Share of the eye's height the upper lid covers, 0..1. */
-  lid: number;
+  /** Multiplier on the shared `EYE_SIZE` token. Kept close to 1 on purpose. */
+  scale: number;
+  lid: LidMode;
 }
 
 /**
@@ -103,10 +112,17 @@ export interface FacePreset {
   ink: 1 | 2 | 3;
 }
 
+/**
+ * Five characters, one anatomy (DESIGN §3.3 v2.1.3). Every entry below varies
+ * exactly three things — how many eyes, how far apart, and what the lids are
+ * doing. The scales stay within ±20 % of the shared token, because "wide eye"
+ * and "small close-set eyes" are readings the *placement* has to carry; a preset
+ * that drew its own eye is how the first pass ended up with five build qualities.
+ */
 export const FACE_PRESETS = {
   /** T — the dungeon keeper: one wide, half-lidded eye. */
   keeper: {
-    eyes: [{ size: 0.44, aspect: 0.58, lid: 0.34 }],
+    eyes: [{ scale: 1.18, lid: 'half' }],
     gap: 0,
     mouth: false,
     mouthDrop: 0,
@@ -116,10 +132,10 @@ export const FACE_PRESETS = {
   /** L — the collector: two small round eyes, close-set. */
   collector: {
     eyes: [
-      { size: 0.21, aspect: 1, lid: 0 },
-      { size: 0.21, aspect: 1, lid: 0 },
+      { scale: 0.88, lid: 'open' },
+      { scale: 0.88, lid: 'open' },
     ],
-    gap: 0.32,
+    gap: 0.36,
     mouth: false,
     mouthDrop: 0,
     mouthSize: 0,
@@ -128,10 +144,10 @@ export const FACE_PRESETS = {
   /** S — watching the chart: one eye open, the other squinting. */
   watcher: {
     eyes: [
-      { size: 0.3, aspect: 0.86, lid: 0.06 },
-      { size: 0.26, aspect: 0.86, lid: 0.6 },
+      { scale: 1, lid: 'open' },
+      { scale: 1, lid: 'squint' },
     ],
-    gap: 0.42,
+    gap: 0.44,
     mouth: false,
     mouthDrop: 0,
     mouthSize: 0,
@@ -140,18 +156,18 @@ export const FACE_PRESETS = {
   /** O — the mascot: two big round eyes and a tiny "o" mouth. */
   mascot: {
     eyes: [
-      { size: 0.34, aspect: 1, lid: 0 },
-      { size: 0.34, aspect: 1, lid: 0 },
+      { scale: 1.12, lid: 'open' },
+      { scale: 1.12, lid: 'open' },
     ],
     gap: 0.7,
     mouth: true,
     mouthDrop: 0.42,
-    mouthSize: 0.2,
+    mouthSize: 0.24,
     ink: 1,
   },
   /** I — one calm eye, blinking on its own metronome. */
   calm: {
-    eyes: [{ size: 0.3, aspect: 0.86, lid: 0.08 }],
+    eyes: [{ scale: 1, lid: 'open' }],
     gap: 0,
     mouth: false,
     mouthDrop: 0,
@@ -183,7 +199,9 @@ export interface FaceMark {
 }
 
 export interface FaceEye extends FaceMark {
-  lid: number;
+  /** Multiplier on `EYE_SIZE`, handed to the stylesheet as `--eye-scale`. */
+  scale: number;
+  lid: LidMode;
 }
 
 /**
@@ -358,11 +376,14 @@ function face(where: string, value: Record<string, unknown>, shape: ShapeName, h
   }
 
   const eyes: FaceEye[] = [];
+  // Round, always: the sclera is one shape at one size, and the character comes
+  // from the lid over it (DESIGN §3.3 v2.1.3).
   const mark = (spec: FaceEyeSpec, x: number, y: number): FaceEye => ({
     x,
     y,
-    w: spec.size,
-    h: spec.size * spec.aspect,
+    w: EYE_SIZE * spec.scale,
+    h: EYE_SIZE * spec.scale,
+    scale: spec.scale,
     lid: spec.lid,
   });
 

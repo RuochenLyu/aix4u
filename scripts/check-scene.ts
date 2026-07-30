@@ -22,7 +22,7 @@
 
 import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
 import { SHAPES, hasCell } from '../src/lib/tetromino';
-import { content, FACE_PRESETS, type ProductItem } from '../src/lib/content';
+import { content, EYE_SIZE, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
 interface Rect {
   x: number;
@@ -35,6 +35,9 @@ interface Rect {
 const EPSILON = 1e-6;
 /** Clearance a suspended piece must keep above whatever is under it, in cells. */
 const MIN_AIR = 0.4;
+/** How far a preset may scale the shared eye token (DESIGN §3.3 v2.1.3). */
+const EYE_SCALE_MIN = 0.8;
+const EYE_SCALE_MAX = 1.25;
 
 function overlaps(a: Rect, b: Rect): boolean {
   return (
@@ -229,6 +232,24 @@ function identityProblems(product: ProductItem): string[] {
   // mouth mark — the schema cannot express "two", but this can.
   if (preset.eyes.length < 1 || preset.eyes.length > 2) {
     found.push(`${product.id}: the ${product.face.preset} preset draws ${preset.eyes.length} eyes; the rule is one or two`);
+  }
+
+  // One factory (DESIGN §3.3 v2.1.3). Every eye is the shared `EYE_SIZE` token
+  // times a modest scale; a preset that drifts far from it is drawing its own eye
+  // again, which is exactly the regression this pass undid. The variety is
+  // supposed to come from lids, count and placement — and those are unbounded.
+  for (const [i, eye] of product.face.eyes.entries()) {
+    if (Math.abs(eye.w - EYE_SIZE * eye.scale) > EPSILON) {
+      found.push(`${product.id}: eye ${i + 1} is ${eye.w} cells wide, not ${EYE_SIZE} × its ${eye.scale} scale`);
+    }
+    if (eye.scale < EYE_SCALE_MIN || eye.scale > EYE_SCALE_MAX) {
+      found.push(
+        `${product.id}: eye ${i + 1} scales the shared eye by ${eye.scale}; the band is ${EYE_SCALE_MIN}-${EYE_SCALE_MAX}`,
+      );
+    }
+    if (eye.h !== eye.w) {
+      found.push(`${product.id}: eye ${i + 1} is ${eye.w}×${eye.h}; every sclera on the board is round`);
+    }
   }
 
   // Two eyes have to be two eyes. Overlapping boxes are one blob with a seam, and

@@ -81,6 +81,15 @@ Restraint rules (the line between "alive" and "toy" moves, but still exists):
 
 Shared behaviors (all presets): pupils track the pointer in pixel steps; seeded blink phases; sleep after ~30 s idle (eyes close, O's mouth flattens); squeeze shut on hard-drop impact; **hover = a two-frame happy squint** (the eye curves into a ∪); `prefers-reduced-motion` renders the face static and open.
 
+**(v2.1.3) Face craft — the googly-sticker anatomy.** The first face pass read as crude marks; the reference toys read as *stickers* because every eye has the same four-part anatomy. All five presets now share it, scaled from one `--eye-size` token (~0.30 cell):
+
+- **Sclera**: white rounded-pixel oval with a 1px near-black outline ring — the outline is what lifts the eye off busy art (the meadow, the fragments).
+- **Pupil**: oversized (~45% of the sclera), near-black, with a **1–2px white catchlight** pinned to its upper-left. The catchlight does not move with tracking (it belongs to the light, not the eye).
+- **Lids**: thick 2–3px strokes with rounded pixel ends. Half-lid = straight lid over the top ~40% of the sclera; squint = lid closed to a curved 2px seam; sleep/blink = downward bow. One stroke weight across all presets.
+- **Mouth (mascot only)**: a small capsule/ring with its own 1px dark outline and a 1px under-light — a rubbery sticker, same as the reference's colored mouths.
+
+Same anatomy in both themes (dark mode may tint sclera slightly warm and glow the lids, but the outline ring stays). Five faces, one anatomy, five expressions — the variety must come from lids/count/placement, never from differing construction quality.
+
 ### 3.4 Motion personality
 All pieces share one parameterized animation system (same keyframes, per-piece CSS variables), but each gets a distinct parameter set derived from its shape mechanics:
 
@@ -146,7 +155,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 ## 7. Layout & responsiveness
 - Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.
 - No label-collision engine anymore (labels are gone). Floating pieces occupy seeded lanes with staggered heights; sky spans the upper ~2/3 above the real stack height.
-- Narrow: all-float (§4.1), pieces alternate left/right down the field; info panel docks bottom (sticky within viewport on mobile so the selected piece's info is always visible).
+- Narrow **(v2.1.3: one screen, no scroll)**: all-float (§4.1), and the whole machine — HUD, field, bezel — fits `100svh`; the page never scrolls. Cell size is the smaller of the width-bound and the height-bound (floor ~34px); pieces stagger in two tight columns with ~1-row gaps; the bed compresses to 1–2 rows. Vertical breathing room shrinks before anything scrolls — a handheld console has exactly one screen.
 
 ## 8. Content (authoritative copy)
 

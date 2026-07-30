@@ -988,33 +988,54 @@ a {
 
 /* --- the face ------------------------------------------------------------ */
 
-/* Per-piece face presets (DESIGN §3.3 v2.1). v2 gave every piece the same eye and
-   they came out stamped from one mould; each piece now wears the minimal face its
-   motion personality implies — one wide half-lidded eye for the keeper, two
-   close-set dots for the collector, an open/squinting pair for the watcher, two
-   big eyes and an "o" for the mascot, one calm eye for the metronome.
+/* Per-piece face presets (DESIGN §3.3 v2.1) built on the googly-sticker anatomy
+   (§3.3 v2.1.3). v2 gave every piece the same eye and they came out stamped from
+   one mould; the first preset pass overcorrected and let each preset draw its own
+   eye, which produced a white pill on the T, two lost dots on the L and a mascot
+   whose eyes vanished into its own white page.
 
-   All of it is code, never art (§3.3, §11): the marks animate. And the stylesheet
-   holds exactly *one* eye recipe, reading the differences off three custom
-   properties the renderer writes per mark — size, aspect, lid. Five characters
-   out of one drawing is the whole point; five drawings would be five bugs.
+   So: one anatomy, four parts, all derived from a single `--eye-size` token, and
+   the only things a preset varies are how many eyes, where they sit, and what
+   the lid is doing.
 
-   Open and shut are two separate elements rather than one lid that scales down,
+     sclera   white rounded oval
+     ring     a near-black outline *outside* the white — the part that lifts the
+              eye off a busy skin, and the part the first pass did not have
+     pupil    oversized, near-black, tracking the pointer in pixel steps
+     glint    one white pixel, pinned: it belongs to the light in the room, so it
+              does not ride along when the pupil looks away
+
+   All of it is code, never art (§3.3, §11): the marks animate.
+
+   Open and shut stay two separate elements rather than one lid that scales down,
    because a lid that closes over the eye ends as a filled shape, and a filled
-   shape reads as a dark blob, not as a closed eye. Swapping to a drawn lash line
-   is both truer and cheaper — and a hard swap is what gives the blink its
-   two-frame pixel snap. */
+   shape reads as a dark blob, not as a closed eye. A hard swap is also what gives
+   the blink its two-frame pixel snap. */
 .eye {
   --pupil-x: 0;
   --pupil-y: 0;
-  --eye-w: max(7px, calc(var(--eye-size, 0.3) * var(--cell)));
-  --eye-step: calc(var(--eye-w) * 0.15);
+  /* One token, one scale. Nothing else in the file states an eye size. */
+  --eye-unit: calc(var(--eye-size, 0.3) * var(--cell));
+  --eye-w: max(9px, calc(var(--eye-unit) * var(--eye-scale, 1)));
+  /* Tracking travel. Deliberately short: the catchlight is pinned, so a pupil
+     that could swing a third of the sclera would slide out from under its own
+     highlight and the eye would go dead at the extremes. */
+  --eye-step: calc(var(--eye-unit) * 0.07);
+  /* The three line weights of the anatomy. They come off the *unscaled* token, so
+     a bigger eye is a bigger eye and not a heavier drawing — one ring weight, one
+     stroke weight, one catchlight across all five faces (DESIGN §3.3 v2.1.3). The
+     clamps keep them at 1-3 device pixels from the phone's 34px cell to the
+     desktop's 72px one; a ring that scales freely stops being an outline and
+     becomes a donut. */
+  --eye-ring: clamp(1px, calc(var(--eye-unit) * 0.075), 2px);
+  --eye-stroke: clamp(2px, calc(var(--eye-unit) * 0.16), 3px);
+  --eye-glint-w: clamp(1px, calc(var(--eye-unit) * 0.15), 3px);
 
   position: absolute;
   left: calc(var(--eye-x) * var(--cell));
   top: calc(var(--eye-y) * var(--cell));
   width: var(--eye-w);
-  height: calc(var(--eye-w) * var(--eye-aspect, 0.86));
+  height: var(--eye-w);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -1030,34 +1051,50 @@ a {
      edge purity on a 26px detail. */
   border-radius: 46% 46% 50% 50%;
   background: var(--eye-white);
-  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-w) * 0.09)) var(--eye-rim);
+  /* The ring sits *outside* the white rather than eating into it, so the sclera
+     keeps its full area at every size and the eye reads as a sticker laid on the
+     art instead of a hole cut into it. */
+  box-shadow: 0 0 0 var(--eye-ring) var(--eye-rim);
 }
 
-/* Half-lidded and squinting are the same mark at two depths: a constant bar
-   across the top of the eyeball, `--eye-lid` of its height deep (DESIGN §3.3).
-   Drawn in the lash ink, so a lowered lid and a shut eye are visibly the same
-   piece of anatomy rather than two unrelated shapes. */
+/* The half-lid: a straight lid drawn over the top of the sclera, clipped to the
+   eyeball's own curve. Its lower edge carries the one stroke weight the whole
+   face is drawn at, with rounded pixel ends. */
 .eye__lid {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 3;
+  z-index: 4;
   width: 100%;
-  height: calc(var(--eye-lid, 0) * 100%);
-  background: var(--eye-lash);
+  height: 0;
+  /* Dark in both themes, unlike the shut-eye stroke. A lid sits *on the sclera*,
+     so it has to out-contrast the white; the lash sits on the artwork, where at
+     night a lit line is the right answer. Same anatomy, two backgrounds. */
+  background: var(--eye-lid-ink);
+  border-bottom-left-radius: var(--eye-stroke);
+  border-bottom-right-radius: var(--eye-stroke);
 }
 
-/* Shut is a straight line; the hover squint bows the same line into a ∪. One
-   element, one variable — which is what keeps "asleep" and "pleased" from looking
+.eye[data-lid='half'] .eye__lid {
+  height: 40%;
+}
+
+/* Shut is a straight line; the hover squint bows the same line into a ∪, and the
+   watcher's permanent squint parks it at a shallow arc in between. One element,
+   one variable — which is what keeps "asleep" and "pleased" from looking
    identical, as they did back when the closed eye was already a smile. */
 .eye__lash {
   position: absolute;
-  left: 2%;
-  right: 2%;
-  top: 26%;
+  left: -1%;
+  right: -1%;
+  top: 24%;
   height: 44%;
-  border-bottom: max(2px, calc(var(--eye-w) * 0.13)) solid var(--eye-lash);
-  border-radius: 0 0 46% 46% / 0 0 var(--lash-bow, 5%) var(--lash-bow, 5%);
+  border-bottom: var(--eye-stroke) solid var(--eye-lash);
+  border-radius: 0 0 46% 46% / 0 0 var(--lash-bow, 6%) var(--lash-bow, 6%);
+  /* The same trick the sclera's ring plays, for the state where there is no
+     sclera: one lit pixel under the stroke, so a shut eye still reads on a dark
+     skin. Without it the collector's closed eyes disappear into its own meadow. */
+  filter: drop-shadow(0 1px 0 var(--eye-white));
   opacity: 0;
 }
 
@@ -1067,15 +1104,31 @@ a {
   --eye-pupil: #1b1d22;
   --eye-spark: #ffffff;
   --eye-lash: #1b1d22;
+  --eye-lid-ink: #1b1d22;
+  --mouth-lit: rgba(255, 255, 255, 0.6);
 }
 
 :root[data-theme='dark'] .piece--product {
-  --eye-white: color-mix(in srgb, var(--accent-dark) 74%, #fdfaf0);
-  --eye-rim: rgba(0, 0, 0, 0.8);
+  /* A hint of the piece's own accent in the white — the backlight reaching the
+     sticker — and no more. The v2.1 value mixed 74 % accent in, which turned five
+     scleras into five different colours of lozenge. The ring stays, because the
+     ring is the reason the eye reads at all (DESIGN §3.3 v2.1.3). */
+  --eye-white: color-mix(in srgb, var(--accent-dark) 14%, #fdf6e4);
+  --eye-rim: #0a0b0e;
   --eye-pupil: #07080b;
-  --eye-spark: #fffdf6;
+  --eye-spark: #ffffff;
   /* The console is backlit, so a shut eye is a lit line, not a dark one. */
   --eye-lash: color-mix(in srgb, var(--accent-dark) 82%, #fdfaf0);
+  --eye-lid-ink: #0a0b0e;
+  --mouth-lit: rgba(255, 253, 240, 0.75);
+}
+
+/* At night the shut-eye stroke and the mouth are the lit parts of the face. The
+   ring, the pupil and the half-lid stay dark: a glow on every part is a blur, not
+   a backlight — and a lit lid over a lit sclera is two pale shapes on top of each
+   other, which is what the first dark pass looked like. */
+:root[data-theme='dark'] .eye__lash {
+  filter: drop-shadow(0 0 3px var(--piece-glow));
 }
 
 /* Pointer tracking and the preset's own idle move get an element each, so a
@@ -1090,47 +1143,57 @@ a {
   transition: transform 90ms steps(2, end);
 }
 
-/* The pupil moves in whole steps of a pixel grid — smooth tracking would make
-   the eye look like a vector graphic wearing a pixel costume. */
+/* The pupil is oversized on purpose — a sticker eye is mostly pupil — and moves
+   in whole steps of a pixel grid, because smooth tracking would make the eye look
+   like a vector graphic wearing a pixel costume. */
 .eye__pupil {
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: 2;
   width: 46%;
-  height: 54%;
-  border-radius: 40%;
+  height: 46%;
+  border-radius: 50%;
   background: var(--eye-pupil);
   transform: translate(-50%, -50%);
 }
 
-/* The specular pixel rides *on* the pupil rather than on the sclera, because the
-   pupil moves and would otherwise slide over it. One lit corner is the whole
-   difference between "an eye" and "a hole". */
-.eye__pupil::after {
-  content: '';
+/* The catchlight (DESIGN §3.3 v2.1.3). It is pinned to the sclera's upper left,
+   *outside* the tracking layer: the highlight is where the light is, and light
+   does not follow an eyeball around. It used to ride on the pupil, which meant
+   every piece had a little white dot orbiting the field. One lit corner is the
+   whole difference between "an eye" and "a hole". */
+.eye__glint {
   position: absolute;
-  top: 14%;
-  left: 14%;
-  width: 22%;
-  height: 22%;
+  z-index: 3;
+  top: 28%;
+  left: 28%;
+  width: var(--eye-glint-w);
+  height: var(--eye-glint-w);
   background: var(--eye-spark);
 }
 
 /* The one mouth mark the restraint rules allow (DESIGN §3.3), and only the mascot
-   has earned it. A small ring in one ink from the micro-palette; `--mouth-open`
-   is its entire expressive range, because a border-box with no height left is
-   already exactly the flat "–" a sleeping mascot needs. */
+   has earned it. A rubber sticker like the reference toys': a capsule in one ink
+   from the micro-palette, its own 1px dark outline so it lifts off the art the
+   same way the eyes do, and a lit lower lip. `--mouth-open` is its entire
+   expressive range, because a border-box with no height left is already exactly
+   the flat "–" a sleeping mascot needs. */
 .mouth {
-  --mouth-w: max(6px, calc(var(--mouth-size, 0.16) * var(--cell)));
+  --mouth-w: max(7px, calc(var(--mouth-size, 0.16) * var(--cell)));
+  --mouth-stroke: clamp(2px, calc(var(--mouth-w) * 0.22), 3px);
+  --mouth-rim: clamp(1px, calc(var(--mouth-w) * 0.09), 2px);
 
   position: absolute;
   left: calc(var(--mouth-x) * var(--cell));
   top: calc(var(--mouth-y) * var(--cell));
   width: var(--mouth-w);
   height: calc(var(--mouth-w) * var(--mouth-open, 1));
-  border: max(2px, calc(var(--mouth-w) * 0.2)) solid var(--face-ink, currentColor);
+  border: var(--mouth-stroke) solid var(--face-ink, currentColor);
   border-radius: calc(var(--mouth-open, 1) * 50%);
+  box-shadow:
+    0 0 0 var(--mouth-rim) var(--eye-rim),
+    inset 0 calc(-1 * var(--mouth-rim)) 0 var(--mouth-lit);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -1161,12 +1224,17 @@ a {
    keyframes, so they are always exactly out of phase with each other — one
    animation clock, no chance of both showing at once. `steps(1, end)` is what
    makes it a snap rather than a crossfade. The keyframes are mostly "open",
-   which is what makes the period read as a wait rather than as a flutter. */
-.js .playfield.is-idle .eye__ball {
+   which is what makes the period read as a wait rather than as a flutter.
+
+   An eye whose lid is parked closed (the watcher's squint) is excluded at the
+   source rather than overridden further down: a blink clock that keeps reopening
+   an eye which is meant to stay shut is a cascade fight, and cascade fights are
+   how the last face pass ended up with rules nobody could reason about. */
+.js .playfield.is-idle .eye:not([data-lid='squint']) .eye__ball {
   animation: eye-open var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
 }
 
-.js .playfield.is-idle .eye__lash {
+.js .playfield.is-idle .eye:not([data-lid='squint']) .eye__lash {
   animation: eye-shut var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
 }
 
@@ -1192,12 +1260,12 @@ a {
 /* The watcher blinks twice, fast, and rarely — so its clock runs far slower than
    everyone else's and spends nearly all of it open. Same pair of mirrored
    keyframes, same one animation clock. */
-.js .playfield.is-idle .piece[data-face='watcher'] .eye__ball {
+.js .playfield.is-idle .piece[data-face='watcher'] .eye:not([data-lid='squint']) .eye__ball {
   animation-name: eye-open-double;
   animation-duration: calc(var(--blink-period, 6s) * 2.6);
 }
 
-.js .playfield.is-idle .piece[data-face='watcher'] .eye__lash {
+.js .playfield.is-idle .piece[data-face='watcher'] .eye:not([data-lid='squint']) .eye__lash {
   animation-name: eye-shut-double;
   animation-duration: calc(var(--blink-period, 6s) * 2.6);
 }
@@ -1241,8 +1309,10 @@ a {
   opacity: 1;
 }
 
-.piece--product:hover,
-.piece--product:focus-visible {
+/* Set on the eye rather than on the piece, so it outranks the watcher's parked
+   squint below and even that eye joins in the smile. */
+.piece--product:hover .eye,
+.piece--product:focus-visible .eye {
   --lash-bow: 96%;
 }
 
@@ -1269,6 +1339,28 @@ a {
 .playfield.is-asleep .mouth {
   --mouth-open: 0;
   animation: none;
+}
+
+/* The watcher's squinting eye (DESIGN §3.3 v2.1.3): the same lid, parked closed
+   at a shallow arc. It is a *lid state*, not a second drawing — which is why it
+   is expressed here, in the same terms as blink and sleep, rather than as a
+   smaller eyeball in the preset table. Last in the cascade and reaching through
+   `.playfield` so it beats the blink clock, which would otherwise keep opening
+   an eye that is supposed to stay shut. */
+.eye[data-lid='squint'] {
+  --lash-bow: 34%;
+}
+
+.js .playfield .eye[data-lid='squint'] .eye__ball,
+.playfield .eye[data-lid='squint'] .eye__ball {
+  animation: none;
+  opacity: 0;
+}
+
+.js .playfield .eye[data-lid='squint'] .eye__lash,
+.playfield .eye[data-lid='squint'] .eye__lash {
+  animation: none;
+  opacity: 1;
 }
 
 
