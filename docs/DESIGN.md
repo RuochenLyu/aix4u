@@ -108,6 +108,7 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 - **Landed pool** (low priority + link tiles): resting in the bottom stack. **(v2.1) The stack is a low bed, not a clump**: it spans ~85% of the field width, runs mostly 1–2 rows high with an occasional 3-row bump, link tiles perch on top of the bed like collectibles, filler count is modest, and its 1–2 hollow gaps + 1–2 dashed slots sit where a real game would plausibly leave them (under overhangs, not floating mid-bed).
 - Overflow: floating pool caps at ~5 (or when lanes get tight); lowest priority spills into the stack. More products ⇒ prouder stack.
 - Narrow (<~700px): **all products float**, stack holds only link tiles + filler.
+- **(v2.2.1) Collision is by bounding box, not by silhouette.** Every product is skinned, and a skin is one PNG laid across the whole box, so an S's notch and an L's corner are *reserved airspace* — anything that slides in there ends up painted over. The static layout always knew this; the reshuffle's hard drop did not, and went on settling per-column (a v2.1.4 change made for unskinned pieces), quietly sliding bed cells and perched tiles into those notches on every R press. A device screenshot caught it; replaying the drop across six breakpoints and 300 seeds measured it at 624 of 7200 landings. `restingRow`/`settleShape` now take a `solid` flag — box collision by default, per-column for pieces with no skin to protect (the Konami storm) — and `check:scene` replays the hard drop and asserts the *post-reshuffle* frame is legal too, which is the assertion whose absence let this live.
 
 ### 4.15 Link policy (v2.1.2)
 Every off-site link — products, link tiles, the `?` tile — opens in a new tab: `target="_blank"` + `rel="noopener noreferrer"`. **No `title` attributes anywhere on the page**: a native browser tooltip is a foreign object in a machine that has its own info panel, and it fires on a delay nobody asked for. Anchors are described by `aria-label` plus the sr-only name+flavor text, so crawlers and assistive tech lose nothing. `check:links` asserts the `aria-label`, as it used to assert the title.
@@ -203,33 +204,47 @@ Produced via image-gen (see `docs/assets-brief.md`), landing in `public/skins/` 
 ## 13. v2.2 — attract, share, sound (approved feature round)
 
 ### 13.1 Attract mode
-After ~8s with no interaction, the machine demos itself: the selection cursor hops piece to piece (priority order), the panel types each `NAME · TYPE · STATUS — flavor` line, ~3.5s per piece, one full loop then stop (no eternal cycling — a shop machine loops, a proud one shows its wares once). Any interaction cancels instantly and never restarts during the session. Skipped under `prefers-reduced-motion`; pauses when the tab is hidden.
+**(v2.2.1)** After ~8s with no interaction, the machine demos itself: the selection cursor hops piece to piece (priority order), the panel types each line, ~3.5s per piece. After a full loop it rests ~8s and, still untouched, loops again — indefinitely (user overruled the one-loop rule on device). Any interaction cancels instantly and re-arms the 8s idle timer. Skipped under `prefers-reduced-motion`; pauses when the tab is hidden. The attract/selection cursor uses the high-visibility key-amber, never near-black.
 
-### 13.2 Seed badge (share surface)
-A small `SEED 20260729` chip in the HUD (seven-segment styling, next to the counter). Click = copy the current `?seed=` URL, chip flashes `COPIED`. This is the only share affordance — no share icons, no web share sheet.
+Two implementation notes, both learned from a version that never appeared on a real visit: the idle clock starts when the **entry cascade finishes**, not at parse time (otherwise the demo opens on a scene that is still arriving, whose pieces are all `is-inert`), and `pointermove` does **not** count as an interaction — a still pointer emits stray moves, and a tab opened in the background gets one on its first painted frame. Only deliberate acts cancel it: pointerdown, keydown, wheel, touchstart, focusin — plus landing the pointer on a piece, which is deliberate even though the moves that carried it there are not.
+
+### 13.2 Seed badge — cancelled
+Cut by user decision: a visible seed chip means nothing to a visitor. `?seed=` stays as a silent URL capability (reproducibility/debugging); no UI surfaces it, and no code reads it back into the HUD. Removing the chip re-balanced the bar: the counter is centred again, and the speaker and theme keys are one right-aligned group (`.hud__keys`) so neither can ride past the chassis' rounded corner. The narrow bezel's width budget was re-measured at the same time — the content was 12px wider than its box, which is what pushed the theme key outside the moulding — and the chassis now clips as a backstop.
 
 ### 13.3 Referral params
 Every product URL gets `?ref=aix4u` appended at render time (config flag per item to opt out, e.g. Chrome Web Store links where params are unwelcome). Zero scripts — measurement happens on the products' own analytics.
 
 ### 13.4 Sound system (Web Audio, synthesized, zero assets)
-Default **muted**; a pixel speaker toggle in the HUD (persisted in localStorage). Every sound is synthesized (oscillator + noise + envelope) — no audio files. **Each scene has its own voice; no sound is reused across scenes:**
+**(v2.2.1) Default unmuted** (localStorage opt-out via the HUD speaker); the AudioContext resumes silently on the first user gesture, which is the autoplay-policy reality of "on by default". Master gain ~0.8 — audible at normal system volume, never harsh. Hover/select blips sit around −10dB relative (−18 was inaudible on device); chrome keys (theme/speaker) click softly too. Every sound is synthesized (oscillator + noise + envelope) — no audio files. **Each scene has its own voice; no sound is reused across scenes:**
 
 | Event | Sound sketch |
 |---|---|
 | Piece landing (entry) | Soft wooden tap; **each product owns one note of a pentatonic scale** (priority order = ascending), so an entry cascade plays a tiny melody; O lands with a slightly rubbery boing (its squash), I with the lowest, driest tap |
 | Hard drop impact (reshuffle) | Heavier felt thud + 2px shake already in place; lower pitch than entry taps |
-| Line-clear sweep | Rising filtered-noise swish stepping up per row, ending in a short sparkle |
+| Line-clear sweep | **(v2.2.1) One continuous** rising filtered-noise swish across the whole clear, ending in a short sparkle. Per-row bursts were ten transients in half a second — a rattle, not a sweep; the visual is one gesture, so the sound is one gesture |
 | Reshuffle trigger (R/tap) | Mechanical lever click (two-transient snap) |
-| Select (hover/focus a piece) | 1-frame high blip, very quiet (−18dB relative); no sound on plain pointer-over of chrome |
+| Select (hover/focus a piece) | Short high blip, the quietest voice in the kit (~−10dB relative, revised up from −18dB — below the noise floor of a real room); no sound on plain pointer-over of chrome |
 | Open (click/Enter on a product) | Bright two-note confirm chirp, then navigation |
 | Theme toggle | Switch flick (short click + soft filtered pop, pitch up to dark→light, down to light→dark) |
 | Egg drop (3rd reshuffle) | Small mysterious three-note jingle as the `?` falls |
 | Konami rain | Low rumble bed + a hail of pitched-random taps as the pieces land |
+| Chassis key press (v2.2.1) | Dry mid transient + a blunt low thock — a membrane key bottoming out. Plays *under* the theme flick and the speaker toggle: the press is the finger, the voice after it is the consequence |
 
-Master gain ~0.5, hard cap on simultaneous voices (8), everything through one compressor. iOS: AudioContext resumes on first user gesture (the unmute tap itself).
+Master gain 0.8, hard cap on simultaneous voices (8), everything through one compressor.
+
+Two levelling facts, both established by rendering each timbre through an `OfflineAudioContext` and measuring it, rather than by ear:
+
+- **The compressor, not the master gain, was why the page tested inaudible.** Every voice here is a percussive transient with a ~3ms attack, which is exactly what a compressor's attack eats: at the node's defaults a landing tap arrived 10dB below its own input, and a "gentler" −8dB/4:1 setting made it *worse* (−12dB), because a fast detector clamps the only part of a tap the ear hears. It is now a slow ceiling limiter — −3dB, 20:1, no knee, 50ms attack — transparent to single hits (−8.6dBFS against −8.4 bypassed) and leaning only on a genuine pile-up. Eight taps inside 80ms peak at −5.5dBFS with zero clipped samples, which is the safety net the cap was hired for.
+- **A band-pass's output level tracks its bandwidth**, so the line-clear swish at a fixed source level ramped ~15dB across its own pitch sweep and clipped at the top. Its gain now rides the inverse ramp (`SWISH_GAIN / centre`, 500Hz → 2.8kHz), so only the pitch moves. A *continuous* burst also sustains its level in a way a 50ms one does not, which was worth a further ~9dB of trim.
+
+The whole kit now measures inside a −6 to −18dBFS band against the landing taps' −9, with zero clipped samples anywhere — including a full reshuffle (lever + five thuds + sweep + sparkle) and a 26-piece storm.
+
+Autoplay policy, not just iOS: default-on means the context is created before any gesture and therefore starts `suspended`, so every plausible first gesture (pointerdown, pointerover, keydown, touchstart, click) silently resumes it. The first thing a visitor *does* is already accompanied, and nothing is faked before then.
 
 ### 13.5 The glance (click reaction)
 The instant a product piece is activated (pointer down / Enter), **every other piece's pupils snap to look at it** for ~400ms (pixel-stepped, like all tracking), then release. Also fires on the egg. Not on mere hover.
 
 ### 13.6 Konami easter egg
-`↑↑↓↓←→←→BA` (keyboard only, desktop): a one-time "downpour" — a dozen gray ghost-styled tetrominoes rain through the field with landing taps (sound if unmuted), pile briefly on the bed, then line-clear away. Pure spectacle, once per session, never interferes with links. Skipped under reduced-motion.
+`↑↑↓↓←→←→BA` (keyboard only, desktop): a one-time "downpour".
+
+**(v2.2.1) Escalated.** The first pass rained a dozen dotted ghost outlines and read as the ambient background rather than as a secret, which is a fair complaint about a thing this rare. It is now **26 solid keycaps in the products' own accent colours** — the gag being that the machine has started raining product — falling faster and closer together, throwing a spray of pixel sparks at every impact, under a field that trembles for the whole storm; then one white line-clear flash and a second spark-rain as the pile dissolves floor-row first. ~4.5s end to end. Pure spectacle, once per session (`sessionStorage`, like the mystery tile — a reload is not a new visit), never interferes with links: the layer is `pointer-events: none` and sits under the product pieces. The code is matched against a rolling window rather than a running index, so a stray key mid-sequence does not force a restart. The storm piles for real — each piece settles on the skyline the ones before it left behind, and *these* pieces settle per-column (`solid: false`), because a bare tetromino with no skin across its box genuinely should interlock tooth against tooth. Skipped under reduced-motion.
