@@ -230,11 +230,15 @@ if (playfield && fillerLayer && ghost && shell) {
     sleepTimer = window.setTimeout(() => field.classList.add('is-asleep'), IDLE_SLEEP_MS);
   }
 
-  /** Eyes screw shut when the field takes a hard-drop hit (DESIGN §3.3). */
-  function squeeze(): void {
+  /**
+   * One piece's eye screws shut when *it* lands (DESIGN §3.3). Per piece, not per
+   * field: the pieces no longer land on the same frame, so a field-wide squeeze
+   * would shut five eyes for the first impact and none for the rest.
+   */
+  function squeeze(el: HTMLElement): void {
     if (reducedMotion.matches) return;
-    field.classList.add('is-squeezing');
-    window.setTimeout(() => field.classList.remove('is-squeezing'), 300);
+    el.classList.add('is-squeezing');
+    window.setTimeout(() => el.classList.remove('is-squeezing'), 300);
   }
 
   window.addEventListener(
@@ -462,7 +466,116 @@ if (playfield && fillerLayer && ghost && shell) {
     egg.hidden = false;
   }
 
-  /** Hard drop → line-clear flash → new seed → the entry animation again. */
+  /* --- reshuffle: a hard drop, then a line clear ------------------------- */
+
+  /** A settled piece and the row its bottom ends up on. */
+  interface Landing {
+    el: HTMLElement;
+    /** Row index of the piece's top cell after the drop. */
+    row: number;
+    height: number;
+    /** ms until this piece hits — a function of how far it actually falls. */
+    at: number;
+  }
+
+  const SCAN_ROW_MS = 40; // ~2 frames a row (DESIGN §6.3)
+  /** Beats around the sweep, tuned so the whole reshuffle lands near 2s. */
+  const IMPACT_SETTLE_MS = 420;
+  const MOTES_MS = 360;
+  const EMPTY_MS = 150;
+  const DROP_MAX_MS = 620;
+  const DROP_MIN_MS = 170;
+
+  /**
+   * Where every floating piece truly comes to rest, and how long it takes to get
+   * there (DESIGN §6.3 v2.1).
+   *
+   * The skyline starts as the stack's own profile and grows as pieces settle into
+   * it, so a piece over a gap falls all the way to the floor, a piece over the bed
+   * stops on the bed, and a piece over another piece stops on *that* — computed in
+   * bottom-up order, because the lower piece has to have landed before the one
+   * above it can know where the floor is. Fall time goes with the square root of
+   * the distance, which is what gravity does and what makes the impacts arrive
+   * ragged instead of in chorus.
+   */
+  function planDrops(cell: number): Landing[] {
+    const bp = scene.breakpoint;
+    const tops = [...scene.stackTops];
+    const falling = scene.pieces
+      .filter((piece) => piece.pool === 'floating')
+      .sort((a, b) => b.y - a.y);
+
+    const plans: { placement: PiecePlacement; el: HTMLElement; row: number; cells: number }[] = [];
+    let deepest = 0;
+    for (const placement of falling) {
+      const el = pieceElements.get(placement.id);
+      if (!el) continue;
+      const shape = SHAPES[placement.shape];
+      let top = 0;
+      for (let dx = 0; dx < shape.width; dx++) top = Math.max(top, tops[placement.x + dx] ?? 0);
+      const row = bp.rows - top - shape.height;
+      const cells = Math.max(0, row - placement.y);
+      for (let dx = 0; dx < shape.width; dx++) tops[placement.x + dx] = top + shape.height;
+      deepest = Math.max(deepest, cells);
+      plans.push({ placement, el, row, cells });
+    }
+
+    return plans.map(({ placement, el, row, cells }) => {
+      const at =
+        deepest === 0 ? DROP_MIN_MS : Math.round(Math.max(DROP_MIN_MS, DROP_MAX_MS * Math.sqrt(cells / deepest)));
+      el.style.setProperty('--hard-drop', `${cells * cell}px`);
+      el.style.setProperty('--hard-drop-dur', `${at}ms`);
+      return { el, row, height: SHAPES[placement.shape].height, at };
+    });
+  }
+
+  /**
+   * Group everything the sweep can dissolve by the row it occupies: the settled
+   * pieces' cells, the stack filler, and the mystery block if it has dropped.
+   * Cells carry their own row offset within the piece, so a two-row piece is in
+   * two buckets and comes apart one row at a time.
+   */
+  function rowContents(landings: readonly Landing[]): Map<number, HTMLElement[]> {
+    const rows = new Map<number, HTMLElement[]>();
+    const push = (row: number, el: HTMLElement): void => {
+      const list = rows.get(row);
+      if (list) list.push(el);
+      else rows.set(row, [el]);
+    };
+
+    for (const { el, row } of landings) {
+      for (const cell of el.querySelectorAll<HTMLElement>('.cell')) {
+        push(row + Number(cell.dataset['cy'] ?? 0), cell);
+      }
+    }
+    for (const placement of scene.pieces) {
+      if (placement.pool !== 'landed') continue;
+      const el = pieceElements.get(placement.id);
+      if (!el) continue;
+      for (const cell of el.querySelectorAll<HTMLElement>('.cell')) {
+        push(placement.y + Number(cell.dataset['cy'] ?? 0), cell);
+      }
+    }
+    // The filler layer is rebuilt from the scene on every apply, so its children
+    // are in the scene's own filler order.
+    scene.filler.forEach((cell, index) => {
+      const el = fillerLayer!.children[index] as HTMLElement | undefined;
+      if (el) push(cell.y, el);
+    });
+    if (egg && !egg.hidden) push(Number(egg.style.getPropertyValue('--gy') || 0), egg);
+
+    return rows;
+  }
+
+  /**
+   * Hard drop → line clear → new seed → entry again (DESIGN §6.3 v2.1, ~2s).
+   *
+   * The v2 version dropped every piece to one fixed height, blinked the whole
+   * bottom of the field, and faded everything out. All three readings were wrong:
+   * pieces stopped in mid-air at a line the stack no longer reached, the blink
+   * said "something happened here" rather than "these rows cleared", and a
+   * cross-fade is not how a game removes a row.
+   */
   async function reshuffle(): Promise<void> {
     if (shuffling) return;
     const seed = randomSeed();
@@ -477,37 +590,69 @@ if (playfield && fillerLayer && ghost && shell) {
 
     shuffling = true;
     const cell = field.clientHeight / scene.breakpoint.rows;
-    const floor = scene.breakpoint.rows - scene.breakpoint.stackRows;
-    let lastOrder = 0;
-    for (const placement of scene.pieces) {
-      if (placement.pool !== 'floating') continue;
-      const el = pieceElements.get(placement.id);
-      if (!el) continue;
-      const shape = SHAPES[placement.shape];
-      const drop = Math.max(0, (floor - placement.y - shape.height) * cell);
-      el.style.setProperty('--hard-drop', `${drop}px`);
-      lastOrder = Math.max(lastOrder, placement.order);
-    }
+    const landings = planDrops(cell);
 
     window.clearTimeout(entryTimer);
     field.classList.remove('is-entering', 'is-idle');
     field.classList.add('is-clearing');
 
-    // The first piece hits the stack 260ms in; the field takes the hit with it.
-    await wait(240);
-    field.classList.add('is-shaking');
-    squeeze();
-    await wait(200);
-    field.classList.remove('is-shaking');
-    await wait(Math.max(0, lastOrder * 40 - 180));
+    // Every piece is released now and arrives on its own frame; each one's eye
+    // shuts as it lands, and the machine takes the hit on the first impact.
+    const impacts = [...landings].sort((a, b) => a.at - b.at);
+    for (const landing of impacts) {
+      window.setTimeout(() => squeeze(landing.el), landing.at);
+    }
+    const first = impacts[0]?.at ?? DROP_MIN_MS;
+    const last = impacts[impacts.length - 1]?.at ?? DROP_MIN_MS;
+    window.setTimeout(() => {
+      field.classList.add('is-shaking');
+      window.setTimeout(() => field.classList.remove('is-shaking'), 190);
+    }, first);
 
-    field.classList.add('is-flashing');
-    await wait(400);
+    // Let the last piece settle and squash before the light comes through.
+    await wait(last + IMPACT_SETTLE_MS);
+
+    // The sweep: bottom row up, a row every couple of frames. Each row's cells
+    // crumble into motes, and each piece's skin is clipped away as its rows go.
+    const rows = rowContents(landings);
+    // Every row from the floor to the top of the settled pile, not only the ones
+    // holding blocks: the light crosses the field, and skipping the gaps would
+    // make it jump.
+    const occupied = [...rows.keys()];
+    const swept: number[] = [];
+    for (let row = Math.max(...occupied); row >= Math.min(...occupied); row--) swept.push(row);
+    const bottoms = new Map<HTMLElement, number>();
+    for (const { el, row, height } of landings) bottoms.set(el, row + height - 1);
+    for (const placement of scene.pieces) {
+      if (placement.pool !== 'landed') continue;
+      const el = pieceElements.get(placement.id);
+      if (el) bottoms.set(el, placement.y + SHAPES[placement.shape].height - 1);
+    }
+
+    field.classList.add('is-scanning');
+    for (const row of swept) {
+      field.style.setProperty('--scan-row', String(row));
+      for (const el of rows.get(row) ?? []) {
+        el.classList.add('is-motes');
+        const piece = el.closest<HTMLElement>('.piece');
+        const bottom = piece ? bottoms.get(piece) : undefined;
+        if (piece && bottom !== undefined) piece.style.setProperty('--swept', String(bottom - row + 1));
+      }
+      await wait(SCAN_ROW_MS);
+    }
+    field.classList.remove('is-scanning');
+
+    // The motes are still flying when the last row is swept; let them land, then
+    // hold the empty field for a beat — a board that clears and instantly refills
+    // never reads as having been cleared.
+    await wait(MOTES_MS);
 
     field.classList.add('is-cleared');
-    field.classList.remove('is-clearing', 'is-flashing');
+    for (const el of field.querySelectorAll('.is-motes')) el.classList.remove('is-motes');
+    for (const el of pieceElements.values()) el.style.removeProperty('--swept');
+    field.classList.remove('is-clearing');
     applyScene(currentScene(seed));
-    await wait(60);
+    await wait(EMPTY_MS);
 
     field.classList.remove('is-cleared');
     alignAmbience();

@@ -1255,16 +1255,31 @@ a {
   box-shadow: none;
 }
 
-.line-flash {
+/* The line-clear scan (DESIGN §6.3 v2.1): one row of white light that walks up
+   the settled stack, a row every couple of frames. The old version flashed the
+   whole stack region at once, which is why the reshuffle read as "the bottom
+   blinks" instead of as rows being cleared. Soft-edged top and bottom so it
+   reads as light crossing the row rather than as a white box on it. */
+.scan {
   position: absolute;
   right: 0;
-  bottom: 0;
   left: 0;
+  top: calc(var(--scan-row, 0) * var(--cell));
   z-index: 5;
-  height: calc(var(--stack-rows) * var(--cell));
-  background: var(--flash);
+  height: var(--cell);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--flash) 22%,
+    var(--flash) 78%,
+    transparent 100%
+  );
   opacity: 0;
   pointer-events: none;
+}
+
+.playfield.is-scanning .scan {
+  opacity: 0.9;
 }
 
 /* --- info panel ---------------------------------------------------------- */
@@ -1706,15 +1721,49 @@ a {
   }
 }
 
-@keyframes line-flash {
+/* Each piece takes its own hit at its own landing frame — a 2px knock, because a
+   hard drop that lands 40px lower than the piece beside it should not shake in
+   unison with it (DESIGN §6.3 v2.1). */
+@keyframes piece-knock {
   0% {
-    opacity: 0;
+    transform: translate3d(0, 0, 0);
   }
-  50% {
-    opacity: 0.92;
+  30% {
+    transform: translate3d(0, 2px, 0);
+  }
+  65% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* A swept cell does not fade — it comes apart. The face shrinks off in four
+   steps while a cluster of pixel motes flies out of its middle. */
+@keyframes cell-crumble {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(0.84);
   }
   100% {
     opacity: 0;
+    transform: scale(0.46);
+  }
+}
+
+@keyframes motes {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.6);
   }
 }
 
@@ -1779,28 +1828,89 @@ a {
   animation: ghost-fall var(--ghost-duration, 20s) linear var(--ghost-delay, 0s) infinite;
 }
 
+/* The hard drop is real physics now (DESIGN §6.3 v2.1): the engine measures each
+   piece's true fall against the skyline and writes both the distance and the time
+   it takes. Every piece is released on the same frame and they arrive at
+   different ones, which is what a Tetris board full of hard drops looks like —
+   the old version gave them all one 260ms fall and a 40ms stagger, so they landed
+   like a xylophone and stopped at one height. */
 .playfield.is-clearing .piece--floating .piece__drop {
-  animation: hard-drop 260ms var(--gravity) calc(var(--order, 0) * 40ms) forwards;
+  animation: hard-drop var(--hard-drop-dur, 400ms) var(--gravity) 0ms forwards;
 }
 
 .playfield.is-clearing .piece--floating .piece__trail {
-  animation: trail-in 260ms linear calc(var(--order, 0) * 40ms) both;
+  animation: trail-in var(--hard-drop-dur, 400ms) linear 0ms both;
 }
 
+/* Impact, knock and squash all key off that same per-piece duration. */
 .playfield.is-clearing .piece--floating .piece__body {
-  animation: piece-impact 200ms ease-out calc(var(--order, 0) * 40ms + 260ms) both;
+  animation: piece-impact 200ms ease-out var(--hard-drop-dur, 400ms) both;
 }
 
-.playfield.is-clearing .piece__bob {
+.playfield.is-clearing .piece--floating .piece__bob {
+  animation: piece-knock 170ms steps(3, end) var(--hard-drop-dur, 400ms) both;
+}
+
+.playfield.is-clearing .piece--landed .piece__bob {
   animation: none;
+}
+
+/* Eyes screw shut on that piece's own impact, not on the field's (DESIGN §3.3). */
+.piece.is-squeezing .eye__ball {
+  animation: none;
+  opacity: 0;
+}
+
+.piece.is-squeezing .eye__lash {
+  animation: none;
+  opacity: 1;
+}
+
+/* The sweep: the cell comes apart, and the piece's skin is clipped away from the
+   bottom up as its rows go — the art is one image over the whole piece, so
+   without the clip a dissolved bottom row would still be showing its picture. */
+.cell.is-motes {
+  animation: cell-crumble 240ms steps(4, end) forwards;
+}
+
+.cell.is-motes::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(2px, calc(var(--cell) * 0.07));
+  height: max(2px, calc(var(--cell) * 0.07));
+  background: var(--mote);
+  box-shadow:
+    calc(var(--cell) * 0.2) calc(var(--cell) * -0.12) 0 var(--mote),
+    calc(var(--cell) * -0.22) calc(var(--cell) * -0.06) 0 var(--mote),
+    calc(var(--cell) * 0.06) calc(var(--cell) * 0.22) 0 var(--mote),
+    calc(var(--cell) * -0.1) calc(var(--cell) * 0.18) 0 var(--mote);
+  animation: motes 280ms steps(4, end) forwards;
+}
+
+.filler.is-motes {
+  animation: cell-crumble 240ms steps(4, end) forwards;
+}
+
+.piece--product {
+  --mote: #fffaf0;
+}
+
+:root[data-theme='dark'] .piece--product {
+  --mote: var(--accent-dark);
+}
+
+.piece--link {
+  --mote: var(--tile-glyph);
+}
+
+.piece__skin {
+  clip-path: inset(0 0 calc(var(--swept, 0) * var(--cell)) 0);
 }
 
 .js .playfield.is-ready.is-shaking {
   animation: field-shake 180ms steps(4, end) 1;
-}
-
-.playfield.is-flashing .line-flash {
-  animation: line-flash 200ms steps(2, end) 2;
 }
 
 .playfield.is-cleared .piece,
@@ -1832,8 +1942,11 @@ a {
   .playfield.is-clearing .piece--floating .piece__drop,
   .playfield.is-clearing .piece--floating .piece__trail,
   .playfield.is-clearing .piece--floating .piece__body,
+  .playfield.is-clearing .piece--floating .piece__bob,
   .playfield.is-clearing .piece .piece__spin,
-  .playfield.is-flashing .line-flash,
+  .cell.is-motes,
+  .cell.is-motes::after,
+  .filler.is-motes,
   .egg.is-dropping,
   .panel.is-typing .panel__caret {
     animation: none !important;
