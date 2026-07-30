@@ -50,12 +50,14 @@
   --cell-sheen-top: rgba(255, 255, 255, 0.3);
   --cell-sheen-bottom: rgba(0, 0, 0, 0.1);
   --cell-scan: rgba(0, 0, 0, 0.055);
-  --piece-shadow: rgba(34, 36, 42, 0.5);
-  --piece-shadow-step: rgba(34, 36, 42, 0.2);
+  --piece-shadow: rgba(34, 36, 42, 0.56);
+  --piece-shadow-step: rgba(34, 36, 42, 0.26);
   --piece-glow: transparent;
   --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-  --cast-on: drop-shadow(5px 5px 0 var(--piece-shadow)) drop-shadow(5px 5px 0 var(--piece-shadow-step));
-  --cast-hover: drop-shadow(8px 8px 0 var(--piece-shadow)) drop-shadow(5px 5px 0 var(--piece-shadow-step));
+  /* One notch heavier than v2 (5/5 → 6/6): a thicker block casts a longer stair
+     (DESIGN §2 v2.1). */
+  --cast-on: drop-shadow(6px 6px 0 var(--piece-shadow)) drop-shadow(6px 6px 0 var(--piece-shadow-step));
+  --cast-hover: drop-shadow(10px 10px 0 var(--piece-shadow)) drop-shadow(6px 6px 0 var(--piece-shadow-step));
   --card-bg: #fbfcfe;
   --card-line: #22242a;
   --card-ink: #22242a;
@@ -116,11 +118,11 @@
   --cell-sheen-top: rgba(255, 255, 255, 0.09);
   --cell-sheen-bottom: rgba(0, 0, 0, 0.3);
   --cell-scan: rgba(0, 0, 0, 0.22);
-  --piece-shadow: rgba(0, 0, 0, 0.55);
-  --piece-shadow-step: rgba(0, 0, 0, 0.25);
+  --piece-shadow: rgba(0, 0, 0, 0.6);
+  --piece-shadow-step: rgba(0, 0, 0, 0.3);
   --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-  --cast-on: drop-shadow(0 0 7px var(--piece-glow)) drop-shadow(0 0 18px var(--piece-glow));
-  --cast-hover: drop-shadow(0 0 10px var(--piece-glow)) drop-shadow(0 0 28px var(--piece-glow));
+  --cast-on: drop-shadow(0 0 9px var(--piece-glow)) drop-shadow(0 0 24px var(--piece-glow));
+  --cast-hover: drop-shadow(0 0 13px var(--piece-glow)) drop-shadow(0 0 34px var(--piece-glow));
   --card-bg: #16181d;
   --card-line: #f3ecdb;
   --card-ink: #f3ecdb;
@@ -584,7 +586,17 @@ a {
   pointer-events: none;
 }
 
+/* Every cell knows which of its four edges face the outside world (`--e-*`, set
+   at build time from the silhouette). Two things read those flags: the seam,
+   which a skinned piece draws only on its outline, and the extruded bottom edge,
+   which is what gives a piece thickness instead of outline (DESIGN §2 v2.1).
+
+   `--ex` is the extrusion depth for *this* cell: zero on a cell with a
+   neighbour below it, so the strip traces the bottom silhouette and never runs
+   through the middle of a piece. */
 .cell {
+  --ex: calc(var(--e-bottom, 1) * var(--extrude-w));
+
   position: absolute;
   left: calc(var(--cx) * var(--cell));
   top: calc(var(--cy) * var(--cell));
@@ -599,10 +611,14 @@ a {
     repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px),
     /* and a vertical sheen over the flat fill */
     linear-gradient(to bottom, var(--cell-sheen-top) 0%, transparent 38%, transparent 70%, var(--cell-sheen-bottom) 100%);
-  /* Seam ring, then a flat pixel bevel: light along the top and left, shade
-     along the bottom and right, all inside the seam. No blur. */
+  /* Painted front to back: the seam ring, the extrusion just inside the bottom
+     of it, then a flat pixel bevel — light along the top and left, shade along
+     the bottom and right. No blur anywhere. Where a cell is extruded, the
+     opaque accent strip takes the bottom bevel's place; where it is not, the
+     strip collapses under the seam and the bevel shows as before. */
   box-shadow:
     inset 0 0 0 var(--seam-w) var(--seam),
+    inset 0 calc(-1 * (var(--seam-w) + var(--ex))) 0 0 var(--extrude-ink),
     inset 0 var(--bevel-w) 0 calc(-1 * var(--seam-w)) var(--bevel-light),
     inset var(--bevel-w) 0 0 calc(-1 * var(--seam-w)) var(--bevel-light),
     inset 0 calc(-1.35 * var(--bevel-w)) 0 calc(-1 * var(--seam-w)) var(--bevel-dark),
@@ -649,6 +665,9 @@ a {
   --piece-fill: var(--accent);
   --piece-glow: var(--accent);
   --trail: var(--accent);
+  /* The thickness of the block: its own colour, taken down far enough to read as
+     a shaded face rather than as a second colour (see docs/reference/m1.png). */
+  --extrude-ink: color-mix(in srgb, var(--accent) 58%, #16181d);
 }
 
 /* Dark mode is a backlit console, so a product block is a dim pane of its own
@@ -661,6 +680,8 @@ a {
   --seam: var(--accent-dark);
   --glyph: var(--accent-dark);
   --cell-sheen-top: color-mix(in srgb, var(--accent-dark) 12%, transparent);
+  /* At night the extrusion is the unlit face of the block, not a darker paint. */
+  --extrude-ink: color-mix(in srgb, var(--accent-dark) 16%, #06070a);
 }
 
 :root[data-theme='dark'] .cell__glyph {
@@ -674,14 +695,16 @@ a {
   --seam-w: 2px;
   --glyph: var(--tile-glyph);
   --trail: var(--ink-soft);
-  --cast-on: drop-shadow(3px 3px 0 var(--piece-shadow-step));
-  --cast-hover: drop-shadow(5px 5px 0 var(--piece-shadow-step));
+  --extrude-ink: color-mix(in srgb, var(--tile-fill) 56%, #14161b);
+  --cast-on: drop-shadow(4px 4px 0 var(--piece-shadow-step));
+  --cast-hover: drop-shadow(6px 6px 0 var(--piece-shadow-step));
   z-index: 2;
 }
 
 :root[data-theme='dark'] .piece--link {
-  --cast-on: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
-  --cast-hover: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.6));
+  --extrude-ink: color-mix(in srgb, var(--tile-fill) 40%, #05060a);
+  --cast-on: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.65));
+  --cast-hover: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.65));
 }
 
 .piece--link .cell__glyph {
@@ -786,17 +809,48 @@ a {
   background-image: var(--skin-dark, none);
 }
 
-/* A skinned cell drops its fill and dials its overlays right down. The seam stays
-   at full strength — it is what makes four cells read as one tetromino — but the
-   bevel goes from a 62 % white band to a hint, and the internal scanline goes
-   away entirely: these exist to give a flat accent fill some material, and a skin
-   already *has* material. At full strength they bleach it (measured against
-   public/skins/health-analyst-light.png, whose pale ECG paper suffered worst). */
+/* A skinned cell drops its fill and dials its overlays right down: the bevel goes
+   from a 62 % white band to a hint and the internal scanline goes away entirely,
+   because those exist to give a flat accent fill some material and a skin already
+   *has* material. At full strength they bleach it (measured against
+   public/skins/health-analyst-light.png, whose pale ECG paper suffered worst).
+
+   And the seam is drawn on the **silhouette only** (DESIGN §3.1 v2.1). The
+   current skin batch has the cell grid painted into the art, so a CSS seam over
+   the interior drew every line twice — a double rule with a seam of pale art
+   trapped between the two. The outline still has to be ours: it is what sits the
+   piece on the background. When the seamless redraw lands, this rule goes back to
+   the full ring and the art stops carrying a grid. */
 .piece--skinned .cell {
   --bevel-light: rgba(255, 255, 255, 0.24);
   --bevel-dark: rgba(0, 0, 0, 0.15);
   background-color: transparent;
   background-image: none;
+  box-shadow:
+    inset 0 calc(var(--e-top, 1) * var(--seam-w)) 0 0 var(--seam),
+    inset 0 calc(-1 * var(--e-bottom, 1) * var(--seam-w)) 0 0 var(--seam),
+    inset calc(var(--e-left, 1) * var(--seam-w)) 0 0 0 var(--seam),
+    inset calc(-1 * var(--e-right, 1) * var(--seam-w)) 0 0 0 var(--seam),
+    inset 0 calc(-1 * var(--e-bottom, 1) * (var(--seam-w) + var(--extrude-w))) 0 0 var(--extrude-ink),
+    /* The bevels are gated on the same flags. An interior bevel is an interior
+       line by another name, and the art already drew that line. Both the offset
+       and the spread have to go to zero together: a zero offset with a negative
+       spread is a full ring, which is the opposite of nothing. */
+    inset 0 calc(var(--e-top, 1) * var(--bevel-w)) 0 calc(-1 * var(--e-top, 1) * var(--seam-w)) var(--bevel-light),
+    inset calc(var(--e-left, 1) * var(--bevel-w)) 0 0 calc(-1 * var(--e-left, 1) * var(--seam-w)) var(--bevel-light),
+    inset 0 calc(-1.35 * var(--e-bottom, 1) * var(--bevel-w)) 0 calc(-1 * var(--e-bottom, 1) * var(--seam-w))
+      var(--bevel-dark),
+    inset calc(-1 * var(--e-right, 1) * var(--bevel-w)) 0 0 calc(-1 * var(--e-right, 1) * var(--seam-w))
+      var(--bevel-dark);
+}
+
+/* Only the silhouette is rounded, too: a radius on an interior corner would cut a
+   notch out of the art where two cells meet. */
+.piece--skinned .cell {
+  border-top-left-radius: calc(var(--e-top, 1) * var(--e-left, 1) * var(--cell-radius));
+  border-top-right-radius: calc(var(--e-top, 1) * var(--e-right, 1) * var(--cell-radius));
+  border-bottom-left-radius: calc(var(--e-bottom, 1) * var(--e-left, 1) * var(--cell-radius));
+  border-bottom-right-radius: calc(var(--e-bottom, 1) * var(--e-right, 1) * var(--cell-radius));
 }
 
 :root[data-theme='dark'] .piece--skinned .cell {
@@ -1022,24 +1076,29 @@ a {
 
 /* --- selection cursor --------------------------------------------------- */
 
-/* Corner brackets over the selected piece — the game-cursor idiom, drawn in the
-   scene rather than as a browser outline (DESIGN §4.4). */
+/* Corner brackets around the selected piece — the game-cursor idiom, drawn in the
+   scene rather than as a browser outline (DESIGN §4.4).
+
+   They frame the piece from **outside** its bounding box: a 0.15-cell gap, and
+   the stroke itself hung past that gap rather than inside it, so no part of a
+   bracket is ever over artwork (§4.4 v2.1). The old version put the stroke inside
+   the gap, which on a small cell left the bracket sitting on the skin's outline —
+   two dark rules a couple of pixels apart, reading as a smudge on the art. */
 .cursor {
+  --gap: calc(var(--cell) * 0.15);
+  --arm: max(6px, calc(var(--cell) * 0.26));
+  --thick: max(2px, calc(var(--cell) * 0.055));
+
   position: absolute;
-  left: calc(var(--gx) * var(--cell));
-  top: calc(var(--gy) * var(--cell));
+  left: calc(var(--gx) * var(--cell) - var(--gap) - var(--thick));
+  top: calc(var(--gy) * var(--cell) - var(--gap) - var(--thick));
   z-index: 7;
-  width: calc(var(--pw) * var(--cell));
-  height: calc(var(--ph) * var(--cell));
-  margin: calc(var(--cell) * -0.1) 0 0 calc(var(--cell) * -0.1);
-  padding: calc(var(--cell) * 0.1);
-  box-sizing: content-box;
+  width: calc(var(--pw) * var(--cell) + 2 * (var(--gap) + var(--thick)));
+  height: calc(var(--ph) * var(--cell) + 2 * (var(--gap) + var(--thick)));
   pointer-events: none;
 }
 
 .cursor__corner {
-  --arm: max(6px, calc(var(--cell) * 0.26));
-  --thick: max(2px, calc(var(--cell) * 0.055));
   position: absolute;
   width: var(--arm);
   height: var(--arm);
