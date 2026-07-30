@@ -9,7 +9,10 @@
  *   - every face mark and the icon badge must stay inside the piece's own
  *     cells (DESIGN §3.3), so none of them can hang in the notch of an S, and a
  *     two-eyed preset's eyes must not overlap into one blob;
- *   - the stack reads as a low bed, not a clump (DESIGN §4.1 v2.1).
+ *   - the stack reads as a low bed, not a clump (DESIGN §4.1 v2.1);
+ *   - and the frame a *reshuffle* leaves is legal too (v2.2.1): the hard drop is
+ *     replayed and no settled piece may land on the bed, a perched tile, or
+ *     another piece.
  *
  * v2 dropped the label assertions along with the label engine, v2.1 the band
  * assertions along with the band and traded the one standard eye for five face
@@ -20,7 +23,7 @@
  * Run with `npm run check:scene`.
  */
 
-import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
+import { buildScene, settleShape, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
 import { SHAPES, columnProfile, hasCell, type ShapeName } from '../src/lib/tetromino';
 import { content, EYE_SIZE, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
@@ -324,6 +327,62 @@ function identityProblems(product: ProductItem): string[] {
   return found;
 }
 
+/**
+ * The frame a *reshuffle* leaves behind (v2.2.1). Everything above checks the
+ * scene as built; this replays the hard drop the way `planDrops` does — every
+ * floating piece settling onto the skyline, bottom-up, each one raising it for
+ * the next — and asserts the result is still a legal frame.
+ *
+ * This is the assertion that was missing, and a device screenshot is what found
+ * the hole: the static scene reserved each landed product's whole bounding box
+ * (a skin is one PNG across the box, so an S's notch is airspace, not a shelf),
+ * but the hard drop settled per-column and slid bed cells and perched tiles
+ * straight into those notches. 624 of 7200 drops, invisible to a check that only
+ * ever looked at the opening frame.
+ */
+function reshuffleProblems(scene: Scene): string[] {
+  const found: string[] = [];
+  const tops = [...scene.stackTops];
+
+  const boxOf = (piece: PiecePlacement, row: number): Rect => {
+    const shape = SHAPES[piece.shape];
+    return { x: piece.x, y: row, w: shape.width, h: shape.height, what: `dropped ${piece.id}` };
+  };
+
+  const obstacles: Rect[] = [
+    ...scene.pieces
+      .filter((piece) => piece.pool === 'landed')
+      .map((piece) => boxOf(piece, piece.y)),
+    ...scene.filler.map((cell) => ({
+      x: cell.x,
+      y: cell.y,
+      w: 1,
+      h: 1,
+      what: `stack filler ${cell.x},${cell.y}`,
+    })),
+  ];
+
+  // `planDrops`' own order: deepest piece first, so a piece above another knows
+  // where its floor is by the time it falls.
+  const falling = scene.pieces.filter((piece) => piece.pool === 'floating').sort((a, b) => b.y - a.y);
+
+  for (const piece of falling) {
+    const shape = SHAPES[piece.shape];
+    const row = settleShape(shape, piece.x, tops, scene.breakpoint.rows);
+    const box = boxOf(piece, row);
+
+    if (row < 0 || row + shape.height > scene.breakpoint.rows) {
+      found.push(`${box.what} settles out of the field at row ${row}`);
+    }
+    for (const other of obstacles) {
+      if (overlaps(box, other)) found.push(`${box.what} lands on ${other.what}`);
+    }
+    obstacles.push(box);
+  }
+
+  return found;
+}
+
 const VIEWPORTS = [1600, 1440, 1024, 900, 760, 480, 375, 320];
 const SEEDS = 400;
 
@@ -342,7 +401,7 @@ for (const viewport of VIEWPORTS) {
     const seed = i === 0 ? DEFAULT_SEED : i * 7919 + 13;
     const scene = buildScene(seed, viewport, content.items);
     checked++;
-    for (const problem of problems(scene)) {
+    for (const problem of [...problems(scene), ...reshuffleProblems(scene)]) {
       failures++;
       if (failures <= 20) console.error(`viewport ${viewport}, seed ${seed}: ${problem}`);
     }
@@ -355,5 +414,5 @@ if (failures > 0) {
 }
 const faceMarks = content.products.reduce((n, p) => n + p.face.eyes.length + (p.face.mouth ? 1 : 0), 0);
 console.log(
-  `scene check: ${content.products.length} piece identities (${faceMarks} face marks), ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps.`,
+  `scene check: ${content.products.length} piece identities (${faceMarks} face marks), ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps — as built and after a reshuffle.`,
 );

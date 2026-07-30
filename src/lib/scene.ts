@@ -166,35 +166,61 @@ export function randomSeed(): number {
 type Rng = () => number;
 
 /**
- * Per-column skyline collision (v2.1.4 device review). The row a shape comes
- * to rest at when dropped over column `x`: each column of the piece measures
- * its own fall — the bottom of the piece's lowest cell there against that
- * column's skyline — and the piece stops at the tightest one. The bounding-box
- * version this replaces perched a T on the bed's shoulders with its stem
- * hanging over the very notch it should have slotted into; now the stem slots,
- * the bar shoulders, and an S bites into an uneven bed. One collision, three
- * callers: the reshuffle hard drop, the landed pool's placement, and the
- * mystery tile's perch.
+ * Skyline collision: the row a shape comes to rest at when dropped over column
+ * `x`. Every column of the piece measures its own fall against that column's
+ * skyline and the piece stops at the tightest one.
+ *
+ * `solid` is the whole argument (v2.2.1, from a device screenshot showing bed
+ * cells sitting inside an S's notch). A tetromino here is one of two things:
+ *
+ * - **A skinned product.** Its artwork is a single PNG laid across the entire
+ *   bounding box, so the box is opaque even where the silhouette is not: an S's
+ *   notch and an L's corner are *reserved airspace*. Anything that slides into
+ *   them ends up painted over, which is what the screenshot caught.
+ *   `layoutStack` has always known this — it reserves the full box for the
+ *   static scene — but the reshuffle's hard drop went on settling per-column and
+ *   quietly re-created the overlap on every R press. Measured across six
+ *   breakpoints and 300 seeds, 624 of 7200 drops landed on a bed cell or a
+ *   perched tile.
+ * - **An unskinned ghost** (the Konami storm): a dotted outline with nothing
+ *   painted between its cells, which genuinely *should* interlock tooth against
+ *   tooth — that is the whole pleasure of a pile of tetrominoes.
+ *
+ * So the caller declares which it has. `solid: true` (the default, because the
+ * product wall is the case that matters) measures the bounding box; `false`
+ * keeps the v2.1.4 per-column behaviour for pieces that have earned it.
  */
-export function restingRow(shape: Shape, x: number, tops: readonly number[], rows: number): number {
+export function restingRow(
+  shape: Shape,
+  x: number,
+  tops: readonly number[],
+  rows: number,
+  solid = true,
+): number {
   const profile = columnProfile(shape);
   let rest = Number.POSITIVE_INFINITY;
   for (let dx = 0; dx < shape.width; dx++) {
-    rest = Math.min(rest, rows - (tops[x + dx] ?? 0) - profile.bottoms[dx]!);
+    // A solid piece hangs its whole box below the contact point; a hollow one
+    // only hangs the cells it actually draws in this column.
+    const depth = solid ? shape.height : profile.bottoms[dx]!;
+    rest = Math.min(rest, rows - (tops[x + dx] ?? 0) - depth);
   }
   return rest;
 }
 
 /**
- * Drop a shape onto the skyline and raise it: returns the resting row and
- * lifts each column's top to the piece's own silhouette there, so the next
- * drop lands on this one tooth-against-tooth as well.
+ * Drop a shape onto the skyline and raise it: returns the resting row and lifts
+ * each column's top so the next drop lands on this one. A solid piece raises the
+ * skyline to its box top across its whole width — nothing may perch in an L's
+ * corner, because the skin is already there; a hollow one raises each column to
+ * its own silhouette, so the next ghost interlocks with it.
  */
-export function settleShape(shape: Shape, x: number, tops: number[], rows: number): number {
-  const y = restingRow(shape, x, tops, rows);
+export function settleShape(shape: Shape, x: number, tops: number[], rows: number, solid = true): number {
+  const y = restingRow(shape, x, tops, rows, solid);
   const profile = columnProfile(shape);
   for (let dx = 0; dx < shape.width; dx++) {
-    tops[x + dx] = Math.max(tops[x + dx] ?? 0, rows - (y + profile.tops[dx]!));
+    const top = solid ? 0 : profile.tops[dx]!;
+    tops[x + dx] = Math.max(tops[x + dx] ?? 0, rows - (y + top));
   }
   return y;
 }
