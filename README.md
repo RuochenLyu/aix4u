@@ -160,6 +160,10 @@ Useful while working on the engine:
 - `?seed=12345` reproduces a scene exactly. The current seed is written back to the URL
   after every reshuffle, so any layout you like is shareable.
 - <kbd>R</kbd> reshuffles.
+- `npm run check:links` re-reads the built `dist/` and fails if any off-site anchor is
+  missing `target="_blank"` or either half of `rel="noopener noreferrer"`, or if a product
+  anchor's `title` is not `Name — tagline`. It runs last in `npm run build`, after
+  `astro build`, because the rule is about what ships rather than about the source.
 - `npm run check:scene` replays the engine over every breakpoint and hundreds of seeds and
   fails on any overlap, any piece resting where it should be suspended, any stack that reads
   as a pile or leaves an unsupported hole, and any eye or icon badge that strays outside its

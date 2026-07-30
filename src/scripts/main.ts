@@ -8,7 +8,7 @@
  */
 
 import { content } from '../lib/content';
-import { SHAPES, GHOST_SHAPES } from '../lib/tetromino';
+import { SHAPES, GHOST_SHAPES, SPARE_SHAPES, markedCell } from '../lib/tetromino';
 import {
   buildScene,
   breakpointFor,
@@ -65,12 +65,50 @@ if (playfield && fillerLayer && ghost && shell) {
   const cursor = document.getElementById('cursor');
   const egg = document.getElementById('egg');
 
-  let scene = currentScene(readSeedFromUrl() ?? randomSeed());
   let placements = new Map<string, PiecePlacement>();
   let shuffling = false;
 
+  /* --- the session ------------------------------------------------------- */
+
+  const SESSION_KEY = 'aix4u-session';
+  const SHUFFLE_KEY = 'aix4u-shuffles';
+  const EGG_KEY = 'aix4u-egg';
+
+  function session(key: string): string | null {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberSession(key: string, value: string): void {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      /* private mode: the session simply does not outlive the page */
+    }
+  }
+
+  /**
+   * The mystery piece's silhouette is a property of the *visit*, not of the seed
+   * (DESIGN §6.5 v2.1.1) — reshuffling the board should not change which piece
+   * you are waiting for. A reload keeps it; a new tab draws again.
+   */
+  function sessionSeed(): number {
+    const stored = Number.parseInt(session(SESSION_KEY) ?? '', 10);
+    if (Number.isFinite(stored) && stored > 0) return stored;
+    const fresh = randomSeed();
+    rememberSession(SESSION_KEY, String(fresh));
+    return fresh;
+  }
+
+  const eggShape = sessionSeed() % SPARE_SHAPES.length;
+
+  let scene = currentScene(readSeedFromUrl() ?? randomSeed());
+
   function currentScene(seed: number): Scene {
-    return buildScene(seed, window.innerWidth, content.items);
+    return buildScene(seed, window.innerWidth, content.items, eggShape);
   }
 
   function readSeedFromUrl(): number | null {
@@ -133,11 +171,28 @@ if (playfield && fillerLayer && ghost && shell) {
     ghostRng = createRandom((next.seed ^ 0x9e3779b9) >>> 0);
     drawGhost(next.ghost);
 
-    // The mystery block, once it has dropped, is part of the world: it finds a
-    // new resting place in every scene after that rather than vanishing.
+    // The mystery piece is part of the world from the first frame: it finds a new
+    // spot on the bed in every scene rather than waiting to be earned.
     if (egg) {
+      const shape = SPARE_SHAPES[next.egg.shape]!;
       egg.style.setProperty('--gx', String(next.egg.x));
       egg.style.setProperty('--gy', String(next.egg.y));
+      egg.style.setProperty('--pw', String(shape.width));
+      egg.style.setProperty('--ph', String(shape.height));
+      const body = egg.querySelector('.egg__body');
+      if (body && body.childElementCount !== shape.cells.length) {
+        const mark = markedCell(shape);
+        body.replaceChildren(
+          ...shape.cells.map(([cx, cy]) => {
+            const span = document.createElement('span');
+            span.className = 'cell egg__cell';
+            span.style.setProperty('--cx', String(cx));
+            span.style.setProperty('--cy', String(cy));
+            if (cx === mark[0] && cy === mark[1]) span.textContent = '?';
+            return span;
+          }),
+        );
+      }
     }
 
     moveCursor();
@@ -422,47 +477,26 @@ if (playfield && fillerLayer && ghost && shell) {
 
   /* --- the NEXT mystery block ------------------------------------------- */
 
-  const SHUFFLE_KEY = 'aix4u-shuffles';
-  const EGG_KEY = 'aix4u-egg';
-  let eggDropped = false;
-
-  function session(key: string): string | null {
-    try {
-      return sessionStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  function rememberSession(key: string, value: string): void {
-    try {
-      sessionStorage.setItem(key, value);
-    } catch {
-      /* private mode: the egg simply stays in its crate */
-    }
-  }
+  let eggDropped = Boolean(session(EGG_KEY));
 
   /**
-   * After the third reshuffle of a session the `?` in the NEXT slot stops being
-   * a promise and actually falls into the stack (DESIGN §6.5). Once per session:
-   * a gag that repeats is not a gag.
+   * The mystery piece is in the scene the whole time. What the third reshuffle of
+   * a session earns is the *arrival* — it re-drops out of the NEXT slot with the
+   * full falling treatment, trail and squash and all (DESIGN §6.5 v2.1.1). Once
+   * per session: a gag that repeats is not a gag.
    */
   function maybeDropEgg(): void {
     if (!egg || eggDropped) return;
     const count = Number.parseInt(session(SHUFFLE_KEY) ?? '0', 10) + 1;
     rememberSession(SHUFFLE_KEY, String(count));
-    if (count < 3 || session(EGG_KEY)) return;
+    if (count < 3) return;
 
     eggDropped = true;
     rememberSession(EGG_KEY, '1');
-    egg.hidden = false;
+    if (reducedMotion.matches) return;
+    egg.classList.remove('is-dropping');
+    void egg.offsetWidth; // restart the fall if one is somehow still on
     egg.classList.add('is-dropping');
-  }
-
-  if (session(EGG_KEY) && egg) {
-    // Already earned it earlier this session (a reload does not take it back).
-    eggDropped = true;
-    egg.hidden = false;
   }
 
   /* --- reshuffle: a hard drop, then a line clear ------------------------- */
@@ -561,7 +595,12 @@ if (playfield && fillerLayer && ghost && shell) {
       const el = fillerLayer!.children[index] as HTMLElement | undefined;
       if (el) push(cell.y, el);
     });
-    if (egg && !egg.hidden) push(Number(egg.style.getPropertyValue('--gy') || 0), egg);
+    if (egg) {
+      const top = Number(egg.style.getPropertyValue('--gy') || 0);
+      for (const cell of egg.querySelectorAll<HTMLElement>('.cell')) {
+        push(top + Number(cell.style.getPropertyValue('--cy') || 0), cell);
+      }
+    }
 
     return rows;
   }

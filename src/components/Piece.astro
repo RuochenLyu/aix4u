@@ -1,5 +1,11 @@
 ---
 /**
+ * Every piece is an off-site link, so every piece carries the link policy
+ * (DESIGN §4.15): a new tab, `noopener noreferrer`, and — for products — a
+ * descriptive `title` built from the name and the tagline, on top of the sr-only
+ * text. The band used to say the name in the markup; the title is what replaces
+ * it for a hovering visitor and for anything reading anchors.
+ *
  * One tetromino = one product (DESIGN §3). Three layers, back to front: the skin
  * (an art asset, or the accent-fill placeholder until one lands), the CSS cells
  * with their silhouette seam, bevel and extruded bottom edge, and the eye. v2.1
@@ -102,8 +108,9 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
   data-beat={motion.beat}
   data-panel={isProduct ? panelLine(item) : undefined}
   href={item.url}
-  rel={isProduct ? 'noopener' : 'me noopener'}
-  title={isProduct ? undefined : item.name}
+  target="_blank"
+  rel={isProduct ? 'noopener noreferrer' : 'me noopener noreferrer'}
+  title={isProduct ? `${item.name} — ${item.tagline}` : item.name}
   aria-label={isProduct ? undefined : item.name}
   style={style}
 >

@@ -98,6 +98,9 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 - Overflow: floating pool caps at ~5 (or when lanes get tight); lowest priority spills into the stack. More products ⇒ prouder stack.
 - Narrow (<~700px): **all products float**, stack holds only link tiles + filler.
 
+### 4.15 Link policy (v2.1.1)
+Every off-site link — products, link tiles, the `?` piece — opens in a new tab: `target="_blank"` + `rel="noopener noreferrer"`. Product `<a>`s carry a descriptive `title` (`"Meikyu — Deduce the daily dungeon in six tries"`) on top of the existing sr-only name+flavor text, so anchors are fully described for crawlers and hover users alike.
+
 ### 4.2 Link tiles
 Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/RuochenLyu`), kshift.me (a pixel keycap with `⇧`), X (`x.com/kshift`). Configured in JSON (`type: "link"`); `title` + `aria-label` required.
 
@@ -130,7 +133,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 2. **Idle**: bob ±2px, per-piece period/phase ("breathing, not elevators"); ghost piece falls slowly forever in the background — **(v2.1) each cycle draws a random shape from the seven standard tetrominoes at a random x** (seeded), styled as a sparse dotted outline, quieter than today; eyes blink/track/sleep (§3.3).
 3. **Reshuffle (~2s, v2.1 — real physics)**: each floating piece hard-drops to its **true resting position** computed against the skyline (stack + previously dropped pieces + floor); pieces over open floor fall all the way down. Impacts land staggered (per-piece distance ⇒ per-piece timing), each with its own 2px shake and eye-squeeze. Then the **line clear**: a white scan sweeps the settled rows bottom-up (one row per ~2 frames), each swept row's cells dissolve into a few pixel motes; when the field is clear — new seed, entry replays. The old "everything stops at one height, whole layer blinks" reading is explicitly rejected.
 4. **Hover/press**: two-step 2px lift + shadow/glow deepen; active sinks 2px (key-press feel).
-5. **NEXT easter egg**: after the 3rd reshuffle in a session, the mystery block actually drops from the NEXT slot into the stack — a gray `?` mini-piece. Clicking it opens `https://github.com/RuochenLyu/aix4u/issues/new` ("tell me what to build next"). Once per session.
+5. **NEXT easter egg (v2.1.1)**: the mystery element is a **real tetromino**, not a stray 1×1 tile — a gray, dashed-outline piece (shape seeded per session from the shapes no product uses, e.g. J/Z) with a `?` in one cell, resting **on top of the bed** like the piece that hasn't revealed itself yet. It links to `https://github.com/RuochenLyu/aix4u/issues/new` ("tell me what to build next"). After the 3rd reshuffle in a session it re-drops from the NEXT slot with the full falling treatment (once per session); before that it simply sits in the scene. A lone `?` square floating in the bed reads as a glitch, not an invitation.
 
 ## 7. Layout & responsiveness
 - Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.

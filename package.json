@@ -2,17 +2,18 @@
   "name": "aix4u",
   "version": "1.0.0",
   "private": true,
-  "description": "aix4u.com — an indie developer's product portfolio, rendered as a frozen frame of an ongoing Tetris game.",
+  "description": "aix4u.com \u2014 an indie developer's product portfolio, rendered as a frozen frame of an ongoing Tetris game.",
   "license": "MIT",
   "author": "Ruochen Lyu",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro check && npm run check:scene && astro build",
+    "build": "astro check && npm run check:scene && astro build && npm run check:links",
     "preview": "astro preview",
     "check": "astro check",
     "check:scene": "esbuild scripts/check-scene.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-scene.mjs --log-level=warning && node node_modules/.cache/check-scene.mjs",
-    "sync-fonts": "node scripts/sync-fonts.mjs"
+    "sync-fonts": "node scripts/sync-fonts.mjs",
+    "check:links": "esbuild scripts/check-links.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-links.mjs --log-level=warning && node node_modules/.cache/check-links.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.0",

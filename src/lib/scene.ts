@@ -17,16 +17,16 @@
  * narrow breakpoint that inverts (DESIGN §7): every product floats in its own
  * band and the stack keeps only link tiles.
  *
- * v2 removed the label-placement engine. Names live *on* the piece now (the
- * sticker band, DESIGN §3.2) and the long copy lives in the one fixed info
- * panel (§4.4), so there is nothing left to route around the scene: the engine
- * only has to keep pieces off each other and off the stack.
+ * v2 removed the label-placement engine and v2.1 removed the sticker band that
+ * replaced it: every word about a product now lives in the one fixed info panel
+ * (§4.4), so there is nothing left to route around the scene and the engine only
+ * has to keep pieces off each other and off the stack.
  *
  * All coordinates are in grid cells: x grows right, y grows down from the top
  * of the playfield. The renderer multiplies them by the CSS `--cell` length.
  */
 
-import { SHAPES, GHOST_SHAPES, type ShapeName } from './tetromino';
+import { SHAPES, GHOST_SHAPES, SPARE_SHAPES, type ShapeName } from './tetromino';
 import type { SceneItem } from './content';
 
 export const DEFAULT_SEED = 20260729;
@@ -119,8 +119,16 @@ export function rollGhost(rng: Rng, cols: number): GhostPlacement {
   };
 }
 
-/** Where the NEXT mystery block lands if the easter egg fires (DESIGN §6.5). */
+/**
+ * Where the mystery `?` piece rests (DESIGN §6.5 v2.1.1). It is a real tetromino
+ * standing on top of the bed, present in every frame — a lone 1x1 `?` floating in
+ * the stack read as a glitch, a whole piece reads as the one that has not been
+ * revealed yet. `shape` indexes `SPARE_SHAPES` and is chosen per *session*, not
+ * per scene, so the silhouette you are waiting on does not change under you when
+ * the board reshuffles.
+ */
 export interface EggPlacement {
+  shape: number;
   x: number;
   y: number;
 }
@@ -180,7 +188,17 @@ function shapeOf(item: SceneItem): ShapeName {
   return item.type === 'product' ? item.shape : 'DOT';
 }
 
-export function buildScene(seed: number, viewportWidth: number, items: readonly SceneItem[]): Scene {
+/**
+ * `eggShape` indexes `SPARE_SHAPES` and comes from the *session*, not the seed
+ * (DESIGN §6.5 v2.1.1); the build-time frame has no session, so it falls back to
+ * the first spare shape and the client re-applies the real one on load.
+ */
+export function buildScene(
+  seed: number,
+  viewportWidth: number,
+  items: readonly SceneItem[],
+  eggShape = 0,
+): Scene {
   const base = breakpointFor(viewportWidth);
   const rng = createRandom(seed);
 
@@ -222,14 +240,16 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
 
   const ghost: GhostPlacement = { ...rollGhost(rng, bp.cols), delay: int(rng, 0, 6) };
 
-  return { seed, breakpoint: bp, pieces, filler, stackTops: tops, ghost, egg: eggSlot(rng, bp, tops, pieces) };
+  const egg = eggSlot(rng, bp, tops, pieces, eggShape % SPARE_SHAPES.length);
+
+  return { seed, breakpoint: bp, pieces, filler, stackTops: tops, ghost, egg };
 }
 
 /**
- * A free 1x1 landing spot for the NEXT mystery block: on top of the shortest
- * column that is actually part of the stack. It has to be somewhere the block
- * visibly *joins* the stack, otherwise the joke reads as a stray tile — and it
- * must not land inside a suspended piece, which is why the floating pool is an
+ * Stand the mystery piece on the skyline (DESIGN §6.5 v2.1.1): the whole
+ * tetromino resting on top of the bed, the way the next piece would if it had
+ * already dropped. It has to *sit on* the stack rather than hover over a dip, and
+ * it must not land inside a suspended piece — which is why the floating pool is an
  * obstacle here and not just the skyline.
  */
 function eggSlot(
@@ -237,28 +257,57 @@ function eggSlot(
   bp: Breakpoint,
   tops: readonly number[],
   pieces: readonly PiecePlacement[],
+  shapeIndex: number,
 ): EggPlacement {
-  const blocked = (x: number, y: number): boolean =>
+  const shape = SPARE_SHAPES[shapeIndex]!;
+  const overlaps = (x: number, y: number): boolean =>
     pieces.some((piece) => {
-      const shape = SHAPES[piece.shape];
-      return x < piece.x + shape.width && piece.x < x + 1 && y < piece.y + shape.height && piece.y < y + 1;
+      const other = SHAPES[piece.shape];
+      return (
+        x < piece.x + other.width &&
+        piece.x < x + shape.width &&
+        y < piece.y + other.height &&
+        piece.y < y + shape.height
+      );
     });
 
-  // One candidate per column: the cell directly on top of that column's stack,
-  // which is free of filler and of landed pieces by construction.
-  const slots = tops
-    .map((h, x) => ({ x, y: bp.rows - h - 1, onStack: h > 0 }))
-    .filter((slot) => slot.y >= 0 && !blocked(slot.x, slot.y));
+  /** The lowest cell in each of the shape's columns. */
+  const bottomOf: number[] = [];
+  for (let dx = 0; dx < shape.width; dx++) {
+    bottomOf[dx] = Math.max(...shape.cells.filter(([cx]) => cx === dx).map(([, cy]) => cy));
+  }
 
-  // Prefer a dip in the skyline, so the block tucks into the stack; a bare patch
-  // of floor is the fallback, and only a completely boxed-in field gives up.
-  const onStack = slots.filter((slot) => slot.onStack);
-  const pool = onStack.length > 0 ? onStack : slots;
-  if (pool.length === 0) return { x: 0, y: 0 };
-  const lowest = Math.max(...pool.map((slot) => slot.y));
-  const candidates = pool.filter((slot) => slot.y === lowest);
-  const pick = candidates[int(rng, 0, candidates.length - 1)]!;
-  return { x: pick.x, y: pick.y };
+  const slots: { x: number; y: number; onBed: boolean; rests: boolean }[] = [];
+  for (let x = 0; x + shape.width <= bp.cols; x++) {
+    let highest = 0;
+    let onBed = true;
+    for (let dx = 0; dx < shape.width; dx++) {
+      const top = tops[x + dx] ?? 0;
+      if (top === 0) onBed = false;
+      highest = Math.max(highest, top);
+    }
+    // Height comes from the bounding box, because the box is what must stay clear
+    // of the bed — the same rule the landed pieces obey. That alone can leave a
+    // shape with a ragged bottom (the Z) hanging a row up, so a slot only counts
+    // if one of the columns that reaches the shape's lowest row is also one of
+    // the tallest: that is the column the piece actually stands on.
+    const y = bp.rows - highest - shape.height;
+    const rests = shape.cells.some(
+      ([dx, dy]) => dy === shape.height - 1 && (tops[x + dx] ?? 0) === highest,
+    );
+    if (y < 0 || overlaps(x, y)) continue;
+    slots.push({ x, y, onBed, rests });
+  }
+
+  // Standing on the bed, on its own feet, first: a piece with one end over bare
+  // floor reads as falling rather than waiting. Then anything legal, and only a
+  // boxed-in field gives up and tucks it into the corner.
+  const best = slots.filter((slot) => slot.onBed && slot.rests);
+  const resting = slots.filter((slot) => slot.rests);
+  const pool = best.length > 0 ? best : resting.length > 0 ? resting : slots;
+  if (pool.length === 0) return { shape: shapeIndex, x: 0, y: 0 };
+  const pick = pool[int(rng, 0, pool.length - 1)]!;
+  return { shape: shapeIndex, x: pick.x, y: pick.y };
 }
 
 /**

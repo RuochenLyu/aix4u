@@ -60,6 +60,39 @@ export const GHOST_SHAPES: readonly Shape[] = [
   shape([[2, 0], [0, 1], [1, 1], [2, 1]], 'L'),
 ];
 
+/**
+ * The shapes no product has claimed (DESIGN §6.5 v2.1.1). The mystery `?` piece
+ * is drawn from these, which is the joke: it is a silhouette the portfolio does
+ * not have yet. Derived rather than listed, so the day a product adopts one of
+ * them the mystery piece stops using it without anyone remembering to update a
+ * second table.
+ *
+ * It matches on the *silhouette*, not on the letter. RayTally's piece is called
+ * an L in `products.json` and is drawn arm-top-left, which is the standard J —
+ * so the spare set comes out as the Z and the standard L (arm top-right), and
+ * the design's "e.g. J/Z" is satisfied by shape even though the labels cross.
+ */
+const signature = (shape: Shape): string =>
+  shape.cells.map(([x, y]) => `${x},${y}`).sort().join(' ');
+
+const CLAIMED = new Set(Object.values(SHAPES).map(signature));
+
+export const SPARE_SHAPES: readonly Shape[] = GHOST_SHAPES.filter(
+  (shape) => !CLAIMED.has(signature(shape)),
+);
+
+/**
+ * The cell that carries the `?` — the one nearest the shape's centre, so the mark
+ * reads as being *on* the piece rather than stuck to one end of it.
+ */
+export function markedCell(shape: Shape): readonly [number, number] {
+  const mx = (shape.width - 1) / 2;
+  const my = (shape.height - 1) / 2;
+  return [...shape.cells].sort(
+    (a, b) => (a[0] - mx) ** 2 + (a[1] - my) ** 2 - ((b[0] - mx) ** 2 + (b[1] - my) ** 2),
+  )[0]!;
+}
+
 /** True when `cell` is one of the shape's cells. */
 export function hasCell(shape: Shape, cx: number, cy: number): boolean {
   return shape.cells.some(([x, y]) => x === cx && y === cy);

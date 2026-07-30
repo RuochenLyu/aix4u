@@ -1206,59 +1206,121 @@ a {
   --cursor-ink: #f3ecdb;
 }
 
-/* --- the NEXT mystery block --------------------------------------------- */
+/* --- the mystery piece --------------------------------------------------- */
 
-/* The crate from the HUD, actually dropped into the stack (DESIGN §6.5). It
-   borrows the crate's own material so the joke lands: that is the same block. */
+/* A whole tetromino in a silhouette no product has claimed, standing on the bed
+   (DESIGN §6.5 v2.1.1). Gray and dotted, because it is not a product yet: the
+   dotted outline is the same grammar as the background ghost — "a piece, but not
+   a real one" — while the gray fill and the `?` say this one you can press.
+
+   The v2 version was a single 1x1 `?` tile sitting in the stack, which read as a
+   rendering glitch rather than as a promise. */
 .egg {
+  --mote: #f0ead9;
+  --lift: 0px;
   position: absolute;
   left: calc(var(--gx) * var(--cell));
   top: calc(var(--gy) * var(--cell));
   z-index: 2;
-  display: grid;
-  place-items: center;
-  width: var(--cell);
-  height: var(--cell);
+  width: calc(var(--pw) * var(--cell));
+  height: calc(var(--ph) * var(--cell));
   text-decoration: none;
 }
 
-/* `display: grid` above outranks the UA's `[hidden] { display: none }`, so the
-   crate has to be told to stay in the HUD until it is earned. */
-.egg[hidden] {
-  display: none;
+.egg__drop,
+.egg__body {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
+.egg__drop {
+  position: relative;
+}
+
+.egg__body {
+  transform: translateY(calc(-1 * var(--lift)));
+  transform-origin: 50% 100%;
+  transition: transform 130ms steps(2, end);
+}
+
+/* The cells reuse `.cell` for their geometry and their crumble, and override the
+   look: no fill of their own, a dotted outline instead of a seam, and no lip —
+   an unrevealed piece has no thickness to speak of yet. */
 .egg__cell {
   display: grid;
   place-items: center;
-  width: 72%;
-  height: 72%;
-  border-radius: var(--cell-radius);
-  background: linear-gradient(to bottom, #4d5464 0%, #313846 100%);
-  box-shadow:
-    inset 0 0 0 2px #717a8b,
-    inset 0 4px 0 -2px var(--crate-hi),
-    inset 4px 0 0 -2px var(--crate-hi),
-    inset 0 -4px 0 -2px var(--crate-lo),
-    inset -4px 0 0 -2px var(--crate-lo),
-    0 var(--keycap-lip) 0 var(--keycap-lip-ink);
-  color: #f0ead9;
+  border: max(2px, calc(var(--cell) * 0.045)) dotted var(--egg-line);
+  background-color: var(--egg-fill);
+  background-image: none;
+  box-shadow: none;
+  color: var(--egg-ink);
   font-family: var(--font-pixel);
-  font-size: clamp(9px, calc(var(--cell) * 0.28), 20px);
-  transform: translateY(calc(-1 * var(--lift, 0px)));
-  transition: transform 130ms steps(2, end), box-shadow 130ms steps(2, end);
+  font-size: clamp(9px, calc(var(--cell) * 0.34), 22px);
+  line-height: 1;
+  transition: border-color 130ms steps(2, end), background-color 130ms steps(2, end);
 }
 
-.egg:hover .egg__cell,
-.egg:focus-visible .egg__cell {
+:root {
+  --egg-fill: rgba(157, 171, 187, 0.34);
+  --egg-line: rgba(34, 36, 42, 0.42);
+  --egg-ink: #2b2f38;
+}
+
+:root[data-theme='dark'] {
+  --egg-fill: rgba(43, 47, 57, 0.5);
+  --egg-line: rgba(243, 236, 219, 0.28);
+  --egg-ink: #cfc8b8;
+}
+
+.egg:hover,
+.egg:focus-visible {
   --lift: var(--keycap-travel);
-  --crate-hi: rgba(255, 255, 255, 0.34);
+  --egg-line: var(--focus);
+  --egg-fill: rgba(157, 171, 187, 0.5);
 }
 
-.egg:active .egg__cell {
+:root[data-theme='dark'] .egg:hover,
+:root[data-theme='dark'] .egg:focus-visible {
+  --egg-fill: rgba(60, 66, 80, 0.6);
+}
+
+.egg:active {
   --lift: calc(-1 * var(--keycap-travel));
-  --crate-hi: rgba(0, 0, 0, 0.45);
-  --crate-lo: rgba(255, 255, 255, 0.2);
+}
+
+/* The drop the third reshuffle earns: the full falling treatment — trail on the
+   way down, squash on the landing frame — because the point is that it arrives
+   like any other piece, having sat there quietly all session. */
+.egg.is-dropping .egg__drop {
+  --fall-from: calc(-1 * (var(--gy) * var(--cell) + 6 * var(--cell)));
+  animation: piece-fall 620ms var(--gravity) both;
+}
+
+.egg.is-dropping .egg__body {
+  animation: piece-impact 260ms ease-out 620ms both;
+}
+
+.egg.is-dropping .egg__trail {
+  animation:
+    trail-in 620ms linear both,
+    trail-out 200ms linear 700ms both;
+}
+
+.egg__trail {
+  position: absolute;
+  bottom: 100%;
+  left: 14%;
+  width: 72%;
+  height: calc(var(--cell) * 1.2);
+  background-image:
+    repeating-linear-gradient(to bottom, var(--egg-line) 0 26%, transparent 26% 52%),
+    repeating-linear-gradient(to bottom, var(--egg-line) 0 26%, transparent 26% 52%);
+  background-repeat: no-repeat;
+  background-position: 20% 100%, 78% 100%;
+  background-size: 2px 62%, 2px 88%;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
@@ -1959,12 +2021,6 @@ a {
   opacity: 0;
 }
 
-/* The egg is not part of the seed, so it drops on its own cue rather than with
-   the entry: the class goes on when the third reshuffle has settled. */
-.egg.is-dropping {
-  --fall-from: calc(-1 * (var(--gy) * var(--cell) + 6 * var(--cell)));
-  animation: piece-fall 620ms var(--gravity) 0ms both;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .js .playfield.is-entering .piece__drop,
@@ -1987,7 +2043,9 @@ a {
   .cell.is-motes,
   .cell.is-motes::after,
   .filler.is-motes,
-  .egg.is-dropping,
+  .egg.is-dropping .egg__drop,
+  .egg.is-dropping .egg__body,
+  .egg.is-dropping .egg__trail,
   .panel.is-typing .panel__caret {
     animation: none !important;
   }
@@ -1998,6 +2056,7 @@ a {
   .piece--link::after,
   .eye__pupil,
   .egg__cell,
+  .egg__body,
   .panel__hint,
   .theme-toggle .icon {
     transition: none !important;
