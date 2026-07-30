@@ -595,9 +595,18 @@ a {
 
 .cell__art,
 .cell .pixel-logo {
-  width: 62%;
-  height: 62%;
+  width: 72%;
+  height: 72%;
   image-rendering: pixelated;
+}
+
+/* The pixel icons are drawn as near-black art for the saturated light cells. On
+   a backlit cell that fill is a dim pane, so near-black art would sink into it.
+   `invert` + `hue-rotate(180deg)` flips lightness while putting the hue back, so
+   the art lights up without losing its internal drawing (a flat silhouette turns
+   Meikyu's arch into a white blob) and the torch stays warm, the heart stays red. */
+:root[data-theme='dark'] .cell__art {
+  filter: invert(1) hue-rotate(180deg) drop-shadow(0 0 3px var(--piece-glow));
 }
 
 .piece--product {
@@ -644,9 +653,10 @@ a {
   text-shadow: none;
 }
 
+.piece--link .cell__art,
 .piece--link .cell .pixel-logo {
-  width: 56%;
-  height: 56%;
+  width: 62%;
+  height: 62%;
 }
 
 .piece--link:hover,
