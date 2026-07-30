@@ -1,4 +1,5 @@
 ---
+import PixelLogo from './PixelLogo.astro';
 import type { SceneItem } from '../lib/content';
 import { crossDirection, type PiecePlacement } from '../lib/scene';
 import { SHAPES } from '../lib/tetromino';
@@ -21,7 +22,7 @@ const style: Record<string, string> = {
   '--order': String(placement.order),
   '--fall-delay': `${placement.order * 80}ms`,
   '--fall-duration': '560ms',
-  '--bob-period': `${placement.bobPeriod || 4}s`,
+  '--bob-period': `${placement.bobPeriod || 6}s`,
   '--bob-delay': `${placement.bobDelay}s`,
 };
 
@@ -30,8 +31,11 @@ if (item.type === 'product') {
   style['--accent-dark'] = item.accentDark;
 }
 
+// The card carries its piece's accent too: in dark mode the card is lit in that
+// colour, which is what ties it to its tetromino when the leader is short.
 const labelStyle = label
   ? {
+      ...(item.type === 'product' ? { '--accent': item.accent, '--accent-dark': item.accentDark } : {}),
       '--gx': String(label.x),
       '--gy': String(label.y),
       '--lw': String(label.w),
@@ -61,19 +65,32 @@ const labelStyle = label
   style={style}
 >
   <span class="piece__drop">
+    {/* Motion-trail ticks hang above the piece while it falls (DESIGN §5.1). */}
+    <span class="piece__trail" aria-hidden="true"></span>
     <span class="piece__bob">
-      <span class="piece__body">
-        {
-          shape.cells.map(([cx, cy], index) => (
-            <span
-              class:list={['cell', index === shape.icon && 'cell--icon']}
-              style={{ '--cx': String(cx), '--cy': String(cy) }}
-              aria-hidden="true"
-            >
-              {index === shape.icon ? (isProduct ? item.name.charAt(0) : item.label) : ''}
-            </span>
-          ))
-        }
+      <span class="piece__lift">
+        <span class="piece__body">
+          {
+            shape.cells.map(([cx, cy], index) => (
+              <span
+                class:list={['cell', index === shape.icon && 'cell--icon']}
+                style={{ '--cx': String(cx), '--cy': String(cy) }}
+                aria-hidden="true"
+              >
+                {
+                  index === shape.icon &&
+                    (item.icon ? (
+                      <img class="cell__art" src={item.icon} alt="" width="24" height="24" loading="eager" />
+                    ) : item.type === 'link' && item.logo ? (
+                      <PixelLogo logo={item.logo} />
+                    ) : (
+                      <span class="cell__glyph">{isProduct ? item.name.charAt(0) : item.label}</span>
+                    ))
+                }
+              </span>
+            ))
+          }
+        </span>
       </span>
     </span>
   </span>

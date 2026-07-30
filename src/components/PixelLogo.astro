@@ -1,0 +1,84 @@
+---
+/**
+ * Inline pixel logos for the link tiles.
+ *
+ * Hand-plotted on a 16x16 grid — one `<rect>` per lit pixel, `crispEdges` so the
+ * browser never softens an edge. Gaps stay transparent on purpose: the tile fill
+ * behind them *is* the negative space (the octocat's eyes, the X's counters), so
+ * the mark reads on both the light gray tile and the dark one.
+ *
+ * These are stand-ins until the real pixel art lands (docs/assets-brief.md);
+ * a tile with an `icon` path renders that image instead and never reaches here.
+ */
+import type { LinkLogo } from '../lib/content';
+
+interface Props {
+  logo: LinkLogo;
+}
+
+const { logo } = Astro.props;
+
+const GRIDS: Record<LinkLogo, readonly string[]> = {
+  github: [
+    '................',
+    '.....111111.....',
+    '...1111111111...',
+    '..111111111111..',
+    '.11111111111111.',
+    '.11111111111111.',
+    '.111..1111..111.',
+    '.111..1111..111.',
+    '.11111111111111.',
+    '.11111111111111.',
+    '..111111111111..',
+    '..11.111111.11..',
+    '..11.1....1.11..',
+    '..11.1....1.11..',
+    '.....1....1.....',
+    '....11....11....',
+  ],
+  x: [
+    '................',
+    '................',
+    '.111........111.',
+    '..111......111..',
+    '...111....111...',
+    '....111..111....',
+    '.....111111.....',
+    '.....111111.....',
+    '....111..111....',
+    '...111....111...',
+    '..111......111..',
+    '.111........111.',
+    '................',
+    '................',
+    '................',
+    '................',
+  ],
+};
+
+/** Collapse each row's lit pixels into runs, so a 16x16 mark is ~12 rects. */
+const runs: { x: number; y: number; w: number }[] = [];
+GRIDS[logo].forEach((row, y) => {
+  let start = -1;
+  for (let x = 0; x <= row.length; x++) {
+    const lit = row[x] === '1';
+    if (lit && start < 0) start = x;
+    if (!lit && start >= 0) {
+      runs.push({ x: start, y, w: x - start });
+      start = -1;
+    }
+  }
+});
+---
+
+<svg
+  class="pixel-logo"
+  viewBox="0 0 16 16"
+  shape-rendering="crispEdges"
+  fill="currentColor"
+  aria-hidden="true"
+  focusable="false"
+>
+  {runs.map((run) => <rect x={run.x} y={run.y} width={run.w} height="1" />)}
+</svg>

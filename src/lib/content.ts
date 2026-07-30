@@ -20,7 +20,13 @@ export interface ProductItem {
   url: string;
   tagline: string;
   description: string;
+  /** Optional pixel-art icon under /icons/; absent = initial-letter fallback. */
+  icon?: string;
 }
+
+/** Link tiles that ship an inline pixel logo rather than a text glyph. */
+export type LinkLogo = 'github' | 'x';
+export const LINK_LOGOS: readonly LinkLogo[] = ['github', 'x'];
 
 export interface LinkItem {
   type: 'link';
@@ -28,6 +34,8 @@ export interface LinkItem {
   name: string;
   label: string;
   url: string;
+  icon?: string;
+  logo?: LinkLogo;
 }
 
 export type SceneItem = ProductItem | LinkItem;
@@ -54,6 +62,15 @@ function str(where: string, value: unknown, field: string): string {
 function url(where: string, value: unknown, field: string): string {
   const v = str(where, value, field);
   if (!/^https?:\/\//.test(v)) fail(where, `"${field}" must be an absolute http(s) URL`);
+  return v;
+}
+
+/** Optional asset path. Absolute-rooted so it survives any base path change. */
+function optionalIcon(where: string, value: Record<string, unknown>): string | undefined {
+  const v = value['icon'];
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'string' || v.trim() === '') fail(where, '"icon" must be a non-empty string when present');
+  if (!v.startsWith('/')) fail(where, `"icon" must be a root-relative path such as "/icons/foo.png", got "${v}"`);
   return v;
 }
 
@@ -90,14 +107,20 @@ function validate(input: unknown): SiteContent {
 
     const type = obj['type'];
     if (type === 'link') {
+      const logo = obj['logo'];
+      if (logo !== undefined && !LINK_LOGOS.includes(logo as LinkLogo)) {
+        fail(where, `"logo" must be one of ${LINK_LOGOS.join(', ')} when present`);
+      }
       const link: LinkItem = {
         type: 'link',
         id,
         name: str(where, obj, 'name'),
         label: str(where, obj, 'label'),
         url: url(where, obj, 'url'),
+        ...(optionalIcon(where, obj) ? { icon: optionalIcon(where, obj)! } : {}),
+        ...(logo ? { logo: logo as LinkLogo } : {}),
       };
-      if (link.label.length > 2) fail(where, '"label" must be at most 2 characters (it fills a 1x1 tile)');
+      if ([...link.label].length > 2) fail(where, '"label" must be at most 2 characters (it fills a 1x1 tile)');
       return link;
     }
 
@@ -124,6 +147,7 @@ function validate(input: unknown): SiteContent {
       url: url(where, obj, 'url'),
       tagline: str(where, obj, 'tagline'),
       description: str(where, obj, 'description'),
+      ...(optionalIcon(where, obj) ? { icon: optionalIcon(where, obj)! } : {}),
     };
   });
 
