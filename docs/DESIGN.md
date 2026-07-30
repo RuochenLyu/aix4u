@@ -151,7 +151,7 @@ Voice rules: verb-first where possible, ≤ 7 words, no "AI-powered" filler, sta
 
 Longer descriptions (meta/JSON-LD): unchanged from v1 —
 - **Meikyu** — "Five residents are hiding in today's dungeon. You have six tries to place them." (official copy, verbatim)
-- **RayTally** — A daily brainstorm feed that mines verifiable search-trend shifts for product ideas.
+- **RayTally** — A daily feed that collects the opportunities lighting up right now — watching trends and new launches, harvesting product ideas you can actually build. (Brand: fireflies = glowing opportunities; zh copy "每天收录正在发亮的机会".)
 - **AHR999 Dataset** — Open dataset + dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.
 - **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
 - **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.

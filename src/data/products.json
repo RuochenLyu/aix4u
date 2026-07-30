@@ -26,7 +26,7 @@
       "iconAt": [1, 1],
       "eye": [2, 0, 0.5, 0.22],
       "motion": "tease-rotate",
-      "skin": { "light": "", "dark": "" }
+      "skin": { "light": "/skins/meikyu-light.png", "dark": "/skins/meikyu-dark.png" }
     },
     {
       "type": "product",
@@ -41,11 +41,11 @@
       "kind": "WEB",
       "status": "DAILY",
       "tagline": "Glowing product ideas, collected daily",
-      "description": "A daily brainstorm feed that mines verifiable search-trend shifts for product ideas.",
+      "description": "A daily feed that collects the opportunities lighting up right now — watching trends and new launches, harvesting product ideas you can actually build.",
       "iconAt": [0, 0],
       "eye": [2, 1, 0.5, 0.2],
       "motion": "prop-up",
-      "skin": { "light": "", "dark": "" }
+      "skin": { "light": "/skins/raytally-light.png", "dark": "/skins/raytally-dark.png" }
     },
     {
       "type": "product",
@@ -63,9 +63,9 @@
       "tagline": "The Bitcoin AHR999 index, as open data",
       "description": "Open dataset and dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.",
       "iconAt": [1, 0],
-      "eye": [2, 0],
+      "eye": [0, 1, 0.5, 0.24],
       "motion": "sway",
-      "skin": { "light": "", "dark": "" }
+      "skin": { "light": "/skins/ahr999-light.png", "dark": "/skins/ahr999-dark.png" }
     },
     {
       "type": "product",
@@ -84,7 +84,7 @@
       "iconAt": [1, 1, 0.5, 0.76],
       "eye": [0, 0, 0.5, 0.26],
       "motion": "squash",
-      "skin": { "light": "", "dark": "" }
+      "skin": { "light": "/skins/x2markdown-light.png", "dark": "/skins/x2markdown-dark.png" }
     },
     {
       "type": "product",
@@ -103,7 +103,7 @@
       "iconAt": [0, 0, 0.5, 0.22],
       "eye": [3, 0, 0.5, 0.21],
       "motion": "metronome",
-      "skin": { "light": "", "dark": "" }
+      "skin": { "light": "/skins/health-analyst-light.png", "dark": "/skins/health-analyst-dark.png" }
     },
     {
       "type": "link",

@@ -768,11 +768,22 @@ a {
   background-image: var(--skin-dark, none);
 }
 
-/* A skinned cell keeps its seam and bevel and drops its fill, so the art reads
-   through the grid instead of being painted over by it. */
+/* A skinned cell drops its fill and dials its overlays right down. The seam stays
+   at full strength — it is what makes four cells read as one tetromino — but the
+   bevel goes from a 62 % white band to a hint, and the internal scanline goes
+   away entirely: these exist to give a flat accent fill some material, and a skin
+   already *has* material. At full strength they bleach it (measured against
+   public/skins/health-analyst-light.png, whose pale ECG paper suffered worst). */
 .piece--skinned .cell {
+  --bevel-light: rgba(255, 255, 255, 0.24);
+  --bevel-dark: rgba(0, 0, 0, 0.15);
   background-color: transparent;
-  background-image: repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px);
+  background-image: none;
+}
+
+:root[data-theme='dark'] .piece--skinned .cell {
+  --bevel-light: rgba(255, 255, 255, 0.08);
+  --bevel-dark: rgba(0, 0, 0, 0.28);
 }
 
 /* --- sticker name band --------------------------------------------------- */
@@ -848,6 +859,19 @@ a {
   --band-sheen: rgba(255, 255, 255, 0.5);
 }
 
+/* Over a skin the light sticker goes slightly translucent, the way a real sticker
+   over printed art does. Dark mode already worked this way — its well is 72 %
+   opaque — and that is precisely why the ECG trace read in dark and vanished in
+   light: 76 % of that trace's ink falls inside the band's rows. At 0.86 the
+   near-black ink still clears 11:1 over the worst case (sticker over the darkest
+   part of the trace), so legibility pays nothing for it. Placeholder pieces keep
+   the fully opaque sticker: there is no art under them to reveal, and their look
+   is signed off. Must come after `.piece--product` — equal specificity, so this
+   wins on source order. */
+.piece--skinned {
+  --band-bg: rgba(247, 244, 234, 0.86);
+}
+
 /* Dark: the sticker is backlit in the piece's own accent, which is what makes a
    dim pane read as a lit label rather than as a white patch. */
 :root[data-theme='dark'] .piece--product {
@@ -888,9 +912,15 @@ a {
 
 /* --- the eye ------------------------------------------------------------- */
 
-/* One eye per piece (DESIGN §3.3): pixel sclera, a pupil that steps towards the
-   pointer, a lid that blinks, sleeps and squeezes. All code, no assets — it has
-   to animate. */
+/* One eye per piece (DESIGN §3.3): a pixel eyeball with a pupil that steps
+   towards the pointer, and a lash line it swaps to when it shuts. All code, no
+   assets — it has to animate.
+
+   Open and shut are two separate elements rather than one lid that scales down,
+   because a lid that closes over the eye ends as a filled shape, and a filled
+   shape reads as a dark blob, not as a closed eye. Swapping to a drawn lash line
+   is both truer and cheaper — and a hard swap is what gives the blink its
+   two-frame pixel snap. */
 .eye {
   --pupil-x: 0;
   --pupil-y: 0;
@@ -903,6 +933,13 @@ a {
   z-index: 4;
   width: var(--eye-size);
   height: calc(var(--eye-size) * 0.86);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.eye__ball {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   /* Wider than it is tall, and almost round. The obvious pixel-pure choice — a
      rounded square, matching the cells — was tried and rejected twice: a square
@@ -912,8 +949,18 @@ a {
   border-radius: 46% 46% 50% 50%;
   background: var(--eye-white);
   box-shadow: inset 0 0 0 max(1px, calc(var(--eye-size) * 0.09)) var(--eye-rim);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+}
+
+/* Shut: a short line bowed downwards, the width of the eye. */
+.eye__lash {
+  position: absolute;
+  left: 2%;
+  right: 2%;
+  top: 22%;
+  height: 46%;
+  border-bottom: max(2px, calc(var(--eye-size) * 0.13)) solid var(--eye-lash);
+  border-radius: 0 0 46% 46% / 0 0 92% 92%;
+  opacity: 0;
 }
 
 .piece--product {
@@ -921,7 +968,7 @@ a {
   --eye-rim: #1b1d22;
   --eye-pupil: #1b1d22;
   --eye-spark: #ffffff;
-  --eye-lid: color-mix(in srgb, var(--accent) 62%, #1b1d22);
+  --eye-lash: #1b1d22;
 }
 
 :root[data-theme='dark'] .piece--product {
@@ -929,7 +976,8 @@ a {
   --eye-rim: rgba(0, 0, 0, 0.8);
   --eye-pupil: #07080b;
   --eye-spark: #fffdf6;
-  --eye-lid: color-mix(in srgb, var(--accent-dark) 30%, #07080b);
+  /* The console is backlit, so a shut eye is a lit line, not a dark one. */
+  --eye-lash: color-mix(in srgb, var(--accent-dark) 82%, #fdfaf0);
 }
 
 /* The pupil moves in whole steps of a pixel grid — smooth tracking would make
@@ -961,44 +1009,39 @@ a {
   background: var(--eye-spark);
 }
 
-/* The lid drops from the top, so a half-closed eye reads as sleepy rather than
-   as a shrinking square. */
-.eye__lid {
-  position: absolute;
-  inset: -1px;
-  z-index: 3;
-  background: var(--eye-lid);
-  box-shadow: inset 0 -1px 0 var(--eye-rim);
-  transform: scaleY(0);
-  transform-origin: 50% 0;
+/* Blink: two frames shut, on a seeded phase so no two pieces blink together. The
+   ball and the lash run the *same* period, delay and timing on mirrored
+   keyframes, so they are always exactly out of phase with each other — one
+   animation clock, no chance of both showing at once. `steps(1, end)` is what
+   makes it a snap rather than a crossfade. The keyframes are mostly "open",
+   which is what makes the period read as a wait rather than as a flutter. */
+.js .playfield.is-idle .eye__ball {
+  animation: eye-open var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
 }
 
-/* Blink: two frames shut, on a seeded phase so no two pieces blink together.
-   The keyframe is mostly "open", which is what makes the period read as a wait
-   rather than as a flutter. */
-.js .playfield.is-idle .eye__lid {
-  animation: eye-blink var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
+.js .playfield.is-idle .eye__lash {
+  animation: eye-shut var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
 }
 
 /* Sleep after 30s of nothing (DESIGN §3.3), and squeeze shut on a hard-drop
    impact. Both beat the blink, so they stop it rather than layering onto it —
-   which needs the same `.js` reach as the blink rule above, because a running
+   which needs the same `.js` reach as the blink rules above, because a running
    animation outranks a plain declaration and a less specific selector loses the
    `animation: none` that would have stopped it. */
-.js .playfield.is-asleep .eye__lid,
-.js .playfield.is-squeezing .eye__lid,
-.playfield.is-asleep .eye__lid,
-.playfield.is-squeezing .eye__lid {
+.js .playfield.is-asleep .eye__ball,
+.js .playfield.is-squeezing .eye__ball,
+.playfield.is-asleep .eye__ball,
+.playfield.is-squeezing .eye__ball {
   animation: none;
-  transform: scaleY(1);
-}
-
-.js .playfield.is-asleep .eye__lid {
-  transition: transform 260ms steps(3, end);
-}
-
-.playfield.is-asleep .eye__pupil {
   opacity: 0;
+}
+
+.js .playfield.is-asleep .eye__lash,
+.js .playfield.is-squeezing .eye__lash,
+.playfield.is-asleep .eye__lash,
+.playfield.is-squeezing .eye__lash {
+  animation: none;
+  opacity: 1;
 }
 
 /* --- landing sparks ------------------------------------------------------ */
@@ -1504,18 +1547,33 @@ a {
   }
 }
 
-/* Two frames shut on a long wait: the period reads as a pause, not a flutter. */
-@keyframes eye-blink {
+/* Two frames shut on a long wait: the period reads as a pause, not a flutter.
+   Mirrored pair — whatever `eye-open` shows, `eye-shut` hides. */
+@keyframes eye-open {
   0%,
   95% {
-    transform: scaleY(0);
+    opacity: 1;
   }
   96%,
   99% {
-    transform: scaleY(1);
+    opacity: 0;
   }
   100% {
-    transform: scaleY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes eye-shut {
+  0%,
+  95% {
+    opacity: 0;
+  }
+  96%,
+  99% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -1743,7 +1801,8 @@ a {
   .js .playfield.is-entering .filler,
   .js .playfield.is-idle .piece--floating .piece__bob,
   .js .playfield.is-idle .ghost,
-  .js .playfield.is-idle .eye__lid,
+  .js .playfield.is-idle .eye__ball,
+  .js .playfield.is-idle .eye__lash,
   .js .playfield.is-ready.is-shaking,
   .playfield.is-clearing .piece--floating .piece__drop,
   .playfield.is-clearing .piece--floating .piece__trail,
@@ -1767,8 +1826,12 @@ a {
 
   /* The eye stays open and still — the one anthropomorphism that must not move
      when motion is unwelcome (DESIGN §3.3). */
-  .eye__lid {
-    transform: scaleY(0) !important;
+  .eye__ball {
+    opacity: 1 !important;
+  }
+
+  .eye__lash {
+    opacity: 0 !important;
   }
 
   .eye__pupil {
