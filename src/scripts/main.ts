@@ -98,7 +98,7 @@ if (playfield && fillerLayer && ghost) {
       el.style.setProperty('--ph', String(shape.height));
       el.style.setProperty('--order', String(placement.order));
       el.style.setProperty('--fall-delay', `${placement.order * 80}ms`);
-      el.style.setProperty('--bob-period', `${placement.bobPeriod || 4}s`);
+      el.style.setProperty('--bob-period', `${placement.bobPeriod || 6}s`);
       el.style.setProperty('--bob-delay', `${placement.bobDelay}s`);
 
       const label = labelElements.get(placement.id);
@@ -119,7 +119,7 @@ if (playfield && fillerLayer && ghost) {
     fillerLayer!.replaceChildren(
       ...next.filler.map((cell) => {
         const span = document.createElement('span');
-        span.className = 'filler';
+        span.className = cell.empty ? 'filler filler--empty' : 'filler';
         span.dataset['tone'] = String(cell.tone);
         span.style.setProperty('--gx', String(cell.x));
         span.style.setProperty('--gy', String(cell.y));
@@ -140,10 +140,43 @@ if (playfield && fillerLayer && ghost) {
     );
   }
 
+  /**
+   * Hand the background lattice the playfield's real cell size and origin, so
+   * one continuous grid runs across the whole page. Drawing the grid inside the
+   * field instead made the field read as a rectangle of denser hatching — an
+   * outline nobody asked for.
+   */
+  function alignAmbience(): void {
+    const rect = field.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const cell = rect.width / scene.breakpoint.cols;
+    const period = cell * 4; // the coarse lines; the fine ones divide into it
+    root.style.setProperty('--ambient-cell', `${cell}px`);
+    root.style.setProperty('--ambient-x', `${rect.left % period}px`);
+    root.style.setProperty('--ambient-y', `${(rect.top + window.scrollY) % period}px`);
+  }
+
+  /** Entry timings, kept in step with the CSS (fall 560ms, +260 impact, +370 card). */
+  const FALL_MS = 560;
+  const STAGGER_MS = 80;
+  const SETTLE_MS = 420;
+  let entryTimer = 0;
+
   function playEntry(): void {
     field.classList.remove('is-entering', 'is-idle');
     void field.offsetWidth; // restart the CSS animations
     field.classList.add('is-entering', 'is-idle');
+
+    // The entry animations are filled `both`, and a filled animation keeps
+    // overriding the property forever — which would freeze the hover lift and
+    // the shadow deepen. So the class comes off once the last card has landed;
+    // every animation's final frame equals the resting style, so nothing moves.
+    const lastOrder = scene.pieces.reduce((max, piece) => Math.max(max, piece.order), 0);
+    window.clearTimeout(entryTimer);
+    entryTimer = window.setTimeout(
+      () => field.classList.remove('is-entering'),
+      lastOrder * STAGGER_MS + FALL_MS + SETTLE_MS,
+    );
   }
 
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -173,9 +206,16 @@ if (playfield && fillerLayer && ghost) {
       lastOrder = Math.max(lastOrder, placement.order);
     }
 
+    window.clearTimeout(entryTimer);
     field.classList.remove('is-entering', 'is-idle');
     field.classList.add('is-clearing');
-    await wait(260 + lastOrder * 40);
+
+    // The first piece hits the stack 260ms in; the field takes the hit with it.
+    await wait(240);
+    field.classList.add('is-shaking');
+    await wait(200);
+    field.classList.remove('is-shaking');
+    await wait(Math.max(0, lastOrder * 40 - 180));
 
     field.classList.add('is-flashing');
     await wait(400);
@@ -186,12 +226,14 @@ if (playfield && fillerLayer && ghost) {
     await wait(60);
 
     field.classList.remove('is-cleared');
+    alignAmbience();
     playEntry();
     shuffling = false;
   }
 
   applyScene(scene);
   field.classList.add('is-ready');
+  alignAmbience();
   playEntry();
 
   document.addEventListener('keydown', (event) => {
@@ -209,8 +251,12 @@ if (playfield && fillerLayer && ghost) {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       if (shuffling) return;
-      if (breakpointFor(window.innerWidth).name === scene.breakpoint.name) return;
-      applyScene(currentScene(scene.seed));
+      if (breakpointFor(window.innerWidth).name !== scene.breakpoint.name) {
+        applyScene(currentScene(scene.seed));
+      }
+      // The cell size tracks the viewport even inside one breakpoint, so the
+      // lattice has to be re-measured on every resize, not just on a reflow.
+      alignAmbience();
     }, 180);
   });
 }

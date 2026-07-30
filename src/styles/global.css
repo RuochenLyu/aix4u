@@ -1,7 +1,13 @@
 /* ---------------------------------------------------------------------------
    aix4u.com — pixel/retro handheld aesthetic.
    Light = "TV gray", dark = "backlit console" (DESIGN §2).
-   Only transform/opacity are ever animated.
+
+   Two rules run through the whole file:
+   - Cells are candy, not paint chips: every block is radius + bevel + gradient
+     + an internal scanline, never a flat fill.
+   - Motion is physical first, pixel second (DESIGN §5): pieces fall on a
+     gravity curve, squash on impact, and only `transform`/`opacity` move. The
+     one exception is the cast shadow, which snaps once at the landing frame.
 --------------------------------------------------------------------------- */
 
 @font-face {
@@ -31,62 +37,105 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --bg: #c9d2dd;
-  --bg-deep: #b8c3d1;
-  --grid-line: rgba(34, 36, 42, 0.08);
+  --bg-deep: #a9b5c5;
+  --grid-line: rgba(34, 36, 42, 0.1);
+  --grid-coarse: rgba(34, 36, 42, 0.19);
   --ink: #22242a;
   --ink-soft: #4a505c;
   --outline: #22242a;
   --seam: #22242a;
-  --bevel-light: rgba(255, 255, 255, 0.45);
-  --bevel-dark: rgba(0, 0, 0, 0.24);
-  --piece-shadow: rgba(34, 36, 42, 0.45);
-  --piece-shadow-step: rgba(34, 36, 42, 0.18);
+  --glyph: #22242a;
+  --bevel-light: rgba(255, 255, 255, 0.62);
+  --bevel-dark: rgba(0, 0, 0, 0.28);
+  --cell-sheen-top: rgba(255, 255, 255, 0.3);
+  --cell-sheen-bottom: rgba(0, 0, 0, 0.1);
+  --cell-scan: rgba(0, 0, 0, 0.055);
+  --piece-shadow: rgba(34, 36, 42, 0.5);
+  --piece-shadow-step: rgba(34, 36, 42, 0.2);
   --piece-glow: transparent;
+  --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
+  --cast-on: drop-shadow(5px 5px 0 var(--piece-shadow)) drop-shadow(5px 5px 0 var(--piece-shadow-step));
+  --cast-hover: drop-shadow(8px 8px 0 var(--piece-shadow)) drop-shadow(5px 5px 0 var(--piece-shadow-step));
   --card-bg: #fbfcfe;
   --card-line: #22242a;
+  --card-ink: #22242a;
   --card-shadow: rgba(34, 36, 42, 0.35);
   --tile-fill: #9dabbb;
   --tile-line: #22242a;
+  --tile-glyph: #2b2f38;
   --filler-fill: #b3bdc9;
   --filler-fill-b: #aab5c2;
   --filler-fill-c: #bcc5d0;
   --filler-line: rgba(34, 36, 42, 0.3);
-  --ghost-line: rgba(34, 36, 42, 0.18);
+  --empty-line: rgba(34, 36, 42, 0.4);
+  --ghost-line: rgba(34, 36, 42, 0.2);
   --flash: #ffffff;
   --scanline: rgba(34, 36, 42, 0.045);
   --focus: #1a4fd6;
+  --logo-outline: #c8371f;
 
+  /* The chassis is the machine, not the screen: near-black in both themes. */
+  --chassis-top: #1c2027;
+  --chassis-bottom: #0e1015;
+  --chassis-edge: #050608;
+  --chassis-inlay: rgba(255, 255, 255, 0.07);
+  --chassis-line: #39404d;
+  --chassis-dot: rgba(228, 222, 206, 0.42);
+  --chassis-ink: #e9e3d3;
+  --chassis-ink-soft: #a9a292;
+  --chassis-well: #06070a;
+  --lcd: #a8f533;
+  --lcd-off: rgba(168, 245, 51, 0.12);
+  --key: #ffc93c;
+
+  /* Gravity: slow off the mark, fast into the floor. */
+  --gravity: cubic-bezier(0.4, 0, 0.85, 0.42);
+  /* Overwritten by the engine with the playfield's real cell size and origin. */
+  --ambient-cell: 48px;
+  --ambient-x: 0px;
+  --ambient-y: 0px;
   --field-height-budget: 70vh;
-  --hud-height: 3.25rem;
+  --hud-height: 3.4rem;
 }
 
 :root[data-theme='dark'] {
   --bg: #141519;
-  --bg-deep: #101116;
-  --grid-line: rgba(243, 236, 219, 0.055);
+  --bg-deep: #08090c;
+  --grid-line: rgba(243, 236, 219, 0.06);
+  --grid-coarse: rgba(243, 236, 219, 0.13);
   --ink: #f3ecdb;
   --ink-soft: #9c968a;
   --outline: #f3ecdb;
-  --seam: rgba(243, 236, 219, 0.45);
-  --bevel-light: rgba(255, 255, 255, 0.2);
-  --bevel-dark: rgba(0, 0, 0, 0.35);
+  --seam: rgba(243, 236, 219, 0.4);
+  --glyph: #f3ecdb;
+  --bevel-light: rgba(255, 255, 255, 0.14);
+  --bevel-dark: rgba(0, 0, 0, 0.45);
+  --cell-sheen-top: rgba(255, 255, 255, 0.09);
+  --cell-sheen-bottom: rgba(0, 0, 0, 0.3);
+  --cell-scan: rgba(0, 0, 0, 0.22);
   --piece-shadow: rgba(0, 0, 0, 0.55);
   --piece-shadow-step: rgba(0, 0, 0, 0.25);
-  --card-bg: #1d1f26;
+  --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
+  --cast-on: drop-shadow(0 0 7px var(--piece-glow)) drop-shadow(0 0 18px var(--piece-glow));
+  --cast-hover: drop-shadow(0 0 10px var(--piece-glow)) drop-shadow(0 0 28px var(--piece-glow));
+  --card-bg: #16181d;
   --card-line: #f3ecdb;
-  --card-shadow: rgba(0, 0, 0, 0.55);
+  --card-ink: #f3ecdb;
+  --card-shadow: rgba(0, 0, 0, 0.7);
   --tile-fill: #2b2f39;
-  --tile-line: rgba(243, 236, 219, 0.45);
+  --tile-line: rgba(243, 236, 219, 0.34);
+  --tile-glyph: #cfc8b8;
   --filler-fill: #22252d;
   --filler-fill-b: #1e212a;
   --filler-fill-c: #272a33;
-  --filler-line: rgba(243, 236, 219, 0.16);
+  --filler-line: rgba(243, 236, 219, 0.14);
+  --empty-line: rgba(243, 236, 219, 0.22);
   --ghost-line: rgba(243, 236, 219, 0.13);
   --flash: #fff8e6;
   --scanline: rgba(0, 0, 0, 0.1);
   --focus: #8ab4ff;
+  --logo-outline: #8f3a22;
 }
-
 
 *,
 *::before,
@@ -94,12 +143,13 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   height: 100%;
 }
 
 body {
+  position: relative;
+  min-height: 100%;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -131,26 +181,39 @@ a {
 
 /* --- ambience: the arcade screen the playfield sits on ------------------- */
 
-.ambience,
+/* One lattice for the whole page at two scales (fine cell grid, a heavier line
+   every 4 cells) plus a vignette. The engine writes `--ambient-*` from the
+   playfield's measured cell and origin, so the grid runs continuously off the
+   edge of the field instead of drawing the field as a denser rectangle.
+   It spans the document rather than the viewport, so a scrolling narrow page
+   cannot slide the lattice out of phase with the stack. */
+.ambience {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 76% 66% at 50% 42%, transparent 35%, var(--bg-deep) 100%),
+    repeating-linear-gradient(to right, var(--grid-coarse) 0 1px, transparent 1px calc(var(--ambient-cell) * 4)),
+    repeating-linear-gradient(to bottom, var(--grid-coarse) 0 1px, transparent 1px calc(var(--ambient-cell) * 4)),
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell)),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell));
+  background-position:
+    0 0,
+    var(--ambient-x) var(--ambient-y),
+    var(--ambient-x) var(--ambient-y),
+    var(--ambient-x) var(--ambient-y),
+    var(--ambient-x) var(--ambient-y);
+}
+
+/* The CRT overlay is a property of the screen, so it stays put while you scroll. */
 .scanlines {
   position: fixed;
   inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.ambience {
-  background:
-    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell)),
-    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--ambient-cell)),
-    radial-gradient(ellipse at 50% 38%, transparent 30%, var(--bg-deep) 100%);
-  --ambient-cell: 48px;
-}
-
-.scanlines {
-  background: repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
   z-index: 6;
+  background: repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
   mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
 :root[data-theme='dark'] .scanlines {
@@ -168,108 +231,188 @@ a {
   min-height: 100dvh;
 }
 
-/* --- HUD ----------------------------------------------------------------- */
+/* --- HUD: the console bezel ---------------------------------------------- */
 
 .hud {
+  position: relative;
+  /* Above every piece layer (a hovered card reaches 7) so a falling tetromino
+     slides in behind the bezel rather than across it. `.shell` is its own
+     stacking context, so this never climbs over the CRT overlay. */
+  z-index: 8;
+  padding: clamp(0.5rem, 1.4vw, 1rem) clamp(0.5rem, 2.4vw, 1.75rem) 0;
+}
+
+.hud__chassis {
   display: flex;
   align-items: center;
-  gap: clamp(0.75rem, 2.5vw, 2rem);
+  gap: clamp(0.5rem, 1.5vw, 1.25rem);
   min-height: var(--hud-height);
-  padding: 0.6rem clamp(0.75rem, 3vw, 2rem);
-  border-bottom: 2px solid var(--outline);
+  padding: 0.4rem clamp(0.55rem, 1.5vw, 1.1rem);
+  border: 2px solid var(--chassis-edge);
+  border-radius: 12px;
+  background: linear-gradient(to bottom, var(--chassis-top) 0%, var(--chassis-bottom) 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-inlay),
+    inset 0 3px 0 -1px rgba(255, 255, 255, 0.09),
+    inset 0 -3px 0 -1px rgba(0, 0, 0, 0.6),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+  color: var(--chassis-ink);
   font-family: var(--font-pixel);
 }
 
 .hud__logo {
-  font-size: clamp(1rem, 2.4vw, 1.5rem);
-  letter-spacing: 0.06em;
+  flex: none;
+  color: #fdfbf4;
+  font-size: clamp(1.1rem, 2.5vw, 1.85rem);
+  letter-spacing: 0.08em;
   text-decoration: none;
+  /* A pixel wordmark is drawn, not typeset: the outline is eight offset copies
+     of the glyph plus one drop step, exactly as the mockup does it. */
+  text-shadow:
+    2px 0 0 var(--logo-outline),
+    -2px 0 0 var(--logo-outline),
+    0 2px 0 var(--logo-outline),
+    0 -2px 0 var(--logo-outline),
+    2px 2px 0 var(--logo-outline),
+    -2px 2px 0 var(--logo-outline),
+    2px -2px 0 var(--logo-outline),
+    -2px -2px 0 var(--logo-outline),
+    0 4px 0 rgba(0, 0, 0, 0.55);
 }
 
 .hud__logo:hover {
-  color: var(--focus);
+  color: #fff;
+  --logo-outline: #e8501f;
 }
 
-.hud__meta {
+.hud__divider {
+  flex: none;
+  align-self: stretch;
+  width: 2px;
+  margin-block: 0.45rem;
+  background-image: repeating-linear-gradient(to bottom, var(--chassis-dot) 0 3px, transparent 3px 7px);
+}
+
+/* Inset sections: a recessed well with a lit top edge. */
+.hud__counter,
+.hud__next {
   display: flex;
-  align-items: center;
-  gap: clamp(0.6rem, 2vw, 1.4rem);
-  margin-left: auto;
-  font-size: clamp(0.62rem, 1.1vw, 0.8rem);
-  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-line),
+    inset 0 3px 6px rgba(0, 0, 0, 0.65),
+    0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--chassis-ink-soft);
 }
 
 .hud__counter {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45em;
-  color: var(--ink-soft);
+  align-items: center;
+  gap: 0.7em;
+  margin-inline: auto;
+  font-size: clamp(0.6rem, 1.05vw, 0.85rem);
+  letter-spacing: 0.14em;
 }
 
+/* Seven-segment: live digits over their own unlit segments. */
 .hud__digits {
-  padding: 0.2em 0.4em;
-  border: 2px solid var(--outline);
-  color: var(--ink);
+  display: inline-grid;
+  padding: 0.18em 0.4em;
+  border-radius: 3px;
+  background: var(--chassis-well);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.8), inset 0 2px 5px rgba(0, 0, 0, 0.9);
+  font-size: 1.35em;
   font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.hud__digits-ghost,
+.hud__digits-value {
+  grid-area: 1 / 1;
+}
+
+.hud__digits-ghost {
+  color: var(--lcd-off);
+}
+
+.hud__digits-value {
+  color: var(--lcd);
+  text-shadow: 0 0 7px rgba(168, 245, 51, 0.55);
 }
 
 .hud__next {
-  display: flex;
+  flex: none;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5em;
-  color: var(--ink-soft);
+  gap: 0.3em;
+  padding: 0.25rem 0.6rem;
+  font-size: clamp(0.5rem, 0.85vw, 0.68rem);
+  letter-spacing: 0.14em;
 }
 
-.hud__next-frame {
+/* The NEXT slot is a crate, not a dashed box (DESIGN §2). */
+.hud__crate {
   display: grid;
   place-items: center;
-  width: 2.1em;
-  height: 2.1em;
-  border: 2px dashed var(--tile-line);
-  color: var(--ink);
-  opacity: 0.75;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #4d5464 0%, #313846 100%);
+  box-shadow:
+    inset 0 0 0 2px #717a8b,
+    inset 0 4px 0 -2px rgba(255, 255, 255, 0.2),
+    inset 0 -4px 0 -2px rgba(0, 0, 0, 0.45),
+    0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.hud__crate-mark {
+  color: #f0ead9;
+  font-size: 0.95rem;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .hud__next-teaser {
   max-width: 12ch;
   overflow: hidden;
-  color: var(--ink);
+  color: var(--chassis-ink);
   font-family: var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .theme-toggle {
-  display: grid;
-  place-items: center;
-  width: 2.4em;
-  height: 2.4em;
-  padding: 0;
-  border: 2px solid var(--outline);
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--ink);
   cursor: pointer;
 }
 
-.theme-toggle:hover {
-  background: var(--card-bg);
+.theme-toggle .icon {
+  width: clamp(1rem, 1.7vw, 1.45rem);
+  height: clamp(1rem, 1.7vw, 1.45rem);
+  transition: opacity 130ms steps(2, end), transform 130ms steps(2, end);
 }
 
-.theme-toggle svg {
-  width: 1.1em;
-  height: 1.1em;
-}
-
-.theme-toggle .icon-moon {
-  display: none;
+/* The theme you are in is the lit lamp; the other sits dark until you reach. */
+.theme-toggle .icon-moon,
+:root[data-theme='dark'] .theme-toggle .icon-sun {
+  opacity: 0.32;
 }
 
 :root[data-theme='dark'] .theme-toggle .icon-moon {
-  display: block;
+  opacity: 1;
 }
 
-:root[data-theme='dark'] .theme-toggle .icon-sun {
-  display: none;
+.theme-toggle:hover .icon {
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 /* --- stage & playfield --------------------------------------------------- */
@@ -282,10 +425,18 @@ a {
 }
 
 .playfield {
-  --cell: 44px;
   --cell-fit-w: calc(min(100vw - 2rem, 1160px) / var(--cols));
   --cell-fit-h: calc(var(--field-height-budget) / var(--rows));
   --cell: clamp(16px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
+
+  /* Cell geometry, tied to the cell size so a 20px block is not all outline.
+     These have to live here, next to `--cell`: a custom property's var()
+     references are substituted on the element that declares it, so declaring
+     them on :root would resolve `--cell` to nothing and freeze the seam at one
+     width for every viewport. */
+  --cell-radius: clamp(2px, calc(var(--cell) * 0.055), 4px);
+  --seam-w: clamp(2px, calc(var(--cell) * 0.065), 5px);
+  --bevel-w: clamp(2px, calc(var(--cell) * 0.1), 7px);
 
   position: relative;
   width: calc(var(--cols) * var(--cell));
@@ -303,16 +454,6 @@ a {
   .stage {
     align-items: start;
   }
-}
-
-.playfield::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--cell)),
-    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--cell));
-  pointer-events: none;
 }
 
 /* The engine repaints the scene on load, so the build-time frame stays hidden
@@ -354,21 +495,65 @@ a {
 
 .piece__drop,
 .piece__bob,
+.piece__lift,
 .piece__body {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-/* Two stacked hard shadows: the second one shadows the first, which produces a
-   stepped pixel stair rather than a blur. */
-.piece__body {
+.piece__drop {
   position: relative;
-  filter: drop-shadow(4px 4px 0 var(--piece-shadow)) drop-shadow(4px 4px 0 var(--piece-shadow-step));
 }
 
-:root[data-theme='dark'] .piece__body {
-  filter: drop-shadow(4px 4px 0 var(--piece-shadow)) drop-shadow(0 0 10px var(--piece-glow));
+/* Hover/press live on their own layer so they compose with the fall and the
+   bob instead of fighting them for one transform. */
+.piece__lift {
+  transition: transform 130ms steps(2, end);
+}
+
+.piece:hover .piece__lift,
+.piece:focus-visible .piece__lift {
+  transform: translate3d(0, -2px, 0);
+}
+
+.piece:active .piece__lift {
+  transform: translate3d(0, 2px, 0);
+  transition-duration: 60ms;
+}
+
+/* Two stacked hard shadows in light: the second one shadows the first, which
+   produces a stepped pixel stair rather than a blur. Dark trades them for the
+   backlit glow. */
+.piece__body {
+  position: relative;
+  transform-origin: 50% 100%;
+  filter: var(--cast-on);
+  transition: filter 130ms steps(2, end);
+}
+
+.piece:hover .piece__body,
+.piece:focus-visible .piece__body {
+  filter: var(--cast-hover);
+}
+
+/* Dashed motion-trail ticks, three of them at different lengths, hanging above
+   the piece while it falls (DESIGN §5.1). Hidden until an entry runs. */
+.piece__trail {
+  position: absolute;
+  bottom: 100%;
+  left: 14%;
+  width: 72%;
+  height: calc(var(--cell) * 1.2);
+  background-image:
+    repeating-linear-gradient(to bottom, var(--trail) 0 26%, transparent 26% 52%),
+    repeating-linear-gradient(to bottom, var(--trail) 0 26%, transparent 26% 52%),
+    repeating-linear-gradient(to bottom, var(--trail) 0 26%, transparent 26% 52%);
+  background-repeat: no-repeat;
+  background-position: 6% 100%, 50% 100%, 94% 100%;
+  background-size: 2px 62%, 2px 88%, 2px 48%;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .cell {
@@ -379,70 +564,94 @@ a {
   place-items: center;
   width: var(--cell);
   height: var(--cell);
-  background: var(--piece-fill);
-  /* 3px near-black seam, then a flat pixel bevel: light along the top and left,
-     shade along the bottom and right. No blur, no corner artefacts. */
+  border-radius: var(--cell-radius);
+  background-color: var(--piece-fill);
+  background-image:
+    /* the faint scanline texture inside the cell */
+    repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px),
+    /* and a vertical sheen over the flat fill */
+    linear-gradient(to bottom, var(--cell-sheen-top) 0%, transparent 38%, transparent 70%, var(--cell-sheen-bottom) 100%);
+  /* Seam ring, then a flat pixel bevel: light along the top and left, shade
+     along the bottom and right, all inside the seam. No blur. */
   box-shadow:
-    inset 0 0 0 3px var(--seam),
-    inset 0 6px 0 -3px var(--bevel-light),
-    inset 6px 0 0 -3px var(--bevel-light),
-    inset 0 -6px 0 -3px var(--bevel-dark),
-    inset -6px 0 0 -3px var(--bevel-dark);
+    inset 0 0 0 var(--seam-w) var(--seam),
+    inset 0 var(--bevel-w) 0 calc(-1 * var(--seam-w)) var(--bevel-light),
+    inset var(--bevel-w) 0 0 calc(-1 * var(--seam-w)) var(--bevel-light),
+    inset 0 calc(-1.35 * var(--bevel-w)) 0 calc(-1 * var(--seam-w)) var(--bevel-dark),
+    inset calc(-1 * var(--bevel-w)) 0 0 calc(-1 * var(--seam-w)) var(--bevel-dark);
 }
 
 .cell--icon {
+  color: var(--glyph);
+}
+
+.cell__glyph {
   font-family: var(--font-pixel);
-  font-size: clamp(11px, calc(var(--cell) * 0.42), 30px);
+  font-size: clamp(11px, calc(var(--cell) * 0.4), 30px);
   font-weight: 700;
-  color: var(--outline);
+  line-height: 1;
   text-shadow: 1px 1px 0 var(--bevel-light);
 }
 
-:root[data-theme='dark'] .cell--icon {
-  color: rgba(20, 21, 25, 0.82);
-  text-shadow: none;
+.cell__art,
+.cell .pixel-logo {
+  width: 62%;
+  height: 62%;
+  image-rendering: pixelated;
 }
 
 .piece--product {
   --piece-fill: var(--accent);
   --piece-glow: var(--accent);
+  --trail: var(--accent);
 }
 
+/* Dark mode is a backlit console, so a product block is a dim pane of its own
+   colour behind a lit accent frame — same treatment the mockups use — rather
+   than a bright slab with a pale outline. */
 :root[data-theme='dark'] .piece--product {
-  --piece-fill: var(--accent-dark);
-  --piece-glow: color-mix(in srgb, var(--accent-dark) 55%, transparent);
+  --piece-fill: color-mix(in srgb, var(--accent-dark) 24%, #12141a);
+  --piece-glow: color-mix(in srgb, var(--accent-dark) 72%, transparent);
+  --trail: var(--accent-dark);
+  --seam: var(--accent-dark);
+  --glyph: var(--accent-dark);
+  --cell-sheen-top: color-mix(in srgb, var(--accent-dark) 12%, transparent);
+}
+
+:root[data-theme='dark'] .cell__glyph {
+  text-shadow: 0 0 6px var(--piece-glow);
 }
 
 /* Link tiles are quieter than products: muted fill, thinner outline. */
 .piece--link {
   --piece-fill: var(--tile-fill);
+  --seam: var(--tile-line);
+  --seam-w: 2px;
+  --glyph: var(--tile-glyph);
+  --trail: var(--ink-soft);
+  --cast-on: drop-shadow(3px 3px 0 var(--piece-shadow-step));
+  --cast-hover: drop-shadow(5px 5px 0 var(--piece-shadow-step));
   z-index: 2;
 }
 
-.piece--link .cell {
-  box-shadow:
-    inset 0 0 0 2px var(--tile-line),
-    inset 0 5px 0 -2px var(--bevel-light),
-    inset 0 -5px 0 -2px var(--bevel-dark),
-    inset -5px 0 0 -2px var(--bevel-dark);
-  font-family: var(--font-pixel);
-  font-size: clamp(9px, calc(var(--cell) * 0.3), 20px);
-  color: var(--ink);
+:root[data-theme='dark'] .piece--link {
+  --cast-on: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
+  --cast-hover: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.6));
 }
 
-.piece--link .piece__body {
-  filter: drop-shadow(3px 3px 0 var(--piece-shadow-step));
-  opacity: 0.9;
+.piece--link .cell__glyph {
+  font-size: clamp(9px, calc(var(--cell) * 0.3), 20px);
+  text-shadow: none;
+}
+
+.piece--link .cell .pixel-logo {
+  width: 56%;
+  height: 56%;
 }
 
 .piece--link:hover,
 .piece--link:focus-visible {
   z-index: 6;
-}
-
-.piece--link:hover .piece__body,
-.piece--link:focus-visible .piece__body {
-  opacity: 1;
 }
 
 /* Two letters cannot carry a destination, so name the tile on hover/focus. */
@@ -452,42 +661,61 @@ a {
   bottom: calc(100% + 8px);
   left: 50%;
   z-index: 1;
-  padding: 0.3em 0.5em;
+  padding: 0.35em 0.55em;
   border: 2px solid var(--card-line);
+  border-radius: 3px;
   background: var(--card-bg);
   box-shadow: 3px 3px 0 var(--card-shadow);
-  color: var(--ink);
+  color: var(--card-ink);
   font-family: var(--font-pixel);
   font-size: clamp(8px, calc(var(--cell) * 0.2), 12px);
   white-space: nowrap;
   opacity: 0;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(0.92);
+  transition: opacity 110ms steps(2, end), transform 110ms steps(2, end);
   pointer-events: none;
 }
 
 .piece--link:hover::after,
 .piece--link:focus-visible::after {
   opacity: 1;
+  transform: translateX(-50%) scale(1);
 }
 
-.piece--product:hover .piece__body {
-  filter: drop-shadow(6px 6px 0 var(--piece-shadow)) drop-shadow(4px 4px 0 var(--piece-shadow-step));
-}
-
+/* Anonymous stack blocks: the same candy recipe, dialled right down. */
 .filler {
   width: var(--cell);
   height: var(--cell);
-  background: var(--filler-fill);
-  box-shadow: inset 0 0 0 2px var(--filler-line);
+  border-radius: var(--cell-radius);
+  background-color: var(--filler-fill);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.14) 0%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.14) 100%
+  );
+  box-shadow:
+    inset 0 0 0 2px var(--filler-line),
+    inset 0 3px 0 -2px var(--bevel-light),
+    inset 0 -3px 0 -2px var(--bevel-dark);
   z-index: 1;
 }
 
 .filler[data-tone='1'] {
-  background: var(--filler-fill-b);
+  background-color: var(--filler-fill-b);
 }
 
 .filler[data-tone='2'] {
-  background: var(--filler-fill-c);
+  background-color: var(--filler-fill-c);
+}
+
+/* Holes in the stack are drawn, not omitted: a dashed slot says "game in
+   progress" where a gap would just say "unfinished". */
+.filler.filler--empty {
+  background-color: transparent;
+  background-image: none;
+  border: 2px dashed var(--empty-line);
+  box-shadow: none;
 }
 
 /* --- label cards --------------------------------------------------------- */
@@ -500,27 +728,45 @@ a {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.25em;
+  gap: calc(var(--cell) * 0.04);
   width: calc(var(--lw) * var(--cell));
   min-height: calc(var(--lh) * var(--cell));
-  padding: 0.45em 0.6em;
+  padding: calc(var(--cell) * 0.085) calc(var(--cell) * 0.13);
   border: 3px solid var(--card-line);
+  border-radius: 4px;
   background: var(--card-bg);
-  box-shadow: 4px 4px 0 var(--card-shadow);
+  box-shadow: 4px 4px 0 var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  color: var(--card-ink);
   pointer-events: none;
+}
+
+/* Dark cards are lit in their piece's own colour, which is what ties a card to
+   its tetromino at a glance when the leader is short. */
+:root[data-theme='dark'] .label {
+  --card-line: var(--accent-dark, #f3ecdb);
+  --card-ink: var(--accent-dark, #f3ecdb);
+  box-shadow: 4px 4px 0 var(--card-shadow), 0 0 10px color-mix(in srgb, var(--accent-dark, #f3ecdb) 22%, transparent);
 }
 
 .label__name {
   font-family: var(--font-pixel);
-  font-size: clamp(9px, calc(var(--cell) * 0.22), 15px);
+  font-size: clamp(8px, calc(var(--cell) * 0.22), 15px);
   line-height: 1.1;
   letter-spacing: 0.02em;
 }
 
 .label__tagline {
-  font-size: clamp(8px, calc(var(--cell) * 0.17), 12px);
+  font-size: clamp(7px, calc(var(--cell) * 0.17), 12px);
   line-height: 1.25;
   color: var(--ink-soft);
+}
+
+:root[data-theme='dark'] .label__tagline {
+  color: color-mix(in srgb, var(--accent-dark, #f3ecdb) 72%, #8d8778);
+}
+
+.label--compact .label__name {
+  font-size: clamp(7px, calc(var(--cell) * 0.2), 14px);
 }
 
 .label--compact .label__tagline {
@@ -582,6 +828,23 @@ a {
 .label[data-side='below'] .label__leader {
   bottom: 100%;
   transform-origin: center bottom;
+}
+
+/* Cards grow out of the edge that faces their piece. */
+.label[data-side='right'] {
+  transform-origin: left center;
+}
+
+.label[data-side='left'] {
+  transform-origin: right center;
+}
+
+.label[data-side='above'] {
+  transform-origin: center bottom;
+}
+
+.label[data-side='below'] {
+  transform-origin: center top;
 }
 
 /* Straight run: the card lines up with its piece. */
@@ -671,7 +934,7 @@ a {
 }
 
 .label--compact {
-  padding: 0.3em 0.5em;
+  padding: calc(var(--cell) * 0.06) calc(var(--cell) * 0.11);
 }
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
@@ -692,6 +955,7 @@ a {
 
 .ghost .cell {
   background: transparent;
+  border-radius: var(--cell-radius);
   box-shadow: inset 0 0 0 2px var(--ghost-line);
 }
 
@@ -707,50 +971,113 @@ a {
   pointer-events: none;
 }
 
-/* --- footer hint --------------------------------------------------------- */
+/* --- footer hint: a dark pill between chevrons --------------------------- */
 
 .hint {
-  padding: 0.75rem 1rem 1.25rem;
-  text-align: center;
+  position: relative;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.5rem, 2.5vw, 2rem);
+  padding: 0.85rem 1rem 1.35rem;
+}
+
+.hint__chevrons {
+  color: var(--ink-soft);
+  font-family: var(--font-pixel);
+  font-size: clamp(0.6rem, 1.15vw, 0.85rem);
+  letter-spacing: 0.18em;
+  opacity: 0.55;
 }
 
 .hint__button {
-  padding: 0.5em 0.9em;
-  border: 2px solid transparent;
-  background: none;
-  color: var(--ink-soft);
+  padding: 0.55em 1.35em;
+  border: 2px solid var(--chassis-edge);
+  border-radius: 6px;
+  background: linear-gradient(to bottom, var(--chassis-top) 0%, var(--chassis-bottom) 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-inlay),
+    inset 0 2px 0 -1px rgba(255, 255, 255, 0.1),
+    0 3px 0 rgba(0, 0, 0, 0.35);
+  color: var(--chassis-ink);
   font-family: var(--font-pixel);
-  font-size: clamp(0.6rem, 1.1vw, 0.75rem);
-  letter-spacing: 0.08em;
+  font-size: clamp(0.6rem, 1.1vw, 0.78rem);
+  letter-spacing: 0.1em;
   cursor: pointer;
+  transition: transform 90ms steps(2, end), box-shadow 90ms steps(2, end);
 }
 
 .hint__button:hover {
-  border-color: var(--outline);
-  color: var(--ink);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 2px var(--chassis-inlay),
+    inset 0 2px 0 -1px rgba(255, 255, 255, 0.14),
+    0 4px 0 rgba(0, 0, 0, 0.4);
+}
+
+.hint__button:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px var(--chassis-inlay), 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .hint__key {
-  padding: 0.1em 0.4em;
-  border: 2px solid currentColor;
+  display: inline-block;
+  padding: 0.05em 0.4em;
+  border: 2px solid var(--key);
+  border-radius: 3px;
+  color: var(--key);
 }
 
 .hint__coarse {
   display: none;
 }
 
-/* Mobile HUD condenses to `AIX4U · 05 · NEXT`. */
+/* Mobile HUD condenses to `AIX4U · 05 · NEXT ?` (DESIGN §6). */
 @media (max-width: 699px) {
-  .hud {
-    gap: 0.75rem;
+  .hud__chassis {
+    gap: 0.6rem;
+    padding-inline: 0.6rem;
+  }
+
+  .hud__divider {
+    display: none;
   }
 
   .hud__counter-word {
     display: none;
   }
 
+  .hud__counter,
+  .hud__next {
+    padding-inline: 0.5rem;
+  }
+
+  .hud__next {
+    flex-direction: row;
+    gap: 0.45em;
+  }
+
   .hud__next-teaser {
     max-width: 7ch;
+  }
+
+  .hud__crate {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  /* One lamp is enough on a phone bezel: show the theme you are in. */
+  .theme-toggle .icon-moon {
+    display: none;
+  }
+
+  :root[data-theme='dark'] .theme-toggle .icon-moon {
+    display: block;
+  }
+
+  :root[data-theme='dark'] .theme-toggle .icon-sun {
+    display: none;
   }
 }
 
@@ -766,72 +1093,114 @@ a {
 
 /* --- animation ----------------------------------------------------------- */
 
-/* Every stepped animation ends on a held keyframe: a `steps(n, end)` easing
-   combined with a fill can otherwise freeze one step short of the final value,
-   which would leave pieces off-grid and cards half-faded. */
+/* Gravity, not quantised sliding: the piece accelerates into the floor, then
+   squashes two frames and settles. */
 @keyframes piece-fall {
   from {
     transform: translate3d(0, var(--fall-from), 0);
   }
-  92% {
-    transform: translate3d(0, 0, 0);
-  }
   to {
     transform: translate3d(0, 0, 0);
   }
 }
 
-@keyframes piece-settle {
+@keyframes piece-impact {
   0% {
-    transform: translateY(0);
+    transform: scale3d(1, 1, 1);
   }
-  30% {
-    transform: translateY(2px);
+  13% {
+    transform: scale3d(1.035, 0.94, 1);
   }
-  60% {
-    transform: translateY(-1px);
+  36% {
+    transform: scale3d(0.99, 1.025, 1);
   }
-  85% {
-    transform: translateY(0);
+  64% {
+    transform: scale3d(1.004, 0.992, 1);
   }
   100% {
-    transform: translateY(0);
+    transform: scale3d(1, 1, 1);
   }
 }
 
-@keyframes piece-bob {
-  0% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
+/* The cast shadow does not fade in — it appears on the frame of the impact. */
+@keyframes cast-snap {
+  0%,
+  99.9% {
+    filter: var(--cast-off);
   }
   100% {
-    transform: translateY(0);
+    filter: var(--cast-on);
   }
 }
 
-@keyframes label-in {
+@keyframes trail-in {
   from {
     opacity: 0;
   }
-  80% {
-    opacity: 1;
+  18% {
+    opacity: 0.85;
   }
   to {
-    opacity: 1;
+    opacity: 0.85;
   }
 }
 
-@keyframes leader-grow {
+@keyframes trail-out {
   from {
-    transform: scale(0);
-  }
-  80% {
-    transform: scale(1);
+    opacity: 0.85;
   }
   to {
+    opacity: 0;
+  }
+}
+
+/* Breathing, not an elevator: ±2px over five to eight seconds. */
+@keyframes piece-bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes label-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes leader-draw-x {
+  from {
+    transform: scaleX(0);
+  }
+  80% {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes leader-draw-y {
+  from {
+    transform: scaleY(0);
+  }
+  80% {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(1);
   }
 }
 
@@ -845,11 +1214,30 @@ a {
 }
 
 @keyframes hard-drop {
-  85% {
-    transform: translate3d(0, var(--hard-drop), 0);
+  from {
+    transform: translate3d(0, 0, 0);
   }
   to {
     transform: translate3d(0, var(--hard-drop), 0);
+  }
+}
+
+/* The field takes the hit when a hard drop lands. */
+@keyframes field-shake {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  22% {
+    transform: translate3d(0, 2px, 0);
+  }
+  48% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  74% {
+    transform: translate3d(0, 1px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -868,40 +1256,69 @@ a {
 .js .playfield.is-entering .piece__drop,
 .js .playfield.is-entering .filler {
   --fall-from: calc(-1 * (var(--gy) * var(--cell) + 5 * var(--cell)));
-  animation: piece-fall var(--fall-duration, 620ms) steps(11, end) var(--fall-delay, 0ms) both;
+  animation: piece-fall var(--fall-duration, 560ms) var(--gravity) var(--fall-delay, 0ms) both;
 }
 
 .js .playfield.is-entering .piece__body {
-  animation: piece-settle 150ms steps(2, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms)) both;
+  animation:
+    piece-impact 260ms ease-out calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms)) both,
+    cast-snap calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms)) linear 0ms both;
+}
+
+.js .playfield.is-entering .piece__trail {
+  animation:
+    trail-in var(--fall-duration, 560ms) linear var(--fall-delay, 0ms) both,
+    trail-out 200ms linear calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 60ms) both;
 }
 
 .js .playfield.is-entering .label {
-  animation: label-in 150ms steps(3, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms) + 150ms) both;
+  animation: label-pop 220ms cubic-bezier(0.2, 1.3, 0.5, 1)
+    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
 }
 
-.js .playfield.is-entering .label__leader {
-  animation: leader-grow 220ms steps(5, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 620ms) + 150ms) both;
+.js .playfield.is-entering .label[data-side='left'] .label__leader,
+.js .playfield.is-entering .label[data-side='right'] .label__leader {
+  animation: leader-draw-x 200ms steps(5, end)
+    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
+}
+
+.js .playfield.is-entering .label[data-side='above'] .label__leader,
+.js .playfield.is-entering .label[data-side='below'] .label__leader {
+  animation: leader-draw-y 200ms steps(5, end)
+    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
 }
 
 /* Bobbing only starts once the piece has landed, hence the composed delay. */
 .js .playfield.is-idle .piece--floating .piece__bob {
   animation-name: piece-bob;
-  animation-duration: var(--bob-period, 4s);
-  animation-timing-function: steps(4, end);
+  animation-duration: var(--bob-period, 6s);
+  animation-timing-function: ease-in-out;
   animation-delay: calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + var(--bob-delay, 0s));
   animation-iteration-count: infinite;
 }
 
 .js .playfield.is-idle .ghost {
-  animation: ghost-fall var(--ghost-duration, 20s) steps(18, end) var(--ghost-delay, 0s) infinite;
+  animation: ghost-fall var(--ghost-duration, 20s) linear var(--ghost-delay, 0s) infinite;
 }
 
 .playfield.is-clearing .piece--floating .piece__drop {
-  animation: hard-drop 240ms steps(7, end) calc(var(--order, 0) * 40ms) forwards;
+  animation: hard-drop 260ms var(--gravity) calc(var(--order, 0) * 40ms) forwards;
+}
+
+.playfield.is-clearing .piece--floating .piece__trail {
+  animation: trail-in 260ms linear calc(var(--order, 0) * 40ms) both;
+}
+
+.playfield.is-clearing .piece--floating .piece__body {
+  animation: piece-impact 200ms ease-out calc(var(--order, 0) * 40ms + 260ms) both;
 }
 
 .playfield.is-clearing .piece__bob {
   animation: none;
+}
+
+.js .playfield.is-ready.is-shaking {
+  animation: field-shake 180ms steps(4, end) 1;
 }
 
 .playfield.is-flashing .line-flash {
@@ -917,14 +1334,26 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .js .playfield.is-entering .piece__drop,
   .js .playfield.is-entering .piece__body,
+  .js .playfield.is-entering .piece__trail,
   .js .playfield.is-entering .filler,
   .js .playfield.is-entering .label,
   .js .playfield.is-entering .label__leader,
   .js .playfield.is-idle .piece--floating .piece__bob,
   .js .playfield.is-idle .ghost,
+  .js .playfield.is-ready.is-shaking,
   .playfield.is-clearing .piece--floating .piece__drop,
+  .playfield.is-clearing .piece--floating .piece__trail,
+  .playfield.is-clearing .piece--floating .piece__body,
   .playfield.is-flashing .line-flash {
     animation: none !important;
+  }
+
+  .piece__lift,
+  .piece__body,
+  .piece--link::after,
+  .hint__button,
+  .theme-toggle .icon {
+    transition: none !important;
   }
 
   .playfield.is-cleared .piece,

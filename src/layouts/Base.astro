@@ -63,16 +63,20 @@ const itemList = {
     <link rel="preload" href="/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin />
 
     <script is:inline>
-      // Resolve the theme before first paint: stored choice wins, then the OS.
-      // Also flips `no-js` to `js` so the CSS knows the engine is coming.
+      // Resolve the theme before first paint: `?theme=` (a debug/share override
+      // in the same spirit as `?seed=`, not persisted) wins, then the stored
+      // choice, then the OS. Also flips `no-js` to `js` so the CSS knows the
+      // engine is coming.
       (() => {
         const root = document.documentElement;
         root.classList.remove('no-js');
         root.classList.add('js');
-        let theme = null;
-        try {
-          theme = localStorage.getItem('aix4u-theme');
-        } catch {}
+        let theme = new URLSearchParams(location.search).get('theme');
+        if (theme !== 'light' && theme !== 'dark') {
+          try {
+            theme = localStorage.getItem('aix4u-theme');
+          } catch {}
+        }
         if (theme !== 'light' && theme !== 'dark') {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
