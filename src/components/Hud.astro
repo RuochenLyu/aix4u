@@ -1,31 +1,52 @@
 ---
+/**
+ * The console bezel (DESIGN §2, §3.4).
+ *
+ * Near-black in both themes — it is the machine's chassis, not part of the
+ * screen, so it does not invert with the theme. Inside: an outlined pixel
+ * wordmark, dotted dividers between inset sections, a lime seven-segment
+ * counter, the NEXT crate, and the sun/moon toggle.
+ */
 import { content } from '../lib/content';
 
 const count = String(content.products.length).padStart(2, '0');
+/** Unlit segments behind the live digits — what an LCD actually looks like. */
+const ghost = '8'.repeat(count.length);
 const teaser = content.next.teaser.trim();
 ---
 
 <header class="hud">
-  <a class="hud__logo" href="/" aria-label="aix4u home">AIX4U</a>
+  <div class="hud__chassis">
+    <a class="hud__logo" href="/" aria-label="aix4u home">
+      <span aria-hidden="true">AIX4U</span>
+    </a>
 
-  <div class="hud__meta">
+    <span class="hud__divider" aria-hidden="true"></span>
+
     <p class="hud__counter">
       <span class="hud__counter-word">PRODUCTS</span>
-      <span class="hud__digits">{count}</span>
+      <span class="hud__digits">
+        <span class="hud__digits-ghost" aria-hidden="true">{ghost}</span>
+        <span class="hud__digits-value">{count}</span>
+      </span>
     </p>
 
+    <span class="hud__divider" aria-hidden="true"></span>
+
     <p class="hud__next">
-      <span>NEXT</span>
+      <span class="hud__next-word">NEXT</span>
       {
         teaser ? (
           <span class="hud__next-teaser">{teaser}</span>
         ) : (
-          <span class="hud__next-frame" aria-label="Next product: unannounced" role="img">
-            ?
+          <span class="hud__crate" aria-label="Next product: unannounced" role="img">
+            <span class="hud__crate-mark" aria-hidden="true">?</span>
           </span>
         )
       }
     </p>
+
+    <span class="hud__divider" aria-hidden="true"></span>
 
     <button
       type="button"
@@ -35,15 +56,46 @@ const teaser = content.next.teaser.trim();
       aria-label="Switch to dark mode"
       title="Toggle dark mode"
     >
-      <svg class="icon-sun" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor">
-        <path
-          d="M7 0h2v3H7zM7 13h2v3H7zM0 7h3v2H0zM13 7h3v2h-3zM2 3h2v2H2zM12 3h2v2h-2zM2 11h2v2H2zM12 11h2v2h-2zM5 5h6v6H5z"
-        ></path>
+      <svg class="icon icon-sun" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+        <g fill="#f2911e">
+          <rect x="7" y="0" width="2" height="3"></rect>
+          <rect x="7" y="13" width="2" height="3"></rect>
+          <rect x="0" y="7" width="3" height="2"></rect>
+          <rect x="13" y="7" width="3" height="2"></rect>
+          <rect x="2" y="2" width="2" height="2"></rect>
+          <rect x="12" y="2" width="2" height="2"></rect>
+          <rect x="2" y="12" width="2" height="2"></rect>
+          <rect x="12" y="12" width="2" height="2"></rect>
+        </g>
+        <g fill="#ffc93c">
+          <rect x="6" y="4" width="4" height="1"></rect>
+          <rect x="5" y="5" width="6" height="1"></rect>
+          <rect x="4" y="6" width="8" height="4"></rect>
+          <rect x="5" y="10" width="6" height="1"></rect>
+          <rect x="6" y="11" width="4" height="1"></rect>
+        </g>
+        <g fill="#fff3b0">
+          <rect x="6" y="6" width="2" height="1"></rect>
+          <rect x="5" y="7" width="2" height="1"></rect>
+        </g>
       </svg>
-      <svg class="icon-moon" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor">
-        <path
-          d="M5 3h5v1H5zM4 4h5v1H4zM3 5h5v1H3zM3 6h4v1H3zM3 7h4v1H3zM3 8h4v1H3zM3 9h5v1H3zM4 10h5v1H4zM5 11h5v1H5zM11 2h1v1h-1zM12 4h1v1h-1zM10 6h1v1h-1z"
-        ></path>
+
+      <svg class="icon icon-moon" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+        <g fill="#7fb2ff">
+          <rect x="8" y="2" width="4" height="1"></rect>
+          <rect x="7" y="3" width="5" height="1"></rect>
+          <rect x="6" y="4" width="5" height="1"></rect>
+          <rect x="5" y="5" width="5" height="1"></rect>
+          <rect x="4" y="6" width="5" height="4"></rect>
+          <rect x="5" y="10" width="5" height="1"></rect>
+          <rect x="6" y="11" width="5" height="1"></rect>
+          <rect x="7" y="12" width="5" height="1"></rect>
+          <rect x="8" y="13" width="4" height="1"></rect>
+        </g>
+        <g fill="#cfe2ff">
+          <rect x="5" y="6" width="2" height="1"></rect>
+          <rect x="4" y="7" width="1" height="2"></rect>
+        </g>
       </svg>
     </button>
   </div>
