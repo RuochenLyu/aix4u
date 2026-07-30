@@ -650,6 +650,10 @@ if (playfield && fillerLayer && ghost && shell) {
       const el = pieceElements.get(placement.id);
       if (el) bottoms.set(el, placement.y + SHAPES[placement.shape].height - 1);
     }
+    // The mystery tile is a `.piece` like any other now, so it needs its bottom
+    // row on record too — without it the sweep would take its cell and leave the
+    // `?` behind, which is the exact orphan this pass exists to kill.
+    if (egg) bottoms.set(egg, Number(egg.style.getPropertyValue('--gy') || 0));
 
     field.classList.add('is-scanning');
     for (const row of swept) {
