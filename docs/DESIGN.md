@@ -4,7 +4,7 @@ The homepage of aix4u.com is a product portfolio built as a **frozen frame of an
 
 This document is the single source of truth. Implementation follows it; design changes go through this file first.
 
-**v2 supersedes v1**: external label cards are removed (replaced by piece-integrated identity + a fixed info panel), pieces gained a full identity system (skin, sticker band, eye, motion personality), and canonical orientations replace free placement of shapes.
+**v2 supersedes v1**: external label cards are removed (replaced by piece-integrated identity + a fixed info panel), pieces gained a full identity system (skin, eye, motion personality — the sticker band came with v2 and was retired in v2.1, see §3.2), and canonical orientations replace free placement of shapes.
 
 ## 1. Concept & non-goals
 
@@ -26,7 +26,7 @@ Pixel/retro handheld-console aesthetic. Cute but gender-neutral.
 - **(v2.1) One chassis width**: the HUD, the playfield and the bottom bezel share a single content width and horizontal margins — three different widths read as three unrelated widgets. The reshuffle hint is no longer a free-floating pill: it docks **inside the bottom bezel's right end** (panel text left, key hint right), the way a game status bar carries its button legend.
 - **(v2.1) Depth — the keycap model, one physics for everything**: pieces, link tiles and HUD buttons all read as **keys with real thickness**, never paper cards. Concretely: the body sits on a solid extruded side face (its own accent darkened ~35%, ~0.08–0.1 cell tall, following the piece's bottom silhouette with stepped pixel corners) + **one** tight contact shadow (1–2px, low opacity) underneath. **Stacked multi-offset drop shadows are banned** — two offset copies read as paper, not thickness. Press states come free with the model: hover lifts the body 2px off its side (side grows), active sinks the body flush into it (side shrinks) — the key travel IS the hover/press feedback. All three element families share the same extrusion tokens.
 - **(v2.1) Background recedes**: fine-grid opacity halved, coarse line barely-there; the scene's contrast budget belongs to the pieces, not the lattice.
-- **The bezel is opaque and sits above the field**: pieces falling in slide *behind* the HUD and the footer pill, which is what sells "a screen inside a machine".
+- **The bezels are opaque and sit above the field**: pieces falling in slide *behind* the HUD and the bottom bezel, which is what sells "a screen inside a machine".
 
 ### Light mode ("TV gray")
 Pale gray-blue background (`#c9d2dd` ± tuning), saturated piece colors, thick near-black outlines (`~#22242a`), and the keycap extrusion above — a solid side face plus one hard contact line. (This bullet used to call for "hard two-step pixel shadows"; the v2.1 Depth entry supersedes it, since two stacked offsets are exactly what read as paper on the real device.)
@@ -108,7 +108,7 @@ Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/Ruoche
 - Sun/moon theme toggle (accessible).
 
 ### 4.4 Info panel (replaces all labels/popovers)
-A **fixed slot** docked above the footer hint — a game item-description panel, styled as part of the scene (pixel border, scanlines; Scott Pilgrim rule: the panel is scene, not chrome):
+A **fixed slot** in the bottom bezel, sharing it with the key legend (§2 v2.1) — a game item-description panel, styled as part of the scene (pixel border, scanlines; Scott Pilgrim rule: the panel is scene, not chrome):
 
 - Idle state: one-line site intro — `AIX4U — indie products by Ruochen.`
 - On piece hover/focus (desktop) or first tap (touch): panel types out (typewriter, ~24 chars/s, skippable):
@@ -117,7 +117,7 @@ A **fixed slot** docked above the footer hint — a game item-description panel,
 - A pixel selection cursor (corner brackets) frames the hovered/selected piece — **outside** the piece's bounding box with a ~0.15-cell gap; the brackets must never overlap the artwork (v2.1).
 - Desktop click on piece = navigate (as before). Touch: first tap selects, `▸ PLAY` (or second tap on the same piece) navigates.
 - Keyboard: pieces are focusable in priority order; panel follows focus; Enter navigates.
-- The panel is `aria-live="polite"`; piece `<a>`s still contain name (band) + sr-only tagline, so no-JS/SEO keeps full content.
+- The panel is `aria-live="polite"`; piece `<a>`s carry name + tagline as sr-only text, so no-JS/SEO keeps full content.
 
 ## 5. Randomness
 One integer seed drives everything (composition, blink phases, stagger jitter, ghost path) via a deterministic PRNG. New visit → random seed; `R`/tap → new seed; `?seed=<n>` reproduces a scene (written back via `history.replaceState`).
@@ -159,14 +159,14 @@ Longer descriptions (meta/JSON-LD): unchanged from v1 —
 Site meta: title `aix4u — products by Ruochen`, description "Indie products by Ruochen — daily puzzles, idea feeds, open data and developer tools. aix4u = AI for you." OG subtitle: `indie products by Ruochen` (the "dropping like tetrominoes" phrasing is retired — the visual says it, the copy doesn't need to).
 
 ## 9. SEO & meta
-Astro SSG; pieces are real `<a>`s at build time with visible name text (sticker band) + sr-only flavor line. Deterministic no-JS frame. `<title>`/description/canonical/OG/Twitter, JSON-LD ItemList, sitemap, robots. No analytics, no third-party runtime requests; fonts self-hosted.
+Astro SSG; pieces are real `<a>`s at build time carrying name + flavor line as sr-only text (§3.2 v2.1: nothing on the piece is readable, so the accessible layer carries all of it). Deterministic no-JS frame. `<title>`/description/canonical/OG/Twitter, JSON-LD ItemList, sitemap, robots. No analytics, no third-party runtime requests; fonts self-hosted.
 
 ## 10. Tech & repo standards
 Astro latest, TypeScript strict, zero UI framework; one vanilla TS engine module; CSS custom properties for theming. `products.json` schema-validated at build (piece shape, orientation, skin path, eye cell, personality preset all config). `scripts/check-scene.ts` asserts layout invariants across seeds × viewports in `npm run build`. MIT, README with "add a product = one JSON entry (+ one skin asset)" walkthrough. Cloudflare Pages deploy (deferred until the site is right).
 
 ## 11. Asset pipeline
 Produced via image-gen (see `docs/assets-brief.md`), landing in `public/skins/` and `public/icons/`:
-- **Per-piece skins**: one transparent PNG per product per theme (light/dark), drawn at the piece's exact cell proportions (e.g. T = 3×2), laid under CSS seams/bevel/band. Multiple candidates; final picks wired in `products.json`.
+- **Per-piece skins**: one transparent PNG per product per theme (light/dark), drawn at the piece's exact cell proportions (e.g. T = 3×2), laid under the CSS silhouette seam and bevel. Multiple candidates; final picks wired in `products.json`.
 - Link-tile glyphs, favicon, og-image, NEXT crate.
-- The eye, sticker band, seams, bevels, sparks are **code, not assets** (they animate).
-- Until skins land: placeholder = accent fill + product name band (no letters-in-cells).
+- The eye, seams, bevels, the extruded side face and sparks are **code, not assets** (they animate).
+- Until skins land: placeholder = accent fill + a small pixel icon badge (no letters-in-cells, no name text).

@@ -95,7 +95,6 @@ if (playfield && fillerLayer && ghost && shell) {
     // as well as the field (one chassis width, DESIGN §2 v2.1).
     shell!.style.setProperty('--cols', String(bp.cols));
     shell!.style.setProperty('--rows', String(bp.rows));
-    shell!.style.setProperty('--stack-rows', String(bp.stackRows));
     field.style.setProperty('--ghost-duration', `${next.ghost.duration}s`);
     field.style.setProperty('--ghost-delay', `${next.ghost.delay}s`);
 
