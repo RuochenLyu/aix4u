@@ -124,7 +124,7 @@ Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/Ruoche
 ### 4.4 Info panel (replaces all labels/popovers)
 A **fixed slot** in the bottom bezel, sharing it with the key legend (§2 v2.1) — a game item-description panel, styled as part of the scene (pixel border, scanlines; Scott Pilgrim rule: the panel is scene, not chrome):
 
-- Idle state: one-line site intro — `AIX4U — indie products by Ruochen.`
+- Idle state: one-line site intro — `AIX4U — indie products by kshift.`
 - On piece hover/focus (desktop) or first tap (touch): panel types out (typewriter, ~24 chars/s, skippable):
   `MEIKYU · WEB · DAILY — Deduce the daily dungeon in six tries. ▸ PLAY`
   Template: `NAME · TYPE · STATUS — flavor line. ▸ CTA`.
@@ -176,7 +176,7 @@ Longer descriptions (meta/JSON-LD): unchanged from v1 —
 - **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
 - **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.
 
-Site meta: title `aix4u — products by Ruochen`, description "Indie products by Ruochen — daily puzzles, idea feeds, open data and developer tools. aix4u = AI for you." OG subtitle: `indie products by Ruochen` (the "dropping like tetrominoes" phrasing is retired — the visual says it, the copy doesn't need to).
+Site meta: title `aix4u — products by kshift`, description "Indie products by Ruochen — daily puzzles, idea feeds, open data and developer tools. aix4u = AI for you." OG subtitle: `indie products by kshift` (the "dropping like tetrominoes" phrasing is retired — the visual says it, the copy doesn't need to).
 
 ## 9. SEO & meta
 Astro SSG; pieces are real `<a>`s at build time carrying name + flavor line as sr-only text (§3.2 v2.1: nothing on the piece is readable, so the accessible layer carries all of it). Deterministic no-JS frame. `<title>`/description/canonical/OG/Twitter, JSON-LD ItemList, sitemap, robots. No analytics, no third-party runtime requests; fonts self-hosted.
@@ -190,3 +190,46 @@ Produced via image-gen (see `docs/assets-brief.md`), landing in `public/skins/` 
 - Link-tile glyphs, favicon, og-image, NEXT crate.
 - The eye, seams, bevels, the extruded side face and sparks are **code, not assets** (they animate).
 - Until skins land: placeholder = accent fill + a small pixel icon badge (no letters-in-cells, no name text).
+
+## 12. v2.1.4 polish checklist (from device review)
+
+1. **Interaction gating**: pieces are inert (`pointer-events: none`, no hover/selection cursor, excluded from tab order) from the moment a reshuffle/entry starts until they have landed; interactivity switches on per-piece at its own landing frame, not globally.
+2. **Branding**: the public name is **kshift** (network ID), never the legal name — panel idle line `AIX4U — indie products by kshift.`, site meta/OG/JSON-LD author all follow. kshift.me and x.com/kshift make this a consistent entity.
+3. **HUD**: logo optically centered on the bar's vertical axis; the moon toggle icon must read as a crescent moon at a glance (current one reads as a "C") — redraw as a proper pixel crescent with one or two tiny stars.
+4. **Asset loading**: no loading screen. Skins are `<link rel="preload" as="image">`-ed for the current theme, and the entry animation is gated on `Promise.race(decode-all, 600ms timeout)` — pieces never fall half-textured, but a slow network degrades to accent placeholders falling on time, upgraded in place when the PNG arrives.
+5. **SEO architecture (multi-subdomain)**: each subdomain owns its sitemap (`aix4u.com/sitemap-index.xml` lists only apex URLs; ahr999.aix4u.com serves its own). robots.txt carries the apex `Sitemap:` line. GSC/Bing get one **domain property** (DNS-verified) covering all subdomains. Entity linking: JSON-LD `WebSite` + `Person` (kshift, `sameAs`: kshift.me / x.com/kshift / github.com/RuochenLyu) wrapped around the existing ItemList — the page's referral job is done by real product `<a>`s, structured data and descriptive anchors, not tricks.
+6. **Focus & iOS polish**: default UA focus `outline` removed everywhere and replaced by our own `:focus-visible` treatment (pieces: the selection cursor; chrome keys: bevel-hot state + 1px accent ring). `touch-action: manipulation` on interactive elements, `viewport-fit=cover` + `env(safe-area-inset-*)` padding on HUD/bezel (notch/home-bar), `theme-color` meta synced to the active theme, font smoothing left default (pixel fonts).
+
+## 13. v2.2 — attract, share, sound (approved feature round)
+
+### 13.1 Attract mode
+After ~8s with no interaction, the machine demos itself: the selection cursor hops piece to piece (priority order), the panel types each `NAME · TYPE · STATUS — flavor` line, ~3.5s per piece, one full loop then stop (no eternal cycling — a shop machine loops, a proud one shows its wares once). Any interaction cancels instantly and never restarts during the session. Skipped under `prefers-reduced-motion`; pauses when the tab is hidden.
+
+### 13.2 Seed badge (share surface)
+A small `SEED 20260729` chip in the HUD (seven-segment styling, next to the counter). Click = copy the current `?seed=` URL, chip flashes `COPIED`. This is the only share affordance — no share icons, no web share sheet.
+
+### 13.3 Referral params
+Every product URL gets `?ref=aix4u` appended at render time (config flag per item to opt out, e.g. Chrome Web Store links where params are unwelcome). Zero scripts — measurement happens on the products' own analytics.
+
+### 13.4 Sound system (Web Audio, synthesized, zero assets)
+Default **muted**; a pixel speaker toggle in the HUD (persisted in localStorage). Every sound is synthesized (oscillator + noise + envelope) — no audio files. **Each scene has its own voice; no sound is reused across scenes:**
+
+| Event | Sound sketch |
+|---|---|
+| Piece landing (entry) | Soft wooden tap; **each product owns one note of a pentatonic scale** (priority order = ascending), so an entry cascade plays a tiny melody; O lands with a slightly rubbery boing (its squash), I with the lowest, driest tap |
+| Hard drop impact (reshuffle) | Heavier felt thud + 2px shake already in place; lower pitch than entry taps |
+| Line-clear sweep | Rising filtered-noise swish stepping up per row, ending in a short sparkle |
+| Reshuffle trigger (R/tap) | Mechanical lever click (two-transient snap) |
+| Select (hover/focus a piece) | 1-frame high blip, very quiet (−18dB relative); no sound on plain pointer-over of chrome |
+| Open (click/Enter on a product) | Bright two-note confirm chirp, then navigation |
+| Theme toggle | Switch flick (short click + soft filtered pop, pitch up to dark→light, down to light→dark) |
+| Egg drop (3rd reshuffle) | Small mysterious three-note jingle as the `?` falls |
+| Konami rain | Low rumble bed + a hail of pitched-random taps as the pieces land |
+
+Master gain ~0.5, hard cap on simultaneous voices (8), everything through one compressor. iOS: AudioContext resumes on first user gesture (the unmute tap itself).
+
+### 13.5 The glance (click reaction)
+The instant a product piece is activated (pointer down / Enter), **every other piece's pupils snap to look at it** for ~400ms (pixel-stepped, like all tracking), then release. Also fires on the egg. Not on mere hover.
+
+### 13.6 Konami easter egg
+`↑↑↓↓←→←→BA` (keyboard only, desktop): a one-time "downpour" — a dozen gray ghost-styled tetrominoes rain through the field with landing taps (sound if unmuted), pile briefly on the bed, then line-clear away. Pure spectacle, once per session, never interferes with links. Skipped under reduced-motion.
