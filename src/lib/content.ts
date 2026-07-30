@@ -236,6 +236,14 @@ export interface ProductItem {
   accentDark: string;
   priority: number;
   url: string;
+  /**
+   * The href the page renders: `url` plus `?ref=aix4u` (DESIGN §13.3), unless
+   * the entry opts out. `url` itself stays clean — it is the canonical address
+   * for JSON-LD and anything else that names the product rather than links it.
+   */
+  href: string;
+  /** Opt-out for destinations where unknown params are unwelcome (§13.3). */
+  noRef: boolean;
   /** Info-panel taxonomy, e.g. `WEB` / `DAILY` (DESIGN §8). */
   kind: string;
   status: string;
@@ -277,6 +285,17 @@ export interface SiteContent {
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Referral param (DESIGN §13.3): appended at build time, so the static HTML —
+ * the thing crawlers and no-JS visitors see — already carries it. Zero scripts;
+ * measurement happens on the products' own analytics.
+ */
+export function withRef(raw: string): string {
+  const url = new URL(raw);
+  url.searchParams.set('ref', 'aix4u');
+  return url.toString();
+}
 
 function fail(where: string, message: string): never {
   throw new Error(`[products.json] ${where}: ${message}`);
@@ -525,6 +544,12 @@ function validate(input: unknown): SiteContent {
       fail(where, `"motion" must be one of ${MOTION_NAMES.join(', ')}`);
     }
 
+    // `noRef` keeps `?ref=aix4u` off links where a stranger's query param is a
+    // liability (DESIGN §13.3 names the Chrome Web Store). Boolean `true` only:
+    // `"noRef": false` is noise, and noise in the CMS fails the build.
+    const noRef = obj['noRef'];
+    if (noRef !== undefined && noRef !== true) fail(where, '"noRef" must be true when present (omit it otherwise)');
+
     const first = SHAPES[shape].cells[0]!;
     const home: CellPoint = { cx: first[0], cy: first[1], ax: 0.5, ay: 0.5 };
     const icon = optionalAsset(where, obj, 'icon');
@@ -544,6 +569,8 @@ function validate(input: unknown): SiteContent {
       accentDark: color(where, obj, 'accentDark'),
       priority,
       url: url(where, obj, 'url'),
+      href: noRef === true ? url(where, obj, 'url') : withRef(url(where, obj, 'url')),
+      noRef: noRef === true,
       kind: taxonomy(where, obj, 'kind'),
       status: taxonomy(where, obj, 'status'),
       tagline: str(where, obj, 'tagline'),

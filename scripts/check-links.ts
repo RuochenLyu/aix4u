@@ -50,10 +50,13 @@ const problems: string[] = [];
 let anchors = 0;
 let external = 0;
 
-/** The label every product anchor must carry, from the same source as the panel. */
-const expectedLabels = new Map(
-  content.products.map((product) => [product.url, `${product.name} — ${product.tagline}`]),
-);
+/**
+ * Every product anchor, keyed by the href it must render — `url` + `?ref=aix4u`
+ * unless the entry opted out (DESIGN §13.3). Keying by the *expected* href is
+ * itself half the assertion: an anchor that dropped the ref, or grew one it
+ * opted out of, simply stops matching and is reported below.
+ */
+const expectedProducts = new Map(content.products.map((product) => [product.href, product]));
 
 let files: string[];
 try {
@@ -89,12 +92,21 @@ for (const file of files) {
     // No native tooltips anywhere on the page (DESIGN §4.15 v2.1.2).
     if (attrs.has('title')) problems.push(`${where} carries a title attribute`);
 
-    // Products are the anchors that carry a flavour line; they also carry the label.
+    // Products are the anchors that carry a flavour line; they also carry the
+    // label, and — since v2.2 — the referral param, unless the entry opted out.
     if (attrs.has('data-flavor')) {
-      const expected = expectedLabels.get(href);
+      const product = expectedProducts.get(href);
+      if (!product) {
+        problems.push(`${where} matches no product's expected href (missing/extra ?ref=aix4u? — DESIGN §13.3)`);
+        continue;
+      }
+      const hasRef = new URL(href).searchParams.get('ref') === 'aix4u';
+      if (product.noRef && hasRef) problems.push(`${where} opted out of the ref param but carries one`);
+      if (!product.noRef && !hasRef) problems.push(`${where} is missing ?ref=aix4u (DESIGN §13.3)`);
+      const expected = `${product.name} — ${product.tagline}`;
       const label = attrs.get('aria-label') ?? '';
       if (!label) problems.push(`${where} is a product and has no aria-label`);
-      else if (expected && label !== expected) {
+      else if (label !== expected) {
         problems.push(`${where} aria-label is "${label}", expected "${expected}"`);
       }
     }

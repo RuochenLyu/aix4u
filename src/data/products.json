@@ -1,5 +1,5 @@
 {
-  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `iconAt` is a [cx, cy] cell of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `face` names a preset from src/lib/content.ts and anchors it the same way — a one-eyed preset takes `at`, a two-eyed one takes `at` as the midpoint plus an optional `gap`, or both anchors as `at`/`at2`; `motion` names a personality preset from src/lib/content.ts. Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `iconAt` is a [cx, cy] cell of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `face` names a preset from src/lib/content.ts and anchors it the same way — a one-eyed preset takes `at`, a two-eyed one takes `at` as the midpoint plus an optional `gap`, or both anchors as `at`/`at2`; `motion` names a personality preset from src/lib/content.ts; `noRef: true` keeps `?ref=aix4u` off a product's rendered link (DESIGN §13.3 — store pages dislike stranger params). Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
   "next": {
     "teaser": "",
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
@@ -75,6 +75,7 @@
       "accentDark": "#48dcec",
       "priority": 4,
       "url": "https://chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo",
+      "noRef": true,
       "kind": "CHROME",
       "status": "FREE",
       "tagline": "Right-click any page into clean Markdown",
