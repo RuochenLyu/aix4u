@@ -6,21 +6,23 @@
  *   - a floating piece must keep clear air under it — it is suspended mid-fall,
  *     so resting on the skyline would break the illusion;
  *   - below the narrow breakpoint every product must float (DESIGN §7);
- *   - the eye and the icon badge must stay inside the piece's own cells
- *     (DESIGN §3.3), so neither can hang in the notch of an S;
+ *   - every face mark and the icon badge must stay inside the piece's own
+ *     cells (DESIGN §3.3), so none of them can hang in the notch of an S, and a
+ *     two-eyed preset's eyes must not overlap into one blob;
  *   - the stack reads as a low bed, not a clump (DESIGN §4.1 v2.1).
  *
  * v2 dropped the label assertions along with the label engine, v2.1 the band
- * assertions along with the band. What is left is the part that was always the
- * real invariant: the scene is a legal Tetris frame, and every piece carries its
- * own identity inside its own silhouette.
+ * assertions along with the band and traded the one standard eye for five face
+ * presets. What is left is the part that was always the real invariant: the scene
+ * is a legal Tetris frame, and every piece carries its own identity inside its
+ * own silhouette.
  *
  * Run with `npm run check:scene`.
  */
 
 import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
 import { SHAPES, SPARE_SHAPES, hasCell } from '../src/lib/tetromino';
-import { content, type ProductItem } from '../src/lib/content';
+import { content, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
 interface Rect {
   x: number;
@@ -185,26 +187,68 @@ function problems(scene: Scene): string[] {
 /**
  * Piece identity is static — it comes from products.json, not from the seed — so
  * it is checked once rather than per scene. With the sticker band retired (§3.2
- * v2.1) what is left is the eye and the placeholder badge: both are drawn over
- * the artwork, so both have to sit on a cell the shape actually occupies and
- * stay inside the silhouette.
+ * v2.1) what is left is the face and the placeholder badge: both are drawn over
+ * the artwork, so every mark has to sit inside the silhouette, not merely inside
+ * the bounding box.
  */
 function identityProblems(product: ProductItem): string[] {
   const found: string[] = [];
   const shape = SHAPES[product.shape];
+  const preset = FACE_PRESETS[product.face.preset];
 
-  const marks: [string, { cx: number; cy: number; ax: number; ay: number }, number][] = [
-    ['eye', product.eye, 0.15],
-    ['icon badge', product.iconAt, 0.2],
+  /**
+   * A mark is inside the piece when all four corners of its box land on cells the
+   * shape actually occupies. The bounding box is not enough: an S's notch is
+   * inside the box and outside the piece, and an eye drawn there would hang in
+   * mid-air over the background (DESIGN §3.3, "clear of key skin features").
+   */
+  const marks: { what: string; x: number; y: number; w: number; h: number }[] = [
+    { what: 'icon badge', x: product.iconAt.cx + product.iconAt.ax, y: product.iconAt.cy + product.iconAt.ay, w: 0.4, h: 0.4 },
+    ...product.face.eyes.map((eye, i) => ({
+      what: product.face.eyes.length > 1 ? `face eye ${i + 1}` : 'face eye',
+      ...eye,
+    })),
+    ...(product.face.mouth ? [{ what: 'face mouth', ...product.face.mouth }] : []),
   ];
-  for (const [what, at, half] of marks) {
-    const cx = at.cx + at.ax;
-    const cy = at.cy + at.ay;
-    if (!hasCell(shape, at.cx, at.cy)) {
-      found.push(`${product.id}: the ${what} is on cell (${at.cx}, ${at.cy}), which the ${product.shape} lacks`);
+
+  for (const mark of marks) {
+    for (const [dx, dy] of [
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [-0.5, 0.5],
+      [0.5, 0.5],
+    ] as const) {
+      const px = mark.x + dx * mark.w;
+      const py = mark.y + dy * mark.h;
+      // Nudge off the exact boundary so a mark flush with a silhouette edge is not
+      // read as having crossed it.
+      const cx = Math.floor(px + (dx < 0 ? EPSILON : -EPSILON));
+      const cy = Math.floor(py + (dy < 0 ? EPSILON : -EPSILON));
+      if (!hasCell(shape, cx, cy)) {
+        found.push(
+          `${product.id}: the ${mark.what} at (${mark.x}, ${mark.y}) crosses the ${product.shape} outline near cell (${cx}, ${cy})`,
+        );
+        break;
+      }
     }
-    if (cy - half < 0 || cy + half > shape.height || cx - half < 0 || cx + half > shape.width) {
-      found.push(`${product.id}: the ${what} at (${cx}, ${cy}) hangs off the piece`);
+  }
+
+  // The restraint rules, in numbers (DESIGN §3.3): at most two eyes and one small
+  // mouth mark — the schema cannot express "two", but this can.
+  if (preset.eyes.length < 1 || preset.eyes.length > 2) {
+    found.push(`${product.id}: the ${product.face.preset} preset draws ${preset.eyes.length} eyes; the rule is one or two`);
+  }
+
+  // Two eyes have to be two eyes. Overlapping boxes are one blob with a seam, and
+  // a blob is the failure mode the whole "alive, not a toy" line exists to avoid.
+  if (product.face.eyes.length === 2) {
+    const [a, b] = product.face.eyes as [(typeof product.face.eyes)[0], (typeof product.face.eyes)[0]];
+    const gap = Math.hypot(a.x - b.x, a.y - b.y);
+    const touching = (a.w + b.w) / 2;
+    if (gap < touching + 0.02) {
+      found.push(
+        `${product.id}: its two eyes are ${gap.toFixed(3)} cells apart but ${touching.toFixed(3)} wide together — they overlap`,
+      );
     }
   }
 
@@ -240,6 +284,7 @@ if (failures > 0) {
   console.error(`\n${failures} layout violation(s) across ${checked} scenes.`);
   process.exit(1);
 }
+const faceMarks = content.products.reduce((n, p) => n + p.face.eyes.length + (p.face.mouth ? 1 : 0), 0);
 console.log(
-  `scene check: ${content.products.length} piece identities, ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps.`,
+  `scene check: ${content.products.length} piece identities (${faceMarks} face marks), ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps.`,
 );

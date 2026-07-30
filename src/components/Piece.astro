@@ -8,8 +8,9 @@
  *
  * One tetromino = one product (DESIGN §3). Three layers, back to front: the skin
  * (an art asset, or the accent-fill placeholder until one lands), the CSS cells
- * with their silhouette seam, bevel and extruded bottom edge, and the eye. v2.1
- * retired the fourth — the sticker name band (§3.2).
+ * with their silhouette seam and bevel, and the overlay — badge, glyph and face.
+ * v2.1 retired the fourth, the sticker name band (§3.2), and replaced the one
+ * standard eye with a per-piece face preset (§3.3).
  *
  * The nesting of the transform layers is load-bearing. Each animation owns one
  * element so they compose instead of fighting over a single `transform`:
@@ -83,8 +84,7 @@ if (item.type === 'product') {
   style['--accent-dark'] = item.accentDark;
   style['--skin-light'] = item.skin.light ? `url("${item.skin.light}")` : 'none';
   style['--skin-dark'] = item.skin.dark ? `url("${item.skin.dark}")` : 'none';
-  style['--eye-x'] = String(item.eye.cx + item.eye.ax);
-  style['--eye-y'] = String(item.eye.cy + item.eye.ay);
+  style['--face-ink'] = `var(--face-ink-${item.face.ink})`;
   style['--badge-x'] = String(item.iconAt.cx + item.iconAt.ax);
   style['--badge-y'] = String(item.iconAt.cy + item.iconAt.ay);
 }
@@ -105,6 +105,7 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
   data-shape={placement.shape}
   data-name={item.name}
   data-motion={isProduct ? item.motion : 'squash'}
+  data-face={isProduct ? item.face.preset : undefined}
   data-beat={motion.beat}
   data-panel={isProduct ? panelLine(item) : undefined}
   href={item.url}
@@ -173,11 +174,44 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
               }
 
               {
-                isProduct && (
-                  <span class="eye">
-                    <span class="eye__ball"><span class="eye__pupil" /></span>
-                    <span class="eye__lash" />
-                  </span>
+                /* The face (DESIGN §3.3 v2.1): one or two eyes and at most one
+                   mouth mark, all code-drawn, all anchored per-cell in the JSON.
+                   Every mark carries its own geometry as custom properties, so the
+                   stylesheet has one eye recipe rather than five. */
+                isProduct &&
+                  item.face.eyes.map((eye, index) => (
+                    <span
+                      class="eye"
+                      data-eye={String(index)}
+                      style={{
+                        '--eye-x': String(eye.x),
+                        '--eye-y': String(eye.y),
+                        '--eye-size': String(eye.w),
+                        '--eye-aspect': String(eye.h / eye.w),
+                        '--eye-lid': String(eye.lid),
+                      }}
+                    >
+                      <span class="eye__ball">
+                        <span class="eye__track">
+                          <span class="eye__pupil" />
+                        </span>
+                        <span class="eye__lid" />
+                      </span>
+                      <span class="eye__lash" />
+                    </span>
+                  ))
+              }
+
+              {
+                isProduct && item.face.mouth && (
+                  <span
+                    class="mouth"
+                    style={{
+                      '--mouth-x': String(item.face.mouth.x),
+                      '--mouth-y': String(item.face.mouth.y),
+                      '--mouth-size': String(item.face.mouth.w),
+                    }}
+                  />
                 )
               }
             </span>

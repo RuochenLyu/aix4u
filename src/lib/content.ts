@@ -7,7 +7,8 @@
  *
  * A v2 product entry configures its whole identity (DESIGN §3, §10): shape (and
  * with it the canonical orientation), accents, the light/dark skin paths, the
- * cell the eye sits in, the motion-personality preset, and the info-panel copy.
+ * face preset and its anchor cells, the motion-personality preset, and the
+ * info-panel copy.
  */
 
 import raw from '../data/products.json';
@@ -64,6 +65,139 @@ export interface CellPoint {
   ay: number;
 }
 
+/* --- faces (DESIGN §3.3 v2.1) --------------------------------------------- */
+
+/**
+ * One eye's geometry. `lid` is the whole trick: a constant horizontal bar over
+ * the top of the eyeball, expressed as a fraction of its height. 0 is a wide
+ * open eye, ~1/3 is the keeper's half-lidded stare, ~2/3 is the watcher's squint
+ * — one mechanism, three characters, no second drawing.
+ */
+export interface FaceEyeSpec {
+  /** Eye box width, in cells. */
+  size: number;
+  /** Height ÷ width. 1 is a round eye. */
+  aspect: number;
+  /** Share of the eye's height the upper lid covers, 0..1. */
+  lid: number;
+}
+
+/**
+ * A face preset (DESIGN §3.3): the minimal face derived from a piece's motion
+ * personality, so the way it looks and the way it falls say the same thing. The
+ * restraint rules live here as types — at most two eyes and one small mouth
+ * mark, and nothing else is expressible.
+ */
+export interface FacePreset {
+  /** One or two, never more — the restraint rule, asserted in check-scene. */
+  eyes: readonly FaceEyeSpec[];
+  /** Default centre-to-centre spacing of a two-eye face, in cells. */
+  gap: number;
+  /** Whether the preset carries the one small mouth mark. */
+  mouth: boolean;
+  /** Where the default mouth sits below the eye midpoint, in cells. */
+  mouthDrop: number;
+  /** Mouth diameter, in cells. */
+  mouthSize: number;
+  /** Which of the three micro-palette inks the mouth is drawn in (§3.3). */
+  ink: 1 | 2 | 3;
+}
+
+export const FACE_PRESETS = {
+  /** T — the dungeon keeper: one wide, half-lidded eye. */
+  keeper: {
+    eyes: [{ size: 0.44, aspect: 0.58, lid: 0.34 }],
+    gap: 0,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
+  /** L — the collector: two small round eyes, close-set. */
+  collector: {
+    eyes: [
+      { size: 0.21, aspect: 1, lid: 0 },
+      { size: 0.21, aspect: 1, lid: 0 },
+    ],
+    gap: 0.32,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
+  /** S — watching the chart: one eye open, the other squinting. */
+  watcher: {
+    eyes: [
+      { size: 0.3, aspect: 0.86, lid: 0.06 },
+      { size: 0.26, aspect: 0.86, lid: 0.6 },
+    ],
+    gap: 0.42,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
+  /** O — the mascot: two big round eyes and a tiny "o" mouth. */
+  mascot: {
+    eyes: [
+      { size: 0.34, aspect: 1, lid: 0 },
+      { size: 0.34, aspect: 1, lid: 0 },
+    ],
+    gap: 0.7,
+    mouth: true,
+    mouthDrop: 0.42,
+    mouthSize: 0.2,
+    ink: 1,
+  },
+  /** I — one calm eye, blinking on its own metronome. */
+  calm: {
+    eyes: [{ size: 0.3, aspect: 0.86, lid: 0.08 }],
+    gap: 0,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
+} as const satisfies Record<string, FacePreset>;
+
+export type FaceName = keyof typeof FACE_PRESETS;
+export const FACE_NAMES = Object.keys(FACE_PRESETS) as FaceName[];
+
+/** Default face per shape — a preset is derived from the shape, like the motion. */
+const FACE_BY_SHAPE: Record<ShapeName, FaceName> = {
+  T: 'keeper',
+  L: 'collector',
+  S: 'watcher',
+  O: 'mascot',
+  I: 'calm',
+  DOT: 'calm',
+};
+
+/** A resolved mark, in piece coordinates (cells from the bounding box corner). */
+export interface FaceMark {
+  x: number;
+  y: number;
+  /** Width in cells; the height is `w * aspect` for eyes, `w` for the mouth. */
+  w: number;
+  h: number;
+}
+
+export interface FaceEye extends FaceMark {
+  lid: number;
+}
+
+/**
+ * A product's face, with every anchor already resolved out of cell coordinates
+ * and into piece coordinates — the renderer multiplies by `--cell`, and the
+ * scene check measures the result against the silhouette.
+ */
+export interface Face {
+  preset: FaceName;
+  eyes: FaceEye[];
+  mouth?: FaceMark;
+  ink: 1 | 2 | 3;
+}
+
 /**
  * Skin art (DESIGN §3.1, §11): one image per theme, laid across the piece's
  * whole bounding box under the CSS bevels and the silhouette seam. Both paths
@@ -93,8 +227,8 @@ export interface ProductItem {
   icon?: string;
   /** Where the placeholder icon badge sits. Defaults to the piece's first cell. */
   iconAt: CellPoint;
-  /** The single eye (DESIGN §3.3). */
-  eye: CellPoint;
+  /** The per-piece face preset and its resolved marks (DESIGN §3.3). */
+  face: Face;
   motion: MotionName;
   skin: Skin;
 }
@@ -179,6 +313,90 @@ function cellPoint(
   }
   if (ax! < 0 || ax! > 1 || ay! < 0 || ay! > 1) fail(where, `"${field}" alignment must be within 0..1`);
   return { cx: cx!, cy: cy!, ax: ax!, ay: ay! };
+}
+
+/**
+ * The `face` block (DESIGN §3.3 v2.1): a preset name plus the anchor cells the
+ * preset's marks hang off.
+ *
+ * A one-eye preset takes a single `at`. A two-eye preset takes either `at` as the
+ * midpoint plus a `gap` (the preset ships a default), or both anchors spelled out
+ * as `at` and `at2` — the same `[cx, cy, ax, ay]` grammar the eye always used.
+ * Anything a preset has no use for is an error rather than a silently ignored
+ * key: a `gap` on a one-eyed piece means whoever wrote it expected two eyes.
+ */
+function face(where: string, value: Record<string, unknown>, shape: ShapeName, home: CellPoint): Face {
+  // v2 gave every piece the same eye (DESIGN §3.3 v2); an entry still carrying
+  // one is config from before the presets, and stale config fails the build.
+  if (value['eye'] !== undefined) {
+    fail(where, '"eye" is retired: pieces carry a "face" preset now (DESIGN §3.3 v2.1)');
+  }
+
+  const raw = value['face'];
+  if (raw === undefined || raw === null) fail(where, '"face" is required: { "preset": …, "at": [cx, cy, ax, ay] }');
+  if (typeof raw !== 'object' || Array.isArray(raw)) fail(where, '"face" must be an object');
+  const obj = raw as Record<string, unknown>;
+
+  for (const key of Object.keys(obj)) {
+    if (!['preset', 'at', 'at2', 'gap', 'mouth'].includes(key)) {
+      fail(where, `"face" has no "${key}" slot (preset, at, at2, gap, mouth)`);
+    }
+  }
+
+  const presetName = obj['preset'] ?? FACE_BY_SHAPE[shape];
+  if (!FACE_NAMES.includes(presetName as FaceName)) {
+    fail(where, `"face.preset" must be one of ${FACE_NAMES.join(', ')}`);
+  }
+  const preset: FacePreset = FACE_PRESETS[presetName as FaceName];
+  const twoEyed = preset.eyes.length === 2;
+
+  const at = cellPoint(where, obj, 'at', shape, home);
+  const mid = { x: at.cx + at.ax, y: at.cy + at.ay };
+
+  if (!twoEyed && (obj['at2'] !== undefined || obj['gap'] !== undefined)) {
+    fail(where, `"face.preset" ${String(presetName)} has one eye, so "at2"/"gap" mean nothing`);
+  }
+
+  const eyes: FaceEye[] = [];
+  const mark = (spec: FaceEyeSpec, x: number, y: number): FaceEye => ({
+    x,
+    y,
+    w: spec.size,
+    h: spec.size * spec.aspect,
+    lid: spec.lid,
+  });
+
+  if (!twoEyed) {
+    eyes.push(mark(preset.eyes[0]!, mid.x, mid.y));
+  } else if (obj['at2'] !== undefined) {
+    const at2 = cellPoint(where, obj, 'at2', shape, home);
+    eyes.push(mark(preset.eyes[0]!, mid.x, mid.y), mark(preset.eyes[1]!, at2.cx + at2.ax, at2.cy + at2.ay));
+  } else {
+    const gapRaw = obj['gap'] ?? preset.gap;
+    if (typeof gapRaw !== 'number' || !(gapRaw > 0)) fail(where, '"face.gap" must be a positive number of cells');
+    eyes.push(
+      mark(preset.eyes[0]!, mid.x - gapRaw / 2, mid.y),
+      mark(preset.eyes[1]!, mid.x + gapRaw / 2, mid.y),
+    );
+  }
+
+  if (!preset.mouth && obj['mouth'] !== undefined) {
+    fail(where, `"face.preset" ${String(presetName)} carries no mouth mark (DESIGN §3.3)`);
+  }
+
+  let mouth: FaceMark | undefined;
+  if (preset.mouth) {
+    const spot =
+      obj['mouth'] === undefined
+        ? { x: mid.x, y: mid.y + preset.mouthDrop }
+        : (() => {
+            const p = cellPoint(where, obj, 'mouth', shape, home);
+            return { x: p.cx + p.ax, y: p.cy + p.ay };
+          })();
+    mouth = { ...spot, w: preset.mouthSize, h: preset.mouthSize };
+  }
+
+  return { preset: presetName as FaceName, eyes, ...(mouth ? { mouth } : {}), ink: preset.ink };
 }
 
 function skin(where: string, value: Record<string, unknown>): Skin {
@@ -305,7 +523,7 @@ function validate(input: unknown): SiteContent {
       description: str(where, obj, 'description'),
       ...(icon ? { icon } : {}),
       iconAt: cellPoint(where, obj, 'iconAt', shape, home),
-      eye: cellPoint(where, obj, 'eye', shape, home),
+      face: face(where, obj, shape, home),
       motion: motion as MotionName,
       skin: skin(where, obj),
     };

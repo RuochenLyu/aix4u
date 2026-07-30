@@ -1,5 +1,5 @@
 {
-  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `eye` and `iconAt` are [cx, cy] cells of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `motion` names a personality preset from src/lib/content.ts. Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `iconAt` is a [cx, cy] cell of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `face` names a preset from src/lib/content.ts and anchors it the same way — a one-eyed preset takes `at`, a two-eyed one takes `at` as the midpoint plus an optional `gap`, or both anchors as `at`/`at2`; `motion` names a personality preset from src/lib/content.ts. Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
   "next": {
     "teaser": "",
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
@@ -24,7 +24,7 @@
       "tagline": "Deduce the daily dungeon in six tries",
       "description": "Five residents are hiding in today's dungeon. You have six tries to place them.",
       "iconAt": [1, 1],
-      "eye": [2, 0, 0.5, 0.22],
+      "face": { "preset": "keeper", "at": [2, 0, 0.38, 0.34] },
       "motion": "tease-rotate",
       "skin": { "light": "/skins/meikyu-light.png", "dark": "/skins/meikyu-dark.png" }
     },
@@ -43,7 +43,7 @@
       "tagline": "Glowing product ideas, collected daily",
       "description": "A daily feed that collects the opportunities lighting up right now — watching trends and new launches, harvesting product ideas you can actually build.",
       "iconAt": [0, 0],
-      "eye": [2, 1, 0.5, 0.2],
+      "face": { "preset": "collector", "at": [2, 1, 0.38, 0.28] },
       "motion": "prop-up",
       "skin": { "light": "/skins/raytally-light.png", "dark": "/skins/raytally-dark.png" }
     },
@@ -62,7 +62,7 @@
       "tagline": "The Bitcoin AHR999 index, as open data",
       "description": "Open dataset and dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.",
       "iconAt": [1, 0],
-      "eye": [0, 1, 0.5, 0.24],
+      "face": { "preset": "watcher", "at": [0, 1, 0.54, 0.26] },
       "motion": "sway",
       "skin": { "light": "/skins/ahr999-light.png", "dark": "/skins/ahr999-dark.png" }
     },
@@ -81,7 +81,7 @@
       "tagline": "Right-click any page into clean Markdown",
       "description": "Chrome extension that converts the visible page (or selection) into clean Markdown via right-click; dedicated extraction for x.com posts and articles; local-only processing.",
       "iconAt": [1, 1, 0.5, 0.76],
-      "eye": [0, 0, 0.5, 0.26],
+      "face": { "preset": "mascot", "at": [0, 0, 1, 0.68], "mouth": [1, 1, 0, 0.12] },
       "motion": "squash",
       "skin": { "light": "/skins/x2markdown-light.png", "dark": "/skins/x2markdown-dark.png" }
     },
@@ -100,7 +100,7 @@
       "tagline": "Apple Health reports, private and agent-ready",
       "description": "Two-stage CLI and agent skill: parses Apple Health exports locally into structured insights, then renders narrative HTML reports with SVG charts.",
       "iconAt": [0, 0, 0.5, 0.22],
-      "eye": [3, 0, 0.5, 0.21],
+      "face": { "preset": "calm", "at": [3, 0, 0.52, 0.3] },
       "motion": "metronome",
       "skin": { "light": "/skins/health-analyst-light.png", "dark": "/skins/health-analyst-dark.png" }
     },

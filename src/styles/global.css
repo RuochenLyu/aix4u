@@ -960,11 +960,18 @@ a {
   image-rendering: pixelated;
 }
 
-/* --- the eye ------------------------------------------------------------- */
+/* --- the face ------------------------------------------------------------ */
 
-/* One eye per piece (DESIGN §3.3): a pixel eyeball with a pupil that steps
-   towards the pointer, and a lash line it swaps to when it shuts. All code, no
-   assets — it has to animate.
+/* Per-piece face presets (DESIGN §3.3 v2.1). v2 gave every piece the same eye and
+   they came out stamped from one mould; each piece now wears the minimal face its
+   motion personality implies — one wide half-lidded eye for the keeper, two
+   close-set dots for the collector, an open/squinting pair for the watcher, two
+   big eyes and an "o" for the mascot, one calm eye for the metronome.
+
+   All of it is code, never art (§3.3, §11): the marks animate. And the stylesheet
+   holds exactly *one* eye recipe, reading the differences off three custom
+   properties the renderer writes per mark — size, aspect, lid. Five characters
+   out of one drawing is the whole point; five drawings would be five bugs.
 
    Open and shut are two separate elements rather than one lid that scales down,
    because a lid that closes over the eye ends as a filled shape, and a filled
@@ -974,15 +981,14 @@ a {
 .eye {
   --pupil-x: 0;
   --pupil-y: 0;
-  --eye-size: max(8px, calc(var(--cell) * 0.34));
-  --eye-step: calc(var(--eye-size) * 0.15);
+  --eye-w: max(7px, calc(var(--eye-size, 0.3) * var(--cell)));
+  --eye-step: calc(var(--eye-w) * 0.15);
 
   position: absolute;
   left: calc(var(--eye-x) * var(--cell));
   top: calc(var(--eye-y) * var(--cell));
-  z-index: 4;
-  width: var(--eye-size);
-  height: calc(var(--eye-size) * 0.86);
+  width: var(--eye-w);
+  height: calc(var(--eye-w) * var(--eye-aspect, 0.86));
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
@@ -991,25 +997,41 @@ a {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* Wider than it is tall, and almost round. The obvious pixel-pure choice — a
+  /* Almost round, and a hair flatter on top. The obvious pixel-pure choice — a
      rounded square, matching the cells — was tried and rejected twice: a square
      with a dot in it reads as a button, and a square with a highlighted dot in it
      reads as a save icon. Legibility of the one anthropomorphic feature beats
      edge purity on a 26px detail. */
   border-radius: 46% 46% 50% 50%;
   background: var(--eye-white);
-  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-size) * 0.09)) var(--eye-rim);
+  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-w) * 0.09)) var(--eye-rim);
 }
 
-/* Shut: a short line bowed downwards, the width of the eye. */
+/* Half-lidded and squinting are the same mark at two depths: a constant bar
+   across the top of the eyeball, `--eye-lid` of its height deep (DESIGN §3.3).
+   Drawn in the lash ink, so a lowered lid and a shut eye are visibly the same
+   piece of anatomy rather than two unrelated shapes. */
+.eye__lid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  height: calc(var(--eye-lid, 0) * 100%);
+  background: var(--eye-lash);
+}
+
+/* Shut is a straight line; the hover squint bows the same line into a ∪. One
+   element, one variable — which is what keeps "asleep" and "pleased" from looking
+   identical, as they did back when the closed eye was already a smile. */
 .eye__lash {
   position: absolute;
   left: 2%;
   right: 2%;
-  top: 22%;
-  height: 46%;
-  border-bottom: max(2px, calc(var(--eye-size) * 0.13)) solid var(--eye-lash);
-  border-radius: 0 0 46% 46% / 0 0 92% 92%;
+  top: 26%;
+  height: 44%;
+  border-bottom: max(2px, calc(var(--eye-w) * 0.13)) solid var(--eye-lash);
+  border-radius: 0 0 46% 46% / 0 0 var(--lash-bow, 5%) var(--lash-bow, 5%);
   opacity: 0;
 }
 
@@ -1030,6 +1052,18 @@ a {
   --eye-lash: color-mix(in srgb, var(--accent-dark) 82%, #fdfaf0);
 }
 
+/* Pointer tracking and the preset's own idle move get an element each, so a
+   private quirk (the keeper's scan, the collector's glance down at its jar) is a
+   CSS animation that composes with the live pupil position instead of fighting it
+   for one `transform`. No rAF ever drives a face — the script writes two numbers
+   on a pointer move and the compositor does the rest (DESIGN §3.3). */
+.eye__track {
+  position: absolute;
+  inset: 0;
+  transform: translate(calc(var(--pupil-x) * var(--eye-step)), calc(var(--pupil-y) * var(--eye-step)));
+  transition: transform 90ms steps(2, end);
+}
+
 /* The pupil moves in whole steps of a pixel grid — smooth tracking would make
    the eye look like a vector graphic wearing a pixel costume. */
 .eye__pupil {
@@ -1041,9 +1075,7 @@ a {
   height: 54%;
   border-radius: 40%;
   background: var(--eye-pupil);
-  transform: translate(-50%, -50%)
-    translate(calc(var(--pupil-x) * var(--eye-step)), calc(var(--pupil-y) * var(--eye-step)));
-  transition: transform 90ms steps(2, end);
+  transform: translate(-50%, -50%);
 }
 
 /* The specular pixel rides *on* the pupil rather than on the sclera, because the
@@ -1057,6 +1089,45 @@ a {
   width: 22%;
   height: 22%;
   background: var(--eye-spark);
+}
+
+/* The one mouth mark the restraint rules allow (DESIGN §3.3), and only the mascot
+   has earned it. A small ring in one ink from the micro-palette; `--mouth-open`
+   is its entire expressive range, because a border-box with no height left is
+   already exactly the flat "–" a sleeping mascot needs. */
+.mouth {
+  --mouth-w: max(6px, calc(var(--mouth-size, 0.16) * var(--cell)));
+
+  position: absolute;
+  left: calc(var(--mouth-x) * var(--cell));
+  top: calc(var(--mouth-y) * var(--cell));
+  width: var(--mouth-w);
+  height: calc(var(--mouth-w) * var(--mouth-open, 1));
+  border: max(2px, calc(var(--mouth-w) * 0.2)) solid var(--face-ink, currentColor);
+  border-radius: calc(var(--mouth-open, 1) * 50%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* The three inks a mouth or lash mark may take (DESIGN §3.3). Not a new palette —
+   the console's own three lamps: the wordmark's red, the key yellow, the LCD
+   lime. A coloured mark then still reads as part of the machine instead of as a
+   cartoon sticker, which is the whole reason the rule caps it at three. */
+:root {
+  --face-ink-1: var(--logo-outline);
+  --face-ink-2: var(--key);
+  --face-ink-3: var(--lcd);
+}
+
+:root[data-theme='dark'] {
+  /* The light wordmark red sinks into charcoal; this is the value the dark HUD
+     already uses for the same ink. */
+  --face-ink-1: #e8501f;
+}
+
+/* At night the marks are lit, the same way the lash line is. */
+:root[data-theme='dark'] .mouth {
+  filter: drop-shadow(0 0 4px var(--piece-glow));
 }
 
 /* Blink: two frames shut, on a seeded phase so no two pieces blink together. The
@@ -1073,26 +1144,107 @@ a {
   animation: eye-shut var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
 }
 
-/* Sleep after 30s of nothing (DESIGN §3.3), and squeeze shut on a hard-drop
-   impact. Both beat the blink, so they stop it rather than layering onto it —
-   which needs the same `.js` reach as the blink rules above, because a running
-   animation outranks a plain declaration and a less specific selector loses the
-   `animation: none` that would have stopped it. */
+/* --- the presets' own idle moves (DESIGN §3.3, right-hand column) --------- */
+
+/* Every one of them is a CSS animation on a seeded phase. Driving a face from
+   requestAnimationFrame is explicitly out: five faces × sixty frames a second to
+   move a pupil two pixels once every ten seconds is not a budget, it is a bill. */
+
+/* The keeper sweeps the corridor: one slow look left, one right, every ten
+   seconds. `linear` rather than steps, because the plateaus in the keyframes are
+   the pauses and the ramps between them are the scan. */
+.js .playfield.is-idle .piece[data-face='keeper'] .eye__pupil {
+  animation: eye-glance 10s linear var(--blink-delay, 0s) infinite;
+}
+
+/* The collector checks on its jar — down and a little left, where the jar is —
+   for one beat. A snap, not a drift: it is a glance, not a stare. */
+.js .playfield.is-idle .piece[data-face='collector'] .eye__pupil {
+  animation: eye-peek 7.5s steps(1, end) var(--blink-delay, 0s) infinite;
+}
+
+/* The watcher blinks twice, fast, and rarely — so its clock runs far slower than
+   everyone else's and spends nearly all of it open. Same pair of mirrored
+   keyframes, same one animation clock. */
+.js .playfield.is-idle .piece[data-face='watcher'] .eye__ball {
+  animation-name: eye-open-double;
+  animation-duration: calc(var(--blink-period, 6s) * 2.6);
+}
+
+.js .playfield.is-idle .piece[data-face='watcher'] .eye__lash {
+  animation-name: eye-shut-double;
+  animation-duration: calc(var(--blink-period, 6s) * 2.6);
+}
+
+/* The calm eye reads the same `--bob-period` its body floats on, so the blink and
+   the metronome tick are one pulse instead of two rhythms — the visible heartbeat
+   the design asks the I piece for. */
+.js .playfield.is-idle .piece[data-face='calm'] .eye__ball,
+.js .playfield.is-idle .piece[data-face='calm'] .eye__lash {
+  animation-duration: var(--bob-period, 2.6s);
+  animation-delay: var(--bob-delay, 0s);
+}
+
+/* The mascot's mouth pops on impact — on the entry landing, and again on every
+   hard drop. It is the one preset whose quirk is a mouth, which is also the only
+   reason it is the one preset that has one. */
+.js .playfield.is-entering .piece[data-face='mascot'] .mouth {
+  animation: mouth-pop 300ms steps(3, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms)) both;
+}
+
+.piece[data-face='mascot'].is-squeezing .mouth {
+  animation: mouth-pop 300ms steps(3, end);
+}
+
+/* Hover is a two-frame happy squint (DESIGN §3.3): the eyeball swaps out for the
+   lash line and the line bows into a ∪. A swap, not a transition — the same pixel
+   snap the blink uses, and the reason the shut line is drawn flat by default. */
+.js .playfield .piece--product:hover .eye__ball,
+.js .playfield .piece--product:focus-visible .eye__ball,
+.playfield .piece--product:hover .eye__ball,
+.playfield .piece--product:focus-visible .eye__ball {
+  animation: none;
+  opacity: 0;
+}
+
+.js .playfield .piece--product:hover .eye__lash,
+.js .playfield .piece--product:focus-visible .eye__lash,
+.playfield .piece--product:hover .eye__lash,
+.playfield .piece--product:focus-visible .eye__lash {
+  animation: none;
+  opacity: 1;
+}
+
+.piece--product:hover,
+.piece--product:focus-visible {
+  --lash-bow: 96%;
+}
+
+/* Sleep after 30s of nothing (DESIGN §3.3). It beats the blink, so it stops it
+   rather than layering onto it — which needs the same `.js` reach as the blink
+   rules above, because a running animation outranks a plain declaration and a
+   less specific selector loses the `animation: none` that would have stopped it.
+   (The squeeze is per piece, not per field, and lives with the impact rules.) */
 .js .playfield.is-asleep .eye__ball,
-.js .playfield.is-squeezing .eye__ball,
-.playfield.is-asleep .eye__ball,
-.playfield.is-squeezing .eye__ball {
+.playfield.is-asleep .eye__ball {
   animation: none;
   opacity: 0;
 }
 
 .js .playfield.is-asleep .eye__lash,
-.js .playfield.is-squeezing .eye__lash,
-.playfield.is-asleep .eye__lash,
-.playfield.is-squeezing .eye__lash {
+.playfield.is-asleep .eye__lash {
   animation: none;
   opacity: 1;
 }
+
+/* A sleeping mascot's mouth flattens to a dash — the one thing on the whole board
+   that says "asleep" rather than "blinking". */
+.js .playfield.is-asleep .mouth,
+.playfield.is-asleep .mouth {
+  --mouth-open: 0;
+  animation: none;
+}
+
 
 /* --- landing sparks ------------------------------------------------------ */
 
@@ -1732,6 +1884,106 @@ a {
   }
 }
 
+/* The watcher's rare double-blink: two fast shuts inside one much longer wait. */
+@keyframes eye-open-double {
+  0%,
+  90% {
+    opacity: 1;
+  }
+  90.5%,
+  92% {
+    opacity: 0;
+  }
+  92.5%,
+  93.5% {
+    opacity: 1;
+  }
+  94%,
+  95.5% {
+    opacity: 0;
+  }
+  96%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes eye-shut-double {
+  0%,
+  90% {
+    opacity: 0;
+  }
+  90.5%,
+  92% {
+    opacity: 1;
+  }
+  92.5%,
+  93.5% {
+    opacity: 0;
+  }
+  94%,
+  95.5% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The keeper's sweep of the corridor: hold, slide left, slide right, hold. The
+   plateaus are the pauses; the ramps between them are the whole animation. */
+@keyframes eye-glance {
+  0%,
+  42% {
+    transform: translate(-50%, -50%);
+  }
+  48%,
+  56% {
+    transform: translate(-50%, -50%) translateX(calc(-1 * var(--eye-step)));
+  }
+  64%,
+  72% {
+    transform: translate(-50%, -50%) translateX(var(--eye-step));
+  }
+  78%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* The collector looks down and left at its own jar for a beat, then back up. */
+@keyframes eye-peek {
+  0%,
+  66% {
+    transform: translate(-50%, -50%);
+  }
+  70%,
+  80% {
+    transform: translate(-50%, -50%) translate(calc(-0.5 * var(--eye-step)), var(--eye-step));
+  }
+  84%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* The mascot's mouth pops wide on the landing frame and settles back. */
+@keyframes mouth-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+  62% {
+    transform: translate(-50%, -50%) scale(0.88);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 /* Sparks kick out and up from the impact point, and are gone in a fifth of a
    second — a flash of debris, not a particle system. */
 @keyframes spark-burst {
@@ -2058,6 +2310,10 @@ a {
   .js .playfield.is-idle .ghost,
   .js .playfield.is-idle .eye__ball,
   .js .playfield.is-idle .eye__lash,
+  .js .playfield.is-idle .piece[data-face='keeper'] .eye__pupil,
+  .js .playfield.is-idle .piece[data-face='collector'] .eye__pupil,
+  .js .playfield.is-entering .piece[data-face='mascot'] .mouth,
+  .piece[data-face='mascot'].is-squeezing .mouth,
   .js .playfield.is-ready.is-shaking,
   .playfield.is-clearing .piece--floating .piece__drop,
   .playfield.is-clearing .piece--floating .piece__trail,
@@ -2078,7 +2334,7 @@ a {
   .piece__body,
   .cell,
   .piece--link::after,
-  .eye__pupil,
+  .eye__track,
   .egg__cell,
   .egg__body,
   .panel__hint,
@@ -2086,8 +2342,11 @@ a {
     transition: none !important;
   }
 
-  /* The eye stays open and still — the one anthropomorphism that must not move
-     when motion is unwelcome (DESIGN §3.3). */
+  /* The face stays open and still — the one anthropomorphism that must not move
+     when motion is unwelcome (DESIGN §3.3). That includes the hover squint: a
+     face that changes shape under the pointer is motion, however few frames it
+     takes. The lids stay where the preset put them; a half-lidded keeper is its
+     resting geometry, not an animation. */
   .eye__ball {
     opacity: 1 !important;
   }
@@ -2096,7 +2355,16 @@ a {
     opacity: 0 !important;
   }
 
+  .eye__track,
   .eye__pupil {
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .eye__track {
+    transform: none !important;
+  }
+
+  .mouth {
     transform: translate(-50%, -50%) !important;
   }
 
