@@ -104,7 +104,13 @@
      height that is left over once they and their gaps are paid for — not a bare
      vh, which would leave the scene either cropped or floating. */
   --hud-height: 3.4rem;
-  --field-height-budget: calc(100dvh - var(--hud-height) - var(--panel-height) - 7rem);
+  /* The notch and the home bar are part of the viewport now (`viewport-fit=
+     cover`, DESIGN §12.6), so the bezels pay for their safe-area padding out
+     of the field's budget the same way they pay for their own heights. */
+  --field-height-budget: calc(
+    100dvh - var(--hud-height) - var(--panel-height) - 7rem - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px)
+  );
 }
 
 :root[data-theme='dark'] {
@@ -179,7 +185,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-mono);
-  -webkit-font-smoothing: antialiased;
+  /* Font smoothing stays at the platform default (DESIGN §12.6): the pixel
+     fonts are drawn for it, and forcing `antialiased` thins them on macOS. */
   overflow-x: hidden;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
@@ -215,9 +222,50 @@ a {
   color: inherit;
 }
 
+/* A tap is a press on a machine, never a double-tap zoom (DESIGN §12.6). */
+a,
+button {
+  touch-action: manipulation;
+}
+
+/* Focus is drawn in the machine's own language (DESIGN §12.6 v2.1.4): product
+   pieces get the bracket cursor + the same lift/bevel as hover, chrome keys get
+   their hot bevel state plus a 1px accent ring. The generic ring below is the
+   floor no element falls through — it stands down only where one of those
+   replacements demonstrably stands up (and never without JS, because the
+   bracket cursor is the engine's). */
 :where(a, button):focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
+}
+
+/* The engine selects a focused product and shows the brackets; a second ring on
+   top of them would be two cursors. Link tiles keep the generic ring — their
+   name-plate is a caption, not a cursor. */
+.js .piece--product:focus-visible {
+  outline: none;
+}
+
+.hud__logo:focus-visible,
+.theme-toggle:focus-visible,
+.panel__hint:focus-visible {
+  outline: 1px solid var(--key);
+  outline-offset: 2px;
+}
+
+.theme-toggle:focus-visible .icon {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.panel__hint:focus-visible {
+  --lift: var(--keycap-travel);
+  --crate-hi: rgba(255, 255, 255, 0.34);
+}
+
+.hud__logo:focus-visible {
+  color: #fff;
+  --logo-outline: #e8501f;
 }
 
 .visually-hidden {
@@ -290,7 +338,10 @@ a {
    var() references are substituted on the element that declares it, so putting
    these on :root would resolve `--cell` to nothing. */
 .shell {
-  --chassis-pad: clamp(0.5rem, 2.4vw, 1.75rem);
+  /* On a notched phone held sideways the inset is the bigger number, so the
+     pad *is* the safe area there — folded into the pad rather than added to
+     it, which keeps the chassis-width math a single subtraction. */
+  --chassis-pad: max(clamp(0.5rem, 2.4vw, 1.75rem), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --chassis-max: 1160px;
   --chassis-avail: min(100vw - 2 * var(--chassis-pad), var(--chassis-max));
   --cell-fit-w: calc(var(--chassis-avail) / var(--cols));
@@ -338,7 +389,7 @@ a {
      slides in behind the bezel rather than across it. `.shell` is its own
      stacking context, so this never climbs over the CRT overlay. */
   z-index: 8;
-  padding: clamp(0.5rem, 1.4vw, 1rem) var(--chassis-pad) 0;
+  padding: calc(clamp(0.5rem, 1.4vw, 1rem) + env(safe-area-inset-top, 0px)) var(--chassis-pad) 0;
 }
 
 .hud__chassis {
@@ -367,6 +418,12 @@ a {
   color: #fdfbf4;
   font-size: clamp(1.1rem, 2.5vw, 1.85rem);
   letter-spacing: 0.08em;
+  line-height: 1;
+  /* Optical centring (DESIGN §12.3 v2.1.4): Silkscreen keeps its slack below
+     the baseline and the outline's drop step hangs under the glyphs, so the
+     metric centre parks the wordmark high; a nudge of half that drop reads
+     centred on the bar. */
+  translate: 0 0.09em;
   text-decoration: none;
   /* A pixel wordmark is drawn, not typeset: the outline is eight offset copies
      of the glyph plus one drop step, exactly as the mockup does it. */
@@ -549,13 +606,17 @@ a {
   }
 
   .shell {
-    --chassis-pad: 0.4rem;
+    --chassis-pad: max(0.4rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     --hud-height: 3rem;
     --panel-height: 3.05rem;
     /* Declared here rather than inherited from :root, because a custom property
        that contains var() resolves against the element that *declares* it — the
-       two heights above would otherwise be read at their desktop values. */
-    --field-height-budget: calc(100svh - var(--hud-height) - var(--panel-height) - 1.6rem);
+       two heights above would otherwise be read at their desktop values. The
+       notch and the home bar come off the same budget (DESIGN §12.6). */
+    --field-height-budget: calc(
+      100svh - var(--hud-height) - var(--panel-height) - 1.6rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
     --cell: clamp(34px, min(var(--cell-fit-w), var(--cell-fit-h)), 72px);
 
     height: 100svh;
@@ -563,7 +624,7 @@ a {
   }
 
   .hud {
-    padding-top: 0.35rem;
+    padding-top: calc(0.35rem + env(safe-area-inset-top, 0px));
   }
 
   /* The field sits on the bezel and the leftover height becomes sky above it.
@@ -602,6 +663,15 @@ a {
   position: absolute;
   left: calc(var(--gx) * var(--cell));
   top: calc(var(--gy) * var(--cell));
+}
+
+/* A piece in flight is scenery, not UI (DESIGN §12.1 v2.1.4): the engine gates
+   it inert the frame a reshuffle or entry starts, and hands interactivity back
+   piece by piece, each at its own landing frame (`piece-fall` ending on *it*).
+   `pointer-events: none` silences hover, press and click in one stroke; the
+   tab stop goes with it via `tabindex` in the engine. */
+.piece.is-inert {
+  pointer-events: none;
 }
 
 .piece {
@@ -824,15 +894,36 @@ a {
   --cast-hover: drop-shadow(0 2px 0 var(--contact));
 }
 
+/* One glyph weight for every link tile (device review, v2.1.4): the four bed
+   tiles — K, ?, Octocat, X — have to read as one set, so each mark's *ink* is
+   normalised to roughly 50–55% of the cell. The assets disagree about padding
+   (the Octocat and the X ship half their canvas transparent, the keycap K
+   ships almost none, and Silkscreen's `?` is a quarter of its em box), so the
+   CSS boxes differ per asset while the rendered ink does not. Asset edits are
+   out; this is where the nudge lives. */
 .piece--link .cell__glyph {
-  font-size: clamp(9px, calc(var(--cell) * 0.3), 20px);
+  /* Silkscreen ink is ~0.63em tall: 0.75em of cell puts the `?` at ~47%. */
+  font-size: clamp(18px, calc(var(--cell) * 0.75), 44px);
   text-shadow: none;
 }
 
 .piece--link .cell__art,
 .piece--link .cell__mark .pixel-logo {
-  width: 62%;
-  height: 62%;
+  width: 58%;
+  height: 58%;
+}
+
+/* Half of these two canvases is transparent padding: ink ≈ box × 0.5. */
+.piece--link[data-piece='github'] .cell__art,
+.piece--link[data-piece='x'] .cell__art {
+  width: 100%;
+  height: 100%;
+}
+
+/* The keycap K is drawn nearly full-bleed: ink ≈ box × 0.88. */
+.piece--link[data-piece='kshift'] .cell__art {
+  width: 60%;
+  height: 60%;
 }
 
 .piece--link:hover,
@@ -944,16 +1035,22 @@ a {
    further than over a flat fill — but nothing like the hint it was dialled down
    to in v2.1, which is why the skinned pieces came out flat.
 
-   And the seam is drawn on the **silhouette only** (DESIGN §3.1 v2.1). The
-   current skin batch has the cell grid painted into the art, so a CSS seam over
-   the interior drew every line twice — a double rule with a seam of pale art
-   trapped between the two. The outline still has to be ours: it is what sits the
-   piece on the background. When the seamless redraw lands, this rule goes back to
-   the full ring and the art stops carrying a grid. */
+   And the CSS draws the cell grid again (DESIGN §3.1, final contract): the
+   finalized skins are continuous, gridless art, so the seams are the only
+   thing that says "this is four cells" — which is the entire Tetris reading.
+   But at two weights: the *silhouette* keeps the full outline (it sits the
+   piece on the background), while the *interior* seams are a hairline at 40%
+   of the outline ink — the device review's verdict on full-weight interior
+   seams was four black boxes wearing one picture. Each cell lays down half
+   the interior line and its neighbour the other half. The bevels stay gated
+   to the silhouette: an interior bevel is an interior highlight the flat seam
+   line does not want. */
 .piece--skinned .cell {
   --bevel-light: rgba(255, 255, 255, 0.5);
   --bevel-light-hot: rgba(255, 255, 255, 0.78);
   --bevel-dark: rgba(0, 0, 0, 0.32);
+  --seam-in: color-mix(in srgb, var(--seam) 40%, transparent);
+  --seam-in-w: max(1px, calc(var(--cell) * 0.02));
   background-color: transparent;
   background-image: none;
   box-shadow:
@@ -962,6 +1059,10 @@ a {
     inset 0 calc(-1 * var(--e-bottom, 1) * var(--seam-w)) 0 0 var(--seam),
     inset calc(var(--e-left, 1) * var(--seam-w)) 0 0 0 var(--seam),
     inset calc(-1 * var(--e-right, 1) * var(--seam-w)) 0 0 0 var(--seam),
+    inset 0 calc((1 - var(--e-top, 1)) * var(--seam-in-w)) 0 0 var(--seam-in),
+    inset 0 calc((1 - var(--e-bottom, 1)) * -1 * var(--seam-in-w)) 0 0 var(--seam-in),
+    inset calc((1 - var(--e-left, 1)) * var(--seam-in-w)) 0 0 0 var(--seam-in),
+    inset calc((1 - var(--e-right, 1)) * -1 * var(--seam-in-w)) 0 0 0 var(--seam-in),
     /* The bevels are gated on the same flags. An interior bevel is an interior
        line by another name, and the art already drew that line. Both the offset
        and the spread have to go to zero together: a zero offset with a negative
@@ -1626,7 +1727,7 @@ a {
 .panel {
   position: relative;
   z-index: 8;
-  padding: 0 var(--chassis-pad) clamp(0.85rem, 2vh, 1.4rem);
+  padding: 0 var(--chassis-pad) calc(clamp(0.85rem, 2vh, 1.4rem) + env(safe-area-inset-bottom, 0px));
 }
 
 .panel__screen {
@@ -1841,7 +1942,7 @@ a {
    would be most felt, not least (DESIGN §4.4 v2.1.2). */
 @media (max-width: 699px) {
   .panel {
-    padding-bottom: 0.35rem;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   .panel__screen {
@@ -1968,8 +2069,11 @@ a {
   }
 }
 
-/* L props its vertical arm up one step after landing, then drops it back. One
-   step, not an ease — that is the whole joke. */
+/* L props itself up one step after landing, then drops back. One step, not an
+   ease — that is the whole joke. The *whole* piece (v2.1.4 device review): the
+   skin is one image across the bounding box, so a lone arm moving on its own
+   cells leaves its picture behind — the frame shivers and the art stands
+   still. Any per-cell displacement is banned under skins for the same reason. */
 @keyframes prop-up {
   0%,
   100% {
@@ -2294,8 +2398,9 @@ a {
   animation: piece-sway 260ms ease-in-out calc(var(--order, 0) * 40ms) 1 both;
 }
 
-/* …and L's arm props up right after it, on the cells of the top row. */
-.js .playfield.is-entering .piece[data-motion='prop-up'] .cell[data-cy='0'] {
+/* …and L props itself up right after it — the whole piece, on the spin layer,
+   which is idle once the fall ends and composes with the impact squash below. */
+.js .playfield.is-entering .piece[data-motion='prop-up'] .piece__spin {
   animation: prop-up 260ms steps(2, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 60ms) both;
 }
 
@@ -2429,7 +2534,6 @@ a {
   .js .playfield.is-entering .piece__spin,
   .js .playfield.is-entering .piece__body,
   .js .playfield.is-entering .piece__trail,
-  .js .playfield.is-entering .piece .cell,
   .js .playfield.is-entering .piece .spark,
   .js .playfield.is-entering .filler,
   .js .playfield.is-idle .piece--floating .piece__bob,

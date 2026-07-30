@@ -20,7 +20,8 @@ import { SHAPES, hasCell, type ShapeName } from './tetromino';
  * new animation.
  *
  *   tease   degrees of the pre-landing rotation tease (T's T-spin wink)
- *   prop    px the piece overshoots upwards after landing (L propping up)
+ *   prop    px the *whole piece* overshoots upwards after landing (L propping
+ *           up; per-cell displacement is banned under skins, v2.1.4)
  *   sway    px of horizontal sway while falling (S, the wave)
  *   squash  scaleY at the landing frame — lower squashes harder (O, the mascot)
  *   bob     px of idle bob amplitude; `metronome` bobs on a stricter beat
@@ -37,7 +38,7 @@ export interface MotionPreset {
 
 export const MOTION_PRESETS = {
   'tease-rotate': { tease: 90, prop: 0, sway: 0, squash: 0.94, bob: 2, beat: 'breath' },
-  'prop-up': { tease: 0, prop: 4, sway: 0, squash: 0.94, bob: 2, beat: 'breath' },
+  'prop-up': { tease: 0, prop: 2, sway: 0, squash: 0.94, bob: 2, beat: 'breath' },
   sway: { tease: 0, prop: 0, sway: 2, squash: 0.95, bob: 2, beat: 'breath' },
   squash: { tease: 0, prop: 0, sway: 0, squash: 0.84, bob: 2, beat: 'breath' },
   metronome: { tease: 0, prop: 0, sway: 0, squash: 0.96, bob: 2, beat: 'metronome' },
