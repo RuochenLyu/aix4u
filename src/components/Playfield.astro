@@ -39,7 +39,7 @@ const ghostShape = SHAPES[scene.ghost.shape];
     {
       scene.filler.map((cell) => (
         <span
-          class="filler"
+          class:list={['filler', cell.empty && 'filler--empty']}
           data-tone={cell.tone}
           style={{ '--gx': String(cell.x), '--gy': String(cell.y) }}
         />

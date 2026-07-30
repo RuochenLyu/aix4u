@@ -104,7 +104,9 @@ export const BREAKPOINTS: Breakpoint[] = [
     stackRows: 4,
     stackRatio: 0.9,
     labelWidth: 6.2,
-    labelHeight: 2.3,
+    // Two-and-a-bit cells of card for two lines of text was mostly padding on a
+    // phone; the mockup's cards hug their copy.
+    labelHeight: 1.8,
     compactWidth: 4.2,
     compactHeight: 1.1,
     labelBeside: false,
@@ -160,6 +162,13 @@ export interface FillerCell {
   y: number;
   /** 0-2: a hair of tonal variation so the stack is not one flat slab. */
   tone: number;
+  /**
+   * A hole in the stack. Real Tetris stacks have them, and drawing them as
+   * dashed outlines rather than nothing says "game in progress" out loud
+   * (DESIGN §2). They still count as occupied for label placement — a card in a
+   * visible slot would read as a filled cell.
+   */
+  empty: boolean;
 }
 
 export interface GhostPlacement {
@@ -393,18 +402,19 @@ function layoutStack(
   for (let x = 0; x < bp.cols; x++) {
     for (let row = 0; row < heights[x]!; row++) {
       const y = bp.rows - 1 - row;
-      if (!pieceCells.has(`${x}:${y}`)) filler.push({ x, y, tone: int(rng, 0, 2) });
+      if (!pieceCells.has(`${x}:${y}`)) filler.push({ x, y, tone: int(rng, 0, 2), empty: false });
     }
   }
 
-  // Real stacks have holes. Only carve cells that are covered from above.
+  // Real stacks have holes. Only hollow out cells that are covered from above —
+  // a gap on the skyline is just a shorter column, not a hole.
   const coverable = filler.filter(
     (cell) => pieceCells.has(`${cell.x}:${cell.y - 1}`) || filler.some((f) => f.x === cell.x && f.y === cell.y - 1),
   );
   for (let i = 0, holes = int(rng, 1, 2); i < holes && coverable.length > 0; i++) {
     const victim = coverable.splice(int(rng, 0, coverable.length - 1), 1)[0]!;
-    const index = filler.findIndex((f) => f.x === victim.x && f.y === victim.y);
-    if (index >= 0) filler.splice(index, 1);
+    const cell = filler.find((f) => f.x === victim.x && f.y === victim.y);
+    if (cell) cell.empty = true;
   }
 
   return { filler, tops: heights };
@@ -459,8 +469,8 @@ function layoutSky(
       x,
       y: round(y, 1),
       order: 0,
-      bobPeriod: round(3.4 + rng() * 2.6, 1),
-      bobDelay: round(rng() * 3, 1),
+      bobPeriod: round(5.6 + rng() * 2.8, 1),
+      bobDelay: round(rng() * 4, 1),
       label: null,
     });
     occupied.push({ x, y, w: shape.width, h: shape.height });
@@ -508,8 +518,8 @@ function layoutBands(
       x,
       y: round(pieceY, 1),
       order: 0,
-      bobPeriod: round(3.4 + rng() * 2.6, 1),
-      bobDelay: round(rng() * 3, 1),
+      bobPeriod: round(5.6 + rng() * 2.8, 1),
+      bobDelay: round(rng() * 4, 1),
       label: null,
     });
     occupied.push({ x, y: round(pieceY, 1), w: shape.width, h: shape.height });
