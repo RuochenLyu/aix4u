@@ -156,8 +156,20 @@
   box-sizing: border-box;
 }
 
+/* The scene is an app surface, not a document (DESIGN §2 v2.1.2). Everything
+   below is one idea: nothing on this page should behave like a web page you can
+   accidentally select, drag, long-press or bounce past.
+
+   `html` carries the theme colour as well as `body` because the rubber-band
+   overscroll on iOS and macOS paints the *root* background past the edge of the
+   document — a body-only fill flashes raw white there, which is the single most
+   "this is a website" thing the machine could do. It tracks the theme for free,
+   since `--bg` is defined on `:root`. */
 html {
   height: 100%;
+  background: var(--bg);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -169,6 +181,34 @@ body {
   font-family: var(--font-mono);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scene chrome is not text. The panel's read-out is the one thing a visitor might
+   plausibly want to copy, so it is the one thing that stays selectable. */
+.hud,
+.shell,
+.piece,
+.filler,
+.ghost,
+.egg,
+.cursor,
+.panel__hint,
+.panel__open {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.panel__readout {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 a {

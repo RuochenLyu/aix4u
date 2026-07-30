@@ -115,9 +115,8 @@
     {
       "type": "link",
       "id": "kshift",
-      "icon": "/icons/kshift.png",
       "name": "kshift.me",
-      "label": "⇧",
+      "label": "K",
       "url": "https://kshift.me"
     },
     {

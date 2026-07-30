@@ -2,9 +2,12 @@
  * Link policy check (DESIGN §4.15), run against the built HTML.
  *
  * Every off-site anchor has to open in a new tab with `rel="noopener noreferrer"`,
- * and every product anchor has to carry the descriptive `title` that replaced the
- * retired sticker band as the thing a hovering visitor (and anything reading
- * anchors) gets to see.
+ * and every product anchor has to carry the descriptive `aria-label` that
+ * replaced the retired sticker band as the thing anything reading anchors gets to
+ * see. It used to be a `title`; v2.1.2 took every native tooltip off the page
+ * (§4.15), so the assertion moved with the attribute — and it must *stay* an
+ * assertion, because "the label quietly went missing" is the exact failure the
+ * band's retirement made possible.
  *
  * This one reads `dist/`, not the source, because the rule is about what ships:
  * a component that forgets the attribute and a component that never renders are
@@ -47,8 +50,8 @@ const problems: string[] = [];
 let anchors = 0;
 let external = 0;
 
-/** The title every product anchor must carry, from the same source as the panel. */
-const expectedTitles = new Map(
+/** The label every product anchor must carry, from the same source as the panel. */
+const expectedLabels = new Map(
   content.products.map((product) => [product.url, `${product.name} — ${product.tagline}`]),
 );
 
@@ -83,13 +86,16 @@ for (const file of files) {
       if (!rel.includes(token)) problems.push(`${where} is off-site but its rel is missing "${token}"`);
     }
 
-    // Products are the anchors that carry a flavour line; they also carry the title.
+    // No native tooltips anywhere on the page (DESIGN §4.15 v2.1.2).
+    if (attrs.has('title')) problems.push(`${where} carries a title attribute`);
+
+    // Products are the anchors that carry a flavour line; they also carry the label.
     if (attrs.has('data-flavor')) {
-      const expected = expectedTitles.get(href);
-      const title = attrs.get('title') ?? '';
-      if (!title) problems.push(`${where} is a product and has no title`);
-      else if (expected && title !== expected) {
-        problems.push(`${where} title is "${title}", expected "${expected}"`);
+      const expected = expectedLabels.get(href);
+      const label = attrs.get('aria-label') ?? '';
+      if (!label) problems.push(`${where} is a product and has no aria-label`);
+      else if (expected && label !== expected) {
+        problems.push(`${where} aria-label is "${label}", expected "${expected}"`);
       }
     }
   }

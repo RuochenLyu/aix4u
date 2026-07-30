@@ -1,10 +1,11 @@
 ---
 /**
  * Every piece is an off-site link, so every piece carries the link policy
- * (DESIGN §4.15): a new tab, `noopener noreferrer`, and — for products — a
- * descriptive `title` built from the name and the tagline, on top of the sr-only
- * text. The band used to say the name in the markup; the title is what replaces
- * it for a hovering visitor and for anything reading anchors.
+ * (DESIGN §4.15 v2.1.2): a new tab, `noopener noreferrer`, and a descriptive
+ * `aria-label` built from the name and the tagline, over the sr-only text that
+ * carries the same words to a crawler. No `title`: a native tooltip is a foreign
+ * object in a machine that has its own info panel, and it arrives on a delay the
+ * page did not choose.
  *
  * One tetromino = one product (DESIGN §3). Three layers, back to front: the skin
  * (an art asset, or the accent-fill placeholder until one lands), the CSS cells
@@ -113,8 +114,7 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
   href={item.url}
   target="_blank"
   rel={isProduct ? 'noopener noreferrer' : 'me noopener noreferrer'}
-  title={isProduct ? `${item.name} — ${item.tagline}` : item.name}
-  aria-label={isProduct ? undefined : item.name}
+  aria-label={isProduct ? `${item.name} — ${item.tagline}` : item.name}
   style={style}
 >
   <span class="piece__drop">
