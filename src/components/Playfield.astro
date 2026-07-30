@@ -24,7 +24,7 @@ const ghostShape = GHOST_SHAPES[scene.ghost.shape]!;
   }}
 >
   <div class="ghost-layer" aria-hidden="true">
-    <div class="ghost" id="ghost" style={{ '--gx': String(scene.ghost.x) }}>
+    <div class="ghost" id="ghost" style={{ '--gx': String(scene.ghost.x), '--gw': String(ghostShape.width) }}>
       {
         ghostShape.cells.map(([cx, cy]) => (
           <span class="cell" style={{ '--cx': String(cx), '--cy': String(cy) }} />

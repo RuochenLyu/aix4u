@@ -38,8 +38,10 @@
 
   --bg: #c9d2dd;
   --bg-deep: #a9b5c5;
-  --grid-line: rgba(34, 36, 42, 0.1);
-  --grid-coarse: rgba(34, 36, 42, 0.19);
+  /* Halved, and the coarse line barely there: the contrast budget belongs to
+     the pieces, not to the lattice (DESIGN §2 v2.1). */
+  --grid-line: rgba(34, 36, 42, 0.05);
+  --grid-coarse: rgba(34, 36, 42, 0.09);
   --ink: #22242a;
   --ink-soft: #4a505c;
   --outline: #22242a;
@@ -106,8 +108,8 @@
 :root[data-theme='dark'] {
   --bg: #141519;
   --bg-deep: #08090c;
-  --grid-line: rgba(243, 236, 219, 0.06);
-  --grid-coarse: rgba(243, 236, 219, 0.13);
+  --grid-line: rgba(243, 236, 219, 0.03);
+  --grid-coarse: rgba(243, 236, 219, 0.065);
   --ink: #f3ecdb;
   --ink-soft: #9c968a;
   --outline: #f3ecdb;
@@ -1198,14 +1200,21 @@ a {
 
 .ghost {
   top: 0;
-  width: calc(4 * var(--cell));
+  width: calc(var(--gw, 4) * var(--cell));
   height: calc(2 * var(--cell));
 }
 
+/* Dotted, not a solid rule (DESIGN §6.2 v2.1). The ghost is the one thing in the
+   scene that is *not* there, and a continuous outline at any weight reads as a
+   sixth piece waiting for a skin. A dotted trace at the same ink lays down about
+   half the pixels, which is the difference between scenery and a claim.
+   `--e-*` is deliberately ignored here: the ghost draws its full grid, because a
+   dotted grid is the tetromino's silhouette *and* its cells at once. */
 .ghost .cell {
   background: transparent;
+  border: max(2px, calc(var(--cell) * 0.045)) dotted var(--ghost-line);
   border-radius: var(--cell-radius);
-  box-shadow: inset 0 0 0 2px var(--ghost-line);
+  box-shadow: none;
 }
 
 .line-flash {
