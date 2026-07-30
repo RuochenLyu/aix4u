@@ -52,12 +52,15 @@ export interface Breakpoint {
   floatAll: boolean;
 }
 
+// v2.1: one stack ratio across the board (~85 %, DESIGN §4.1) and three rows of
+// headroom instead of four — the bed is two deep with a tile on top, and a budget
+// the layout cannot fill is a budget that invites it to build a tower.
 export const BREAKPOINTS: Breakpoint[] = [
-  { name: 'wide', minWidth: 980, cols: 16, rows: 12, lanes: 4, stackRows: 4, stackRatio: 0.6, floatAll: false },
-  { name: 'medium', minWidth: 700, cols: 12, rows: 12, lanes: 3, stackRows: 4, stackRatio: 0.8, floatAll: false },
+  { name: 'wide', minWidth: 980, cols: 16, rows: 12, lanes: 4, stackRows: 3, stackRatio: 0.85, floatAll: false },
+  { name: 'medium', minWidth: 700, cols: 12, rows: 12, lanes: 3, stackRows: 3, stackRatio: 0.85, floatAll: false },
   // `lanes` is unused here: every product floats, and `rows` is only the floor —
   // the field grows to whatever the column of pieces needs.
-  { name: 'narrow', minWidth: 0, cols: 9, rows: 13, lanes: 0, stackRows: 4, stackRatio: 0.9, floatAll: true },
+  { name: 'narrow', minWidth: 0, cols: 9, rows: 13, lanes: 0, stackRows: 3, stackRatio: 0.85, floatAll: true },
 ];
 
 export function breakpointFor(viewportWidth: number): Breakpoint {
@@ -259,10 +262,16 @@ function eggSlot(
 }
 
 /**
- * Grow the stack inside a seed-placed window of the floor: a ragged skyline
- * (neighbouring columns always differ by 1-2 cells), landed items dropped onto
- * its flattest runs, anonymous filler underneath, then 1-2 carved-out holes.
- * Returns the per-column stack height so the sky can stay clear of it.
+ * The stack is a **low bed** (DESIGN §4.1 v2.1), not a clump in a corner: it
+ * spans ~85 % of the floor, runs one or two rows deep with at most one three-row
+ * bump, and its landed products stand *in* it rather than on top of it — a wide
+ * piece resting at floor level is part of the bed; the same piece dropped onto a
+ * pile is a tower, which is what the previous version kept building.
+ *
+ * Built in four passes: landed products claim their columns on the floor, the bed
+ * fills the rest of the window in runs, the link tiles perch on the bed top like
+ * collectibles, and only then does the filler get laid in and holes taken out of
+ * it. Returns the per-column height so the sky can stay clear of the skyline.
  */
 function layoutStack(
   rng: Rng,
@@ -271,52 +280,42 @@ function layoutStack(
   pieces: PiecePlacement[],
 ): { filler: FillerCell[]; tops: number[] } {
   const widest = landed.reduce((max, item) => Math.max(max, SHAPES[shapeOf(item)].width), 1);
-  const stackWidth = clamp(Math.round(bp.cols * bp.stackRatio), widest + 1, bp.cols);
+  const stackWidth = clamp(Math.round(bp.cols * bp.stackRatio), Math.min(bp.cols, widest + 2), bp.cols);
   const stackStart = int(rng, 0, bp.cols - stackWidth);
   const stackEnd = stackStart + stackWidth;
-  const maxHeight = bp.stackRows;
 
   const heights: number[] = new Array<number>(bp.cols).fill(0);
-  let walk = int(rng, 1, 3);
-  for (let x = stackStart; x < stackEnd; x++) {
-    heights[x] = walk;
-    // Always step, so the skyline never flattens into a table edge.
-    walk = clamp(walk + int(rng, 1, 2) * (rng() < 0.5 ? -1 : 1), 1, maxHeight - 1);
-  }
+  /** Columns a landed product stands in — the bed does not overwrite them. */
+  const claimed: boolean[] = new Array<boolean>(bp.cols).fill(false);
+  /**
+   * Every cell inside a landed piece's bounding box. Filler stays out of all of
+   * them, not only the ones the piece actually draws: the skin is laid across the
+   * whole box, so a grey block in an S's notch would sit *under* the artwork.
+   * The notch is left genuinely hollow instead — which is precisely the kind of
+   * hole a real game leaves under an overhang.
+   */
+  const reserved = new Set<string>();
 
-  const pieceCells = new Set<string>();
-  // Widest product first: a wide piece dropped after the narrow ones finds the
-  // floor already fragmented into runs too short to hold it.
-  const order = [
-    ...shuffled(
-      rng,
-      landed.filter((item) => item.type === 'product'),
-    ).sort((a, b) => SHAPES[shapeOf(b)].width - SHAPES[shapeOf(a)].width),
-    ...shuffled(
-      rng,
-      landed.filter((item) => item.type === 'link'),
-    ),
-  ];
-
-  for (const item of order) {
+  // 1. Landed products, widest first, standing on the floor.
+  for (const item of shuffled(
+    rng,
+    landed.filter((it) => it.type === 'product'),
+  ).sort((a, b) => SHAPES[shapeOf(b)].width - SHAPES[shapeOf(a)].width)) {
     const shape = SHAPES[shapeOf(item)];
-    const slots: { x: number; top: number }[] = [];
+    const spots: number[] = [];
     for (let x = stackStart; x + shape.width <= stackEnd; x++) {
-      let top = 0;
-      for (let dx = 0; dx < shape.width; dx++) top = Math.max(top, heights[x + dx]!);
-      if (top + shape.height > maxHeight + 1) continue;
-      slots.push({ x, top });
+      let free = true;
+      for (let dx = 0; dx < shape.width; dx++) if (claimed[x + dx]) free = false;
+      if (free) spots.push(x);
     }
-    // Prefer the lowest landing spots, but keep some seed-driven variety.
-    slots.sort((a, b) => a.top - b.top);
-    const pick = slots[int(rng, 0, Math.min(2, slots.length - 1))] ?? { x: stackStart, top: 0 };
+    const x = spots.length > 0 ? spots[int(rng, 0, spots.length - 1)]! : stackStart;
+    const y = bp.rows - shape.height;
 
-    const y = bp.rows - pick.top - shape.height;
     pieces.push({
       id: item.id,
       pool: 'landed',
       shape: shapeOf(item),
-      x: pick.x,
+      x,
       y,
       order: 0,
       bobPeriod: 0,
@@ -324,30 +323,137 @@ function layoutStack(
       blinkPeriod: 6,
       blinkDelay: 0,
     });
-    for (const [dx, dy] of shape.cells) pieceCells.add(`${pick.x + dx}:${y + dy}`);
-    for (let dx = 0; dx < shape.width; dx++) heights[pick.x + dx] = pick.top + shape.height;
+
+    for (let dx = 0; dx < shape.width; dx++) {
+      claimed[x + dx] = true;
+      heights[x + dx] = shape.height;
+      for (let dy = 0; dy < shape.height; dy++) reserved.add(`${x + dx}:${y + dy}`);
+    }
   }
 
+  // 2. The bed, in runs of a few columns at the same depth. Runs rather than a
+  // per-column coin flip: a bed that alternates 1,2,1,2 is not a bed, it is a saw.
+  for (let x = stackStart; x < stackEnd; ) {
+    const depth = rng() < 0.45 ? 2 : 1;
+    for (let i = 0, run = int(rng, 2, 4); i < run && x < stackEnd; i++, x++) {
+      if (!claimed[x]) heights[x] = depth;
+    }
+  }
+
+  // …and at most one bump, one or two columns wide, somewhere inside the bed.
+  if (stackWidth >= 6 && rng() < 0.6) {
+    const spots: number[] = [];
+    for (let x = stackStart + 1; x < stackEnd - 1; x++) if (!claimed[x] && heights[x]! > 0) spots.push(x);
+    if (spots.length > 0) {
+      const at = spots[int(rng, 0, spots.length - 1)]!;
+      for (let i = 0, w = int(rng, 1, 2); i < w; i++) {
+        if (at + i < stackEnd && !claimed[at + i]) heights[at + i] = 3;
+      }
+    }
+  }
+
+  // 3. Link tiles perch on the bed top: 1x1 collectibles sitting on the surface,
+  // never buried in it. They avoid the products' columns so they read as resting
+  // *on* the bed rather than as a piece's fifth cell.
+  const perched = new Set<number>();
+  /** Cells that hold a perched tile up. A hole here would leave it in mid-air. */
+  const support = new Set<string>();
+  for (const item of shuffled(
+    rng,
+    landed.filter((it) => it.type === 'link'),
+  )) {
+    // Three grades of surface, in order of preference: bare bed, the top of a
+    // landed product, and — when the window is fully spoken for, which happens on
+    // the medium breakpoint where two products and a bump can claim eight of ten
+    // columns — the floor just outside the bed, which widens it rather than
+    // building on it. A column already holding a tile is never reused, and a
+    // three-row bump is never built on: either would make a tower.
+    const bed: number[] = [];
+    const onProduct: number[] = [];
+    const bare: number[] = [];
+    for (let x = 0; x < bp.cols; x++) {
+      if (perched.has(x)) continue;
+      const h = heights[x]!;
+      if (h === 0) bare.push(x);
+      else if (h <= 2) (claimed[x] ? onProduct : bed).push(x);
+    }
+    const spots = bed.length > 0 ? bed : onProduct.length > 0 ? onProduct : bare;
+    // The lowest surfaces first, so a tile tucks into a dip in the bed; the
+    // seed picks between the three lowest so it is not always the same dip.
+    spots.sort((a, b) => heights[a]! - heights[b]!);
+    const x = spots[int(rng, 0, Math.min(2, spots.length - 1))] ?? stackStart;
+    const y = bp.rows - heights[x]! - 1;
+
+    pieces.push({
+      id: item.id,
+      pool: 'landed',
+      shape: shapeOf(item),
+      x,
+      y,
+      order: 0,
+      bobPeriod: 0,
+      bobDelay: 0,
+      blinkPeriod: 6,
+      blinkDelay: 0,
+    });
+    reserved.add(`${x}:${y}`);
+    support.add(`${x}:${y + 1}`);
+    perched.add(x);
+    heights[x] = heights[x]! + 1;
+  }
+
+  // 4. Anonymous filler fills what is left under the skyline.
   const filler: FillerCell[] = [];
   for (let x = 0; x < bp.cols; x++) {
     for (let row = 0; row < heights[x]!; row++) {
       const y = bp.rows - 1 - row;
-      if (!pieceCells.has(`${x}:${y}`)) filler.push({ x, y, tone: int(rng, 0, 2), empty: false });
+      if (!reserved.has(`${x}:${y}`)) filler.push({ x, y, tone: int(rng, 0, 2), empty: false });
     }
   }
 
-  // Real stacks have holes. Only hollow out cells that are covered from above —
-  // a gap on the skyline is just a shorter column, not a hole.
-  const coverable = filler.filter(
-    (cell) => pieceCells.has(`${cell.x}:${cell.y - 1}`) || filler.some((f) => f.x === cell.x && f.y === cell.y - 1),
-  );
-  for (let i = 0, holes = int(rng, 1, 2); i < holes && coverable.length > 0; i++) {
-    const victim = coverable.splice(int(rng, 0, coverable.length - 1), 1)[0]!;
-    const cell = filler.find((f) => f.x === victim.x && f.y === victim.y);
-    if (cell) cell.empty = true;
+  // Real stacks have holes, and a hole is only a hole if something covers it — a
+  // gap on the skyline is just a shorter column. Two kinds, both from the covered
+  // set: a dashed slot (drawn, "a piece goes here") and a plain hollow gap (the
+  // cell is simply not emitted). The design asks for 1-2 of each. A cell holding
+  // a perched tile up is off limits: a 1x1 tile over a void is not a hole in the
+  // stack, it is a tile that forgot to fall.
+  const hollow = new Set<FillerCell>();
+  const carved = new Set<string>();
+  const holedColumns = new Set<number>();
+  const slots = int(rng, 1, 2);
+  const wanted = slots + int(rng, 1, 2);
+  /** Solid *now* — a cell already carved has stopped holding anything up. */
+  const holds = (x: number, y: number): boolean =>
+    !carved.has(`${x}:${y}`) && occupied(x, y, filler, reserved);
+
+  for (const cell of shuffled(rng, filler)) {
+    if (carved.size >= wanted) break;
+    // One hole per column: two in the same column is how a bed grows a floating
+    // block even when every single cell passed the bridge test on its own.
+    if (holedColumns.has(cell.x)) continue;
+    if (support.has(`${cell.x}:${cell.y}`)) continue;
+    // Covered from above, which is what makes it a hole rather than a dip…
+    if (!holds(cell.x, cell.y - 1)) continue;
+    // …and bridged from at least one side, which is what holds the cover up. The
+    // test has to run against the state *after* the earlier carvings, or two
+    // neighbours each pass by leaning on the other and the row comes apart.
+    if (!holds(cell.x - 1, cell.y) && !holds(cell.x + 1, cell.y)) continue;
+    // And no hole may touch another: carving beside an existing hole can take away
+    // the bridge that one was relying on, which is a violation the candidate's own
+    // test cannot see. Keeping them apart also just looks more like a game.
+    if (carved.has(`${cell.x - 1}:${cell.y}`) || carved.has(`${cell.x + 1}:${cell.y}`)) continue;
+
+    holedColumns.add(cell.x);
+    carved.add(`${cell.x}:${cell.y}`);
+    if (carved.size <= slots) cell.empty = true;
+    else hollow.add(cell);
   }
 
-  return { filler, tops: heights };
+  return { filler: filler.filter((cell) => !hollow.has(cell)), tops: heights };
+}
+
+function occupied(x: number, y: number, filler: readonly FillerCell[], reserved: ReadonlySet<string>): boolean {
+  return reserved.has(`${x}:${y}`) || filler.some((cell) => cell.x === x && cell.y === y);
 }
 
 /**

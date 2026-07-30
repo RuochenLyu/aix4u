@@ -18,7 +18,7 @@
  * Run with `npm run check:scene`.
  */
 
-import { buildScene, DEFAULT_SEED, type Scene } from '../src/lib/scene';
+import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
 import { SHAPES, hasCell } from '../src/lib/tetromino';
 import { content, type ProductItem } from '../src/lib/content';
 
@@ -93,6 +93,68 @@ function problems(scene: Scene): string[] {
     if (air < MIN_AIR - EPSILON) {
       found.push(`floating piece ${piece.id} has only ${air.toFixed(2)} cells of air under it`);
     }
+  }
+
+  // The stack has to read as a low bed (DESIGN §4.1 v2.1). Three properties say
+  // that in numbers: it spans most of the floor, it is shallow nearly everywhere,
+  // and nothing in it floats.
+  const filled = scene.stackTops.filter((h) => h > 0).length;
+  const span = filled / bp.cols;
+  if (span < 0.8) found.push(`the stack spans only ${(span * 100).toFixed(0)}% of the floor`);
+
+  const deepest = Math.max(0, ...scene.stackTops);
+  if (deepest > bp.stackRows) found.push(`the stack is ${deepest} rows deep, past the ${bp.stackRows}-row bed`);
+
+  const solid = new Set<string>();
+  for (const cell of scene.filler) if (!cell.empty) solid.add(`${cell.x}:${cell.y}`);
+  const tiles: PiecePlacement[] = [];
+  for (const piece of scene.pieces) {
+    if (piece.pool !== 'landed') continue;
+    if (piece.shape === 'DOT') tiles.push(piece);
+    for (const [dx, dy] of SHAPES[piece.shape].cells) solid.add(`${piece.x + dx}:${piece.y + dy}`);
+  }
+
+  // The bed's own depth is measured without the perched tiles: a collectible
+  // sitting on a two-row bed is the design, a three-row bed under it is not.
+  const bedTops = new Array<number>(bp.cols).fill(0);
+  for (let x = 0; x < bp.cols; x++) {
+    const tile = tiles.some((t) => t.x === x);
+    bedTops[x] = Math.max(0, (scene.stackTops[x] ?? 0) - (tile ? 1 : 0));
+  }
+  const bumps = bedTops.filter((h) => h > 2).length;
+  if (bumps > 2) found.push(`${bumps} columns of bed rise above two rows — that is a pile, not a bed`);
+
+  // Holes, both kinds: the dashed slots the engine draws and the plain voids it
+  // leaves by not emitting a block. Every one of them has to be covered from
+  // above (or it is a dip in the skyline, not a hole), bridged from at least one
+  // side (or the blocks over it are floating), and alone in its column (or the
+  // bridge test passes cell by cell while the column as a whole comes apart).
+  const holes: { x: number; y: number; what: string }[] = [];
+  for (const cell of scene.filler) if (cell.empty) holes.push({ x: cell.x, y: cell.y, what: 'dashed slot' });
+  for (let x = 0; x < bp.cols; x++) {
+    for (let row = 0; row < (scene.stackTops[x] ?? 0); row++) {
+      const y = bp.rows - 1 - row;
+      const dashed = scene.filler.some((c) => c.empty && c.x === x && c.y === y);
+      if (!solid.has(`${x}:${y}`) && !dashed) holes.push({ x, y, what: 'hollow gap' });
+    }
+  }
+
+  const perColumn = new Map<number, number>();
+  for (const hole of holes) {
+    perColumn.set(hole.x, (perColumn.get(hole.x) ?? 0) + 1);
+    let roof = false;
+    for (let y = hole.y - 1; y >= 0; y--) if (solid.has(`${hole.x}:${y}`)) roof = true;
+    if (!roof) found.push(`${hole.what} ${hole.x},${hole.y} has nothing over it — that is a dip, not a hole`);
+    if (!solid.has(`${hole.x - 1}:${hole.y}`) && !solid.has(`${hole.x + 1}:${hole.y}`)) {
+      found.push(`${hole.what} ${hole.x},${hole.y} is bridged from neither side`);
+    }
+  }
+  for (const [x, count] of perColumn) {
+    if (count > 1) found.push(`column ${x} has ${count} holes stacked in it`);
+  }
+  for (const tile of tiles) {
+    if (tile.y === bp.rows - 1) continue;
+    if (!solid.has(`${tile.x}:${tile.y + 1}`)) found.push(`link tile ${tile.id} perches on nothing`);
   }
 
   // The mystery block has to land somewhere legal too, or the easter egg pokes
