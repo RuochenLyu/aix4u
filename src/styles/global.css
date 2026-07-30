@@ -591,7 +591,7 @@ a {
     inset calc(-1 * var(--bevel-w)) 0 0 calc(-1 * var(--seam-w)) var(--bevel-dark);
 }
 
-/* Link tiles are 1x1 and carry no band, so their glyph just fills the cell. */
+/* Link tiles are a single cell, so their glyph just fills it. */
 .cell__mark {
   position: absolute;
   inset: 0;
@@ -750,8 +750,8 @@ a {
 
 /* The product's art, one image per theme, stretched over the piece's whole
    bounding box (the art is drawn at those exact proportions, so "fill" is not a
-   distortion) and left crunchy. The CSS seams, bevels, band and eye all sit on
-   top of it — the skin is the bottom layer, not a replacement for the others.
+   distortion) and left crunchy. The CSS seam, bevel and eye all sit on top of
+   it — the skin is the bottom layer, not a replacement for the others.
    Until an asset lands, `--skin-*` is `none` and the accent fill shows through. */
 .piece__skin {
   position: absolute;
@@ -786,110 +786,10 @@ a {
   --bevel-dark: rgba(0, 0, 0, 0.28);
 }
 
-/* --- sticker name band --------------------------------------------------- */
-
-/* A cartridge sticker: slightly inset into the piece (dark hairline above, lit
-   hairline below), high-contrast, carrying the full product name in the pixel
-   font. Real text inside the piece's own <a>, so the name is in the HTML.
-
-   Type size is computed, not guessed: the smaller of "as tall as the band
-   allows" and "as wide as the longest line allows", where 0.86 is Silkscreen's
-   worst-case advance-to-em ratio (measured on MARKDOWN — the font is not
-   monospaced, so the average would under-size wide caps). That keeps the static,
-   script-free HTML correct; the JS refit in main.ts is only a safety net for the
-   moment before the webfont lands. */
-.band {
-  --band-shrink: 1;
-  position: absolute;
-  left: calc(var(--band-x) * var(--cell));
-  top: calc(var(--band-y) * var(--cell));
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: calc(var(--band-w) * var(--cell));
-  min-height: calc(var(--band-h) * var(--cell));
-  border-radius: 2px;
-  background: var(--band-bg);
-  box-shadow:
-    inset 0 0 0 1px var(--band-edge),
-    0 -1px 0 var(--band-groove),
-    0 1px 0 var(--band-sheen);
-  pointer-events: none;
-}
-
-.band__text {
-  padding-inline: 0.16em;
-  color: var(--band-ink);
-  font-family: var(--font-pixel);
-  font-size: calc(
-    var(--band-shrink) *
-      min(
-        var(--band-h) * var(--cell) * 0.62 / var(--band-lines),
-        var(--band-w) * var(--cell) * 0.9 / (var(--band-chars) * 0.86)
-      )
-  );
-  line-height: 1.16;
-  letter-spacing: 0.02em;
-  text-align: center;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-/* Fit fallbacks, in the order DESIGN §3.2 mandates: one size down, then two
-   lines. Truncation is never an option, so there is no `text-overflow` here. */
-.band[data-fit='tight'] {
-  --band-shrink: 0.84;
-}
-
-.band[data-fit='wrap'] {
-  --band-shrink: 0.78;
-}
-
-.band[data-fit='wrap'] .band__text {
-  white-space: normal;
-}
-
-/* Light: a bright paper sticker with near-black ink — maximum contrast against
-   a saturated cell. */
-.piece--product {
-  --band-bg: #f7f4ea;
-  --band-ink: #1b1d22;
-  --band-edge: rgba(27, 29, 34, 0.55);
-  --band-groove: rgba(0, 0, 0, 0.35);
-  --band-sheen: rgba(255, 255, 255, 0.5);
-}
-
-/* Over a skin the light sticker goes slightly translucent, the way a real sticker
-   over printed art does. Dark mode already worked this way — its well is 72 %
-   opaque — and that is precisely why the ECG trace read in dark and vanished in
-   light: 76 % of that trace's ink falls inside the band's rows. At 0.86 the
-   near-black ink still clears 11:1 over the worst case (sticker over the darkest
-   part of the trace), so legibility pays nothing for it. Placeholder pieces keep
-   the fully opaque sticker: there is no art under them to reveal, and their look
-   is signed off. Must come after `.piece--product` — equal specificity, so this
-   wins on source order. */
-.piece--skinned {
-  --band-bg: rgba(247, 244, 234, 0.86);
-}
-
-/* Dark: the sticker is backlit in the piece's own accent, which is what makes a
-   dim pane read as a lit label rather than as a white patch. */
-:root[data-theme='dark'] .piece--product {
-  --band-bg: rgba(8, 9, 12, 0.72);
-  --band-ink: var(--accent-dark);
-  --band-edge: color-mix(in srgb, var(--accent-dark) 55%, transparent);
-  --band-groove: rgba(0, 0, 0, 0.7);
-  --band-sheen: color-mix(in srgb, var(--accent-dark) 22%, transparent);
-}
-
-:root[data-theme='dark'] .band__text {
-  text-shadow: 0 0 6px color-mix(in srgb, var(--accent-dark) 60%, transparent);
-}
-
 /* --- placeholder icon badge --------------------------------------------- */
 
 /* Garnish while the skins are still being drawn (DESIGN §11): one pixel stamp
-   on a cell the band leaves free. It is deliberately small — a stamp, not a
+   on the piece. It is deliberately small — a stamp, not a
    "letters in cells" fallback — and a real skin removes it entirely. */
 .piece__badge {
   position: absolute;

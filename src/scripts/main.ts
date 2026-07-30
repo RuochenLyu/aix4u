@@ -51,7 +51,6 @@ if (playfield && fillerLayer && ghost) {
   for (const el of field.querySelectorAll<HTMLElement>('[data-piece]')) {
     pieceElements.set(el.dataset['piece']!, el);
   }
-  const bands = [...field.querySelectorAll<HTMLElement>('.band')];
   const eyes = [...field.querySelectorAll<HTMLElement>('.eye')];
   const cursor = document.getElementById('cursor');
   const egg = document.getElementById('egg');
@@ -156,26 +155,6 @@ if (playfield && fillerLayer && ghost) {
     root.style.setProperty('--ambient-cell', `${cell}px`);
     root.style.setProperty('--ambient-x', `${rect.left % period}px`);
     root.style.setProperty('--ambient-y', `${(rect.top + window.scrollY) % period}px`);
-  }
-
-  /* --- sticker bands ----------------------------------------------------- */
-
-  /**
-   * The CSS already sizes band text from the name's length, so this is a safety
-   * net for the moment before Silkscreen loads (or if it never does and a
-   * fallback font with wider glyphs takes over): step the size down once, then
-   * allow two lines. Truncating is not one of the options (DESIGN §3.2).
-   */
-  function fitBands(): void {
-    for (const band of bands) {
-      const text = band.querySelector<HTMLElement>('.band__text');
-      if (!text) continue;
-      band.removeAttribute('data-fit');
-      if (text.scrollWidth <= band.clientWidth + 1) continue;
-      band.dataset['fit'] = 'tight';
-      if (text.scrollWidth <= band.clientWidth + 1) continue;
-      band.dataset['fit'] = 'wrap';
-    }
   }
 
   /* --- eyes -------------------------------------------------------------- */
@@ -459,7 +438,6 @@ if (playfield && fillerLayer && ghost) {
 
     if (reducedMotion.matches) {
       applyScene(currentScene(seed));
-      fitBands();
       maybeDropEgg();
       return;
     }
@@ -500,7 +478,6 @@ if (playfield && fillerLayer && ghost) {
 
     field.classList.remove('is-cleared');
     alignAmbience();
-    fitBands();
     playEntry();
     shuffling = false;
     maybeDropEgg();
@@ -509,12 +486,8 @@ if (playfield && fillerLayer && ghost) {
   applyScene(scene);
   field.classList.add('is-ready');
   alignAmbience();
-  fitBands();
   playEntry();
   wake();
-  // Silkscreen's metrics are what the computed band size assumes; re-check once
-  // the real font is in.
-  document.fonts?.ready.then(fitBands).catch(() => undefined);
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'r' && event.key !== 'R') return;
@@ -537,7 +510,6 @@ if (playfield && fillerLayer && ghost) {
       // The cell size tracks the viewport even inside one breakpoint, so the
       // lattice has to be re-measured on every resize, not just on a reflow.
       alignAmbience();
-      fitBands();
       moveCursor();
     }, 180);
   });

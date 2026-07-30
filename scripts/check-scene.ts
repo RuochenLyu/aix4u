@@ -6,12 +6,14 @@
  *   - a floating piece must keep clear air under it — it is suspended mid-fall,
  *     so resting on the skyline would break the illusion;
  *   - below the narrow breakpoint every product must float (DESIGN §7);
- *   - the sticker band and the eye must stay inside the piece's own cells
- *     (DESIGN §3.2, §3.3), so a name can never hang in the notch of an S.
+ *   - the eye and the icon badge must stay inside the piece's own cells
+ *     (DESIGN §3.3), so neither can hang in the notch of an S;
+ *   - the stack reads as a low bed, not a clump (DESIGN §4.1 v2.1).
  *
- * v2 dropped the label assertions along with the label engine. What is left is
- * the part that was always the real invariant: the scene is a legal Tetris
- * frame, and every piece carries its own identity inside its own silhouette.
+ * v2 dropped the label assertions along with the label engine, v2.1 the band
+ * assertions along with the band. What is left is the part that was always the
+ * real invariant: the scene is a legal Tetris frame, and every piece carries its
+ * own identity inside its own silhouette.
  *
  * Run with `npm run check:scene`.
  */
@@ -109,37 +111,15 @@ function problems(scene: Scene): string[] {
 
 /**
  * Piece identity is static — it comes from products.json, not from the seed — so
- * it is checked once rather than per scene.
+ * it is checked once rather than per scene. With the sticker band retired (§3.2
+ * v2.1) what is left is the eye and the placeholder badge: both are drawn over
+ * the artwork, so both have to sit on a cell the shape actually occupies and
+ * stay inside the silhouette.
  */
 function identityProblems(product: ProductItem): string[] {
   const found: string[] = [];
   const shape = SHAPES[product.shape];
-  const band = shape.band;
-  if (!band) {
-    found.push(`${product.id}: shape ${product.shape} has no sticker band`);
-    return found;
-  }
 
-  if (band.x < 0 || band.y < 0 || band.x + band.w > shape.width || band.y + band.h > shape.height) {
-    found.push(`${product.id}: the ${product.shape} band leaves the piece's bounding box`);
-  }
-
-  // Every column the band crosses must have a cell behind it at that height, or
-  // the name floats in the notch of the shape.
-  const step = 0.25;
-  for (let x = band.x + step / 2; x < band.x + band.w; x += step) {
-    for (const y of [band.y + 0.02, band.y + band.h - 0.02]) {
-      if (!hasCell(shape, Math.floor(x), Math.floor(y))) {
-        found.push(
-          `${product.id}: the ${product.shape} band crosses empty space at (${x.toFixed(2)}, ${y.toFixed(2)})`,
-        );
-        return found;
-      }
-    }
-  }
-
-  // The eye and the icon badge are drawn on top of the piece, so they must not
-  // land on the band — a name with a pupil in it is unreadable.
   const marks: [string, { cx: number; cy: number; ax: number; ay: number }, number][] = [
     ['eye', product.eye, 0.15],
     ['icon badge', product.iconAt, 0.2],
@@ -147,13 +127,8 @@ function identityProblems(product: ProductItem): string[] {
   for (const [what, at, half] of marks) {
     const cx = at.cx + at.ax;
     const cy = at.cy + at.ay;
-    if (
-      cx + half > band.x &&
-      cx - half < band.x + band.w &&
-      cy + half > band.y &&
-      cy - half < band.y + band.h
-    ) {
-      found.push(`${product.id}: the ${what} at (${cx}, ${cy}) sits on the sticker band`);
+    if (!hasCell(shape, at.cx, at.cy)) {
+      found.push(`${product.id}: the ${what} is on cell (${at.cx}, ${at.cy}), which the ${product.shape} lacks`);
     }
     if (cy - half < 0 || cy + half > shape.height || cx - half < 0 || cx + half > shape.width) {
       found.push(`${product.id}: the ${what} at (${cx}, ${cy}) hangs off the piece`);

@@ -3,22 +3,13 @@
  *
  * Each shape is listed in its **canonical orientation** (DESIGN §3): the engine
  * never rotates a piece, because the orientation carries meaning — L is a pair
- * of axes, S is a wave, I is a strip, O is a page, T is a doorway — and the
- * sticker band and the eye are designed against that one silhouette.
+ * of axes, S is a wave, I is a strip, O is a page, T is a doorway — and the skin
+ * and the eye are designed against that one silhouette.
  *
  * Cells are [x, y] with the origin at the bounding box's top-left corner and y
- * growing downwards. `band` is the sticker strip that carries the product name,
- * in the same cell units, relative to the same origin.
+ * growing downwards. v2.1 retired the sticker band (DESIGN §3.2), so a shape is
+ * now nothing but its silhouette.
  */
-
-export interface BandGeometry {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /** Lines the band is designed for; O is the only two-liner (DESIGN §3.2). */
-  lines: 1 | 2;
-}
 
 export interface Shape {
   cells: readonly (readonly [number, number])[];
@@ -26,76 +17,72 @@ export interface Shape {
   height: number;
   /** Prose description of the canonical orientation, for schema errors and docs. */
   orientation: string;
-  /** Link tiles are 1x1 and carry no name band. */
-  band: BandGeometry | null;
 }
 
-function shape(
-  cells: readonly (readonly [number, number])[],
-  orientation: string,
-  band: BandGeometry | null,
-): Shape {
+function shape(cells: readonly (readonly [number, number])[], orientation: string): Shape {
   return {
     cells,
     width: Math.max(...cells.map(([x]) => x)) + 1,
     height: Math.max(...cells.map(([, y]) => y)) + 1,
     orientation,
-    band,
   };
 }
 
-/**
- * Bands sit in the lower half of their row, the way a sticker sits low on a
- * cartridge. That is not only a look: it leaves the top ~0.4 of the row clear,
- * which is where the eye and the placeholder icon badge live.
- */
 export const SHAPES = {
   //  XXX        X..        .XX        XX
   //  .X.        XXX        XX.        XX     XXXX
-  T: shape(
-    [[0, 0], [1, 0], [2, 0], [1, 1]],
-    '3-wide bar up, stem down',
-    { x: 0.14, y: 0.42, w: 2.72, h: 0.4, lines: 1 },
-  ),
-  L: shape(
-    [[0, 0], [0, 1], [1, 1], [2, 1]],
-    'vertical arm top-left, 3-wide arm along the bottom',
-    { x: 0.14, y: 1.42, w: 2.72, h: 0.4, lines: 1 },
-  ),
-  S: shape(
-    [[1, 0], [2, 0], [0, 1], [1, 1]],
-    'horizontal wave, upper row shifted right',
-    /*
-     * DESIGN §3.2 asks for a band across "the waist row where all 3 columns have
-     * coverage". No such row exists: a horizontal S is two offset pairs, so every
-     * strip that spans all three columns crosses the notch, and a sticker with its
-     * first glyphs hanging in empty air is worse than a narrower sticker. The band
-     * therefore rides the lower arm — the trough of the wave — and the entry
-     * carries the short `bandName` the same section asks for (`AHR999`), which fits
-     * two cells with room to spare. The full name still ships in the info panel,
-     * the sr-only line and the JSON-LD.
-     */
-    { x: 0.14, y: 1.42, w: 1.72, h: 0.4, lines: 1 },
-  ),
-  O: shape(
-    [[0, 0], [1, 0], [0, 1], [1, 1]],
-    '2x2 block',
-    { x: 0.11, y: 0.52, w: 1.78, h: 0.96, lines: 2 },
-  ),
-  I: shape(
-    [[0, 0], [1, 0], [2, 0], [3, 0]],
-    '4-wide horizontal strip',
-    { x: 0.14, y: 0.44, w: 3.72, h: 0.4, lines: 1 },
-  ),
+  T: shape([[0, 0], [1, 0], [2, 0], [1, 1]], '3-wide bar up, stem down'),
+  L: shape([[0, 0], [0, 1], [1, 1], [2, 1]], 'vertical arm top-left, 3-wide arm along the bottom'),
+  S: shape([[1, 0], [2, 0], [0, 1], [1, 1]], 'horizontal wave, upper row shifted right'),
+  O: shape([[0, 0], [1, 0], [0, 1], [1, 1]], '2x2 block'),
+  I: shape([[0, 0], [1, 0], [2, 0], [3, 0]], '4-wide horizontal strip'),
   /** 1x1 tile used by link widgets and by the NEXT mystery block. */
-  DOT: shape([[0, 0]], 'single cell', null),
+  DOT: shape([[0, 0]], 'single cell'),
 } as const satisfies Record<string, Shape>;
 
 export type ShapeName = keyof typeof SHAPES;
 
 export const SHAPE_NAMES = Object.keys(SHAPES) as ShapeName[];
 
+/**
+ * The seven standard tetrominoes, for the background ghost only (DESIGN §6.2).
+ * They are deliberately *not* in `SHAPES`: that table is the set a product may
+ * pick from, and its members carry a semantic assignment (§3.1). The ghost is
+ * scenery — it draws from the whole bag, including the J and Z no product uses.
+ */
+export const GHOST_SHAPES: readonly Shape[] = [
+  shape([[0, 0], [1, 0], [2, 0], [3, 0]], 'I'),
+  shape([[0, 0], [1, 0], [0, 1], [1, 1]], 'O'),
+  shape([[0, 0], [1, 0], [2, 0], [1, 1]], 'T'),
+  shape([[1, 0], [2, 0], [0, 1], [1, 1]], 'S'),
+  shape([[0, 0], [1, 0], [1, 1], [2, 1]], 'Z'),
+  shape([[0, 0], [0, 1], [1, 1], [2, 1]], 'J'),
+  shape([[2, 0], [0, 1], [1, 1], [2, 1]], 'L'),
+];
+
 /** True when `cell` is one of the shape's cells. */
 export function hasCell(shape: Shape, cx: number, cy: number): boolean {
   return shape.cells.some(([x, y]) => x === cx && y === cy);
+}
+
+/**
+ * Which of a cell's four edges lie on the piece's silhouette (no neighbouring
+ * cell across them). The renderer needs this twice: the CSS seam is only drawn
+ * on silhouette edges now that skins bake their own interior grid (§3.1 v2.1),
+ * and the extruded bottom edge (§2 v2.1) follows the bottom silhouette.
+ */
+export interface CellEdges {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
+export function edgesOf(shape: Shape, cx: number, cy: number): CellEdges {
+  return {
+    top: !hasCell(shape, cx, cy - 1),
+    right: !hasCell(shape, cx + 1, cy),
+    bottom: !hasCell(shape, cx, cy + 1),
+    left: !hasCell(shape, cx - 1, cy),
+  };
 }

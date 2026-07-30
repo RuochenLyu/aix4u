@@ -66,8 +66,8 @@ export interface CellPoint {
 
 /**
  * Skin art (DESIGN §3.1, §11): one image per theme, laid across the piece's
- * whole bounding box under the CSS seams, bevels and band. Both paths empty =
- * fall back to the accent-fill placeholder.
+ * whole bounding box under the CSS bevels and the silhouette seam. Both paths
+ * empty = fall back to the accent-fill placeholder.
  */
 export interface Skin {
   light: string;
@@ -78,12 +78,6 @@ export interface ProductItem {
   type: 'product';
   id: string;
   name: string;
-  /**
-   * What the sticker band says. Defaults to `name`; override it only when the
-   * shape's band is too short for the full name (the S, see tetromino.ts). The
-   * full name still ships in the info panel, the sr-only line and the JSON-LD.
-   */
-  bandName: string;
   shape: ShapeName;
   accent: string;
   accentDark: string;
@@ -99,7 +93,7 @@ export interface ProductItem {
   icon?: string;
   /** Where the placeholder icon badge sits. Defaults to the piece's first cell. */
   iconAt: CellPoint;
-  /** The single eye (DESIGN §3.3). Never on the sticker band. */
+  /** The single eye (DESIGN §3.3). */
   eye: CellPoint;
   motion: MotionName;
   skin: Skin;
@@ -290,13 +284,16 @@ function validate(input: unknown): SiteContent {
     const home: CellPoint = { cx: first[0], cy: first[1], ax: 0.5, ay: 0.5 };
     const icon = optionalAsset(where, obj, 'icon');
     const name = str(where, obj, 'name');
-    const bandName = obj['bandName'] === undefined ? name : str(where, obj, 'bandName');
+    // The sticker band is gone (DESIGN §3.2 v2.1); an entry that still carries a
+    // `bandName` is stale config, and stale config in the CMS fails the build.
+    if (obj['bandName'] !== undefined) {
+      fail(where, '"bandName" is retired: the piece carries no name text (DESIGN §3.2)');
+    }
 
     return {
       type: 'product',
       id,
       name,
-      bandName,
       shape,
       accent: color(where, obj, 'accent'),
       accentDark: color(where, obj, 'accentDark'),

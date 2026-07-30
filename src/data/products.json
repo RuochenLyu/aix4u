@@ -1,5 +1,5 @@
 {
-  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `eye` and `iconAt` are [cx, cy] cells of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell — keep both clear of the sticker band; `bandName` overrides the name shown on the sticker when the full name will not fit the shape's band; `motion` names a personality preset from src/lib/content.ts.",
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `eye` and `iconAt` are [cx, cy] cells of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `motion` names a personality preset from src/lib/content.ts. Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
   "next": {
     "teaser": "",
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
@@ -52,7 +52,6 @@
       "id": "ahr999",
       "icon": "/icons/ahr999.png",
       "name": "AHR999 Dataset",
-      "bandName": "AHR999",
       "shape": "S",
       "accent": "#f59e0b",
       "accentDark": "#ffb733",

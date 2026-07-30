@@ -10,7 +10,7 @@ This document is the single source of truth. Implementation follows it; design c
 
 - First glance reads as **a Tetris game in progress**: airy playfield, uneven stack at the bottom, pieces suspended mid-fall.
 - Breathing room is a feature. Never pack pieces into a tight wall.
-- The pieces are **alive but not childish**: Mino-style minimal anthropomorphism (a single eye), motion with per-piece personality.
+- The pieces are **alive but not childish**: minimal per-piece faces (§3.3) and motion personalities — every piece a different character, none of them a cartoon.
 - **Non-goals**: no warm-paper/cream palettes, no playable Tetris, no floating popovers/modals (web language, not game language), no CMS — `products.json` is the CMS.
 
 ## 2. Visual language
@@ -23,8 +23,9 @@ Pixel/retro handheld-console aesthetic. Cute but gender-neutral.
 - **HUD is a console bezel in both themes**: near-black bar, inset bordered sections with dotted dividers, accent-outlined pixel logo, seven-segment counter, `NEXT` crate slot, full-color pixel sun/moon toggle.
 - **Falling pieces carry motion trails** (2–3 dashed ticks above, fading after landing).
 - **The stack contains 1–2 dashed empty slots.**
-- **Footer hint is a dark pill** flanked by `>>>` / `<<<` chevrons.
-- **Background grid has two scales** (fine + every-4-cells coarse line) plus a subtle vignette. It is **one page-wide lattice**, aligned by the engine to the playfield's measured cell and origin — drawing the grid inside the field instead makes the field read as a rectangle of denser hatching, i.e. an outline nobody asked for.
+- **(v2.1) One chassis width**: the HUD, the playfield and the bottom bezel share a single content width and horizontal margins — three different widths read as three unrelated widgets. The reshuffle hint is no longer a free-floating pill: it docks **inside the bottom bezel's right end** (panel text left, key hint right), the way a game status bar carries its button legend.
+- **(v2.1) Depth**: every piece gets an extruded bottom edge — a 3–4px darker strip of its own accent along the piece's bottom silhouette — plus the two-step hard shadow. Outline-only flatness is below the bar.
+- **(v2.1) Background recedes**: fine-grid opacity halved, coarse line barely-there; the scene's contrast budget belongs to the pieces, not the lattice.
 - **The bezel is opaque and sits above the field**: pieces falling in slide *behind* the HUD and the footer pill, which is what sells "a screen inside a machine".
 
 ### Light mode ("TV gray")
@@ -43,7 +44,7 @@ Pixel display font (Silkscreen) for HUD/names; monospace (IBM Plex Mono) for tag
 Each product is one tetromino in a **canonical orientation** (never rotated by the engine), designed as a whole. Four layers, back to front:
 
 ### 3.1 Skin
-The entire piece is the product's texture — no plain fills, no "icon cell + blank cells". Skins are art assets (see §10) laid across the whole piece under the CSS seams/bevels:
+The entire piece is the product's texture — no plain fills, no "icon cell + blank cells". Skins are art assets (see §10) laid across the whole piece under the CSS bevels. **(v2.1) The current skin batch has cell seams baked into the art** (the artist gridded each cell); until the final seamless redraw, CSS suppresses its own seams over skinned pieces so the grid isn't drawn twice. The eventual contract stays: the web draws the grid, the art is seamless.
 
 | Product | Shape (canonical) | Skin concept | Accent (light) |
 |---|---|---|---|
@@ -55,29 +56,28 @@ The entire piece is the product's texture — no plain fills, no "icon cell + bl
 
 Shape assignments are **semantic** (L = jar on the meadow, S = wave, I = strip, O = page, T = door) — a new product must pick a shape whose geometry means something for it.
 
-### 3.2 Sticker band (the name)
-A slightly inset label strip — like a cartridge sticker — crosses each piece, carrying the **full product name** in the pixel font. High contrast against the skin; glows softly in dark mode. Per shape:
+### 3.2 Name (v2.1: the sticker band is retired)
 
-- **I**: band across all 4 cells (`HEALTH ANALYST` fits one line).
-- **T**: band across the 3-wide bar (`MEIKYU`).
-- **L**: band across the 3-wide horizontal arm (`RAYTALLY`).
-- **S**: band along the **lower arm**, 2 cells (`AHR999`). *(This called for "the waist row where all 3 columns have coverage" until the geometry was checked: a horizontal S is two offset pairs, so no strip spans all three columns, and any waist band hangs its first glyphs out in the notch. The lower arm is the trough of the wave and is fully backed.)*
-- **O**: two-line band (`X2` / `MARKDOWN`).
+Pieces carry **no persistent name text**. The skin is the identity; the name lives in the info panel (hover/focus/tap types `NAME · TYPE · STATUS — flavor`) and in the accessible layer (each piece's `<a>` keeps the name + flavor as sr-only text, so SEO and no-JS lose nothing). Rationale: the band obscured the art it sat on (the ECG trace casualty), and a wall of pictograms that answers on touch is more game-native than a wall of labels. `bandName` is gone from the schema.
 
-Bands sit **low in their row**, the way a sticker sits low on a cartridge — which is also what keeps the top of the row clear for the eye and the placeholder icon badge.
+### 3.3 Face (v2.1: per-piece face presets — supersedes the single-eye rule)
 
-Band text is real HTML text inside the piece's `<a>` (SEO keeps the name; no image text). Type size is *computed* from the name's length and the band's box, so the script-free HTML is already correct. Auto-fit: font-size steps down once, then two-line fallback — never truncate a name. A shape whose band cannot hold the full name (only the S today) carries a shorter `bandName`; the full name still ships in the info panel, the sr-only line and the JSON-LD.
+v2's "one identical eye for everyone" made the pieces feel stamped from one mold. Each piece now carries a **minimal face preset derived from its motion personality**, so the face and the way it falls tell the same character:
 
-### 3.3 Eye (anthropomorphism level: Mino)
-One single pixel eye per piece (position fixed per design, never on the band). Behavior:
+| Piece | Face | Idle quirk |
+|---|---|---|
+| T (Meikyu) | One wide, half-lidded eye — the dungeon keeper | Slow sideways glance every ~10 s |
+| L (RayTally) | Two small round eyes, close-set — the collector | Occasionally glances down at its own jar |
+| S (AHR999) | Two asymmetric eyes: one open, one squinting — watching the chart | Rare fast double-blink |
+| O (X2Markdown) | Two big round eyes + a tiny "o" mouth — the mascot, the most face of the five | Mouth pops "o" on landing; flattens to "–" when asleep |
+| I (Health Analyst) | One calm eye | Blink locked to its metronome bob — a visible heartbeat |
 
-- Pupil tracks the pointer (small range, stepped movement — pixel, not smooth).
-- Blinks every 4–8 s (seeded phase so pieces don't blink in sync).
-- Closes (sleeps) after ~30 s idle; wakes on pointer move.
-- Squeezes shut (`>_<` equivalent for a single eye: pressed shut) for ~300 ms on hard-drop impact.
-- `prefers-reduced-motion`: eye static, open.
+Restraint rules (the line between "alive" and "toy" moves, but still exists):
+- At most **two eyes and one small mouth mark**; no limbs, no eyebrows, no cheeks.
+- All marks are code-drawn pixels (no image assets), anchored per-cell in `products.json` (`face` preset name + anchor cells), clear of key skin features.
+- Mouth/lash marks may use one color from a fixed 3-color micro-palette (echoing the reference's colored mouths) so variety still reads as a system.
 
-One eye, not two; no mouth, no limbs. This is the line between "alive" and "toy".
+Shared behaviors (all presets): pupils track the pointer in pixel steps; seeded blink phases; sleep after ~30 s idle (eyes close, O's mouth flattens); squeeze shut on hard-drop impact; **hover = a two-frame happy squint** (the eye curves into a ∪); `prefers-reduced-motion` renders the face static and open.
 
 ### 3.4 Motion personality
 All pieces share one parameterized animation system (same keyframes, per-piece CSS variables), but each gets a distinct parameter set derived from its shape mechanics:
@@ -94,7 +94,7 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 
 ### 4.1 Two pools
 - **Floating pool** (high priority): suspended mid-air, staggered heights, the protagonists.
-- **Landed pool** (low priority + link tiles): resting in the uneven bottom stack (with 1–2 hollow gaps and 1–2 dashed empty slots).
+- **Landed pool** (low priority + link tiles): resting in the bottom stack. **(v2.1) The stack is a low bed, not a clump**: it spans ~85% of the field width, runs mostly 1–2 rows high with an occasional 3-row bump, link tiles perch on top of the bed like collectibles, filler count is modest, and its 1–2 hollow gaps + 1–2 dashed slots sit where a real game would plausibly leave them (under overhangs, not floating mid-bed).
 - Overflow: floating pool caps at ~5 (or when lanes get tight); lowest priority spills into the stack. More products ⇒ prouder stack.
 - Narrow (<~700px): **all products float**, stack holds only link tiles + filler.
 
@@ -114,7 +114,7 @@ A **fixed slot** docked above the footer hint — a game item-description panel,
 - On piece hover/focus (desktop) or first tap (touch): panel types out (typewriter, ~24 chars/s, skippable):
   `MEIKYU · WEB · DAILY — Deduce the daily dungeon in six tries. ▸ PLAY`
   Template: `NAME · TYPE · STATUS — flavor line. ▸ CTA`.
-- A pixel selection cursor (corner brackets) frames the hovered/selected piece.
+- A pixel selection cursor (corner brackets) frames the hovered/selected piece — **outside** the piece's bounding box with a ~0.15-cell gap; the brackets must never overlap the artwork (v2.1).
 - Desktop click on piece = navigate (as before). Touch: first tap selects, `▸ PLAY` (or second tap on the same piece) navigates.
 - Keyboard: pieces are focusable in priority order; panel follows focus; Enter navigates.
 - The panel is `aria-live="polite"`; piece `<a>`s still contain name (band) + sr-only tagline, so no-JS/SEO keeps full content.
@@ -127,8 +127,8 @@ One integer seed drives everything (composition, blink phases, stagger jitter, g
 Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` skips entry/reshuffle, freezes bob/ghost/eye.
 
 1. **Entry (~1.2s)**: gravity-curve fall, seeded stagger 80–120ms, landed pieces first; landing = 2-frame squash (scaleY ≈ 0.94, origin bottom) + shadow snap + **3–4 pixel sparks** (tiny stars/plus glyphs, one-shot); dashed motion trails fade ~200ms after landing. Personality parameters (§3.4) modulate each piece's run.
-2. **Idle**: bob ±2px, per-piece period/phase ("breathing, not elevators"); ghost piece falls slowly forever in the background; eyes blink/track/sleep (§3.3).
-3. **Reshuffle (~1.5s)**: hard-drop with trails → 2px playfield shake on impact (eyes squeeze) → full-stack line-clear flash → new seed → entry replays.
+2. **Idle**: bob ±2px, per-piece period/phase ("breathing, not elevators"); ghost piece falls slowly forever in the background — **(v2.1) each cycle draws a random shape from the seven standard tetrominoes at a random x** (seeded), styled as a sparse dotted outline, quieter than today; eyes blink/track/sleep (§3.3).
+3. **Reshuffle (~2s, v2.1 — real physics)**: each floating piece hard-drops to its **true resting position** computed against the skyline (stack + previously dropped pieces + floor); pieces over open floor fall all the way down. Impacts land staggered (per-piece distance ⇒ per-piece timing), each with its own 2px shake and eye-squeeze. Then the **line clear**: a white scan sweeps the settled rows bottom-up (one row per ~2 frames), each swept row's cells dissolve into a few pixel motes; when the field is clear — new seed, entry replays. The old "everything stops at one height, whole layer blinks" reading is explicitly rejected.
 4. **Hover/press**: two-step 2px lift + shadow/glow deepen; active sinks 2px (key-press feel).
 5. **NEXT easter egg**: after the 3rd reshuffle in a session, the mystery block actually drops from the NEXT slot into the stack — a gray `?` mini-piece. Clicking it opens `https://github.com/RuochenLyu/aix4u/issues/new` ("tell me what to build next"). Once per session.
 

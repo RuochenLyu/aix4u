@@ -1,8 +1,9 @@
 ---
 /**
- * One tetromino = one product (DESIGN §3). Four layers, back to front: the skin
- * (an art asset, or the accent-fill placeholder until one lands), the CSS
- * cells with their seams and bevels, the sticker name band, and the eye.
+ * One tetromino = one product (DESIGN §3). Three layers, back to front: the skin
+ * (an art asset, or the accent-fill placeholder until one lands), the CSS cells
+ * with their silhouette seam, bevel and extruded bottom edge, and the eye. v2.1
+ * retired the fourth — the sticker name band (§3.2).
  *
  * The nesting of the transform layers is load-bearing. Each animation owns one
  * element so they compose instead of fighting over a single `transform`:
@@ -16,7 +17,7 @@
 import PixelLogo from './PixelLogo.astro';
 import { MOTION_PRESETS, panelLine, type SceneItem } from '../lib/content';
 import type { PiecePlacement } from '../lib/scene';
-import { SHAPES } from '../lib/tetromino';
+import { SHAPES, edgesOf } from '../lib/tetromino';
 
 interface Props {
   item: SceneItem;
@@ -26,27 +27,31 @@ interface Props {
 const { item, placement } = Astro.props;
 const shape = SHAPES[placement.shape];
 const isProduct = item.type === 'product';
-const band = isProduct ? shape.band : null;
-
-/**
- * A two-line band splits on the seam the name already has — `X2Markdown` →
- * `X2` / `MARKDOWN` (DESIGN §3.2) — then on a space, then in the middle.
- */
-function bandLines(name: string, lines: 1 | 2): string[] {
-  if (lines === 1) return [name.toUpperCase()];
-  const camel = /^(.+?)([A-Z][a-z].*)$/.exec(name);
-  if (camel) return [camel[1]!.toUpperCase(), camel[2]!.toUpperCase()];
-  const space = name.indexOf(' ');
-  if (space > 0) return [name.slice(0, space).toUpperCase(), name.slice(space + 1).toUpperCase()];
-  const mid = Math.ceil(name.length / 2);
-  return [name.slice(0, mid).toUpperCase(), name.slice(mid).toUpperCase()];
-}
-
-const lines = band && item.type === 'product' ? bandLines(item.bandName, band.lines) : [];
-/** Longest line drives the fit; the CSS sizes the text from this (see global.css). */
-const bandChars = Math.max(1, ...lines.map((line) => line.length));
 
 const motion = isProduct ? MOTION_PRESETS[item.motion] : MOTION_PRESETS['squash'];
+
+/**
+ * Per-cell silhouette flags, resolved at build time. The CSS draws the seam only
+ * on edges that face the outside world (the skins bake their own interior grid,
+ * §3.1 v2.1) and hangs the extruded edge off the bottom silhouette (§2 v2.1).
+ * `1`/`0` rather than presence/absence of an attribute, because the CSS reads
+ * them as numbers in a calc().
+ */
+const cells = shape.cells.map(([cx, cy]) => {
+  const edges = edgesOf(shape, cx, cy);
+  return {
+    cx,
+    cy,
+    style: {
+      '--cx': String(cx),
+      '--cy': String(cy),
+      '--e-top': edges.top ? '1' : '0',
+      '--e-right': edges.right ? '1' : '0',
+      '--e-bottom': edges.bottom ? '1' : '0',
+      '--e-left': edges.left ? '1' : '0',
+    },
+  };
+});
 
 const style: Record<string, string> = {
   '--gx': String(placement.x),
@@ -76,15 +81,6 @@ if (item.type === 'product') {
   style['--eye-y'] = String(item.eye.cy + item.eye.ay);
   style['--badge-x'] = String(item.iconAt.cx + item.iconAt.ax);
   style['--badge-y'] = String(item.iconAt.cy + item.iconAt.ay);
-}
-
-if (band) {
-  style['--band-x'] = String(band.x);
-  style['--band-y'] = String(band.y);
-  style['--band-w'] = String(band.w);
-  style['--band-h'] = String(band.h);
-  style['--band-lines'] = String(band.lines);
-  style['--band-chars'] = String(bandChars);
 }
 
 const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
@@ -127,20 +123,20 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
           <span class="piece__body">
             {isProduct && <span class="piece__skin" aria-hidden="true"></span>}
             {
-              shape.cells.map(([cx, cy]) => (
+              cells.map((cell) => (
                 <span
                   class="cell"
-                  data-cx={String(cx)}
-                  data-cy={String(cy)}
-                  style={{ '--cx': String(cx), '--cy': String(cy) }}
+                  data-cx={String(cell.cx)}
+                  data-cy={String(cell.cy)}
+                  style={cell.style}
                   aria-hidden="true"
                 />
               ))
             }
 
             {
-              /* Placeholder garnish: one pixel badge on a cell the band leaves
-                 free. A real skin carries its own art, so the badge steps aside. */
+              /* Placeholder garnish: one pixel badge. A real skin carries its own
+                 art, so the badge steps aside. */
               isProduct && !skinned && item.icon && (
                 <span class="piece__badge" aria-hidden="true">
                   <img src={item.icon} alt="" width="24" height="24" loading="eager" />
@@ -149,7 +145,7 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
             }
 
             {
-              /* Link tiles keep the old centred glyph — they have no band. */
+              /* Link tiles are a single cell with a centred glyph. */
               !isProduct && (
                 <span class="cell__mark" aria-hidden="true">
                   {item.icon ? (
@@ -159,21 +155,6 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
                   ) : (
                     <span class="cell__glyph">{item.label}</span>
                   )}
-                </span>
-              )
-            }
-
-            {
-              band && (
-                <span class="band">
-                  <span class="band__text">
-                    {lines.map((line, index) => (
-                      <>
-                        {index > 0 && <br />}
-                        {line}
-                      </>
-                    ))}
-                  </span>
                 </span>
               )
             }
@@ -191,7 +172,9 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
       </span>
     </span>
   </span>
-  {/* The band already carries the name; this is the flavour line for screen
-      readers and for a no-JS crawl, since the info panel is JS-driven. */}
-  {item.type === 'product' && <span class="visually-hidden">{` — ${item.tagline}`}</span>}
+  {/* Nothing on the piece says its name any more (DESIGN §3.2 v2.1), so the
+      accessible layer carries the whole of it: name + flavour line, in the
+      piece's own <a>, in the static HTML. This is what keeps SEO and a no-JS
+      crawl whole now that the info panel is the only visible copy. */}
+  {item.type === 'product' && <span class="visually-hidden">{`${item.name} — ${item.tagline}`}</span>}
 </a>
