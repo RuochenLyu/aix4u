@@ -1,7 +1,12 @@
 {
-  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. Optional `icon` is a path under /icons/ (pixel PNG, transparent); without it the icon cell falls back to the product's initial.",
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `eye` and `iconAt` are [cx, cy] cells of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell — keep both clear of the sticker band; `bandName` overrides the name shown on the sticker when the full name will not fit the shape's band; `motion` names a personality preset from src/lib/content.ts.",
   "next": {
-    "teaser": ""
+    "teaser": "",
+    "url": "https://github.com/RuochenLyu/aix4u/issues/new"
+  },
+  "panel": {
+    "idle": "AIX4U — indie products, dropping like tetrominoes.",
+    "cta": "▸ PLAY"
   },
   "items": [
     {
@@ -14,8 +19,14 @@
       "accentDark": "#ffc061",
       "priority": 1,
       "url": "https://meikyu.app",
+      "kind": "WEB",
+      "status": "DAILY",
       "tagline": "Deduce the daily dungeon in six tries",
-      "description": "Five residents are hiding in today's dungeon. You have six tries to place them."
+      "description": "Five residents are hiding in today's dungeon. You have six tries to place them.",
+      "iconAt": [1, 1],
+      "eye": [2, 0, 0.5, 0.22],
+      "motion": "tease-rotate",
+      "skin": { "light": "", "dark": "" }
     },
     {
       "type": "product",
@@ -27,21 +38,34 @@
       "accentDark": "#e6ff6b",
       "priority": 2,
       "url": "https://raytally.com",
+      "kind": "WEB",
+      "status": "DAILY",
       "tagline": "Product ideas mined daily from search trends",
-      "description": "A daily brainstorm feed that mines verifiable search-trend shifts for product ideas."
+      "description": "A daily brainstorm feed that mines verifiable search-trend shifts for product ideas.",
+      "iconAt": [0, 0],
+      "eye": [2, 1, 0.5, 0.2],
+      "motion": "prop-up",
+      "skin": { "light": "", "dark": "" }
     },
     {
       "type": "product",
       "id": "ahr999",
       "icon": "/icons/ahr999.png",
       "name": "AHR999 Dataset",
+      "bandName": "AHR999",
       "shape": "S",
       "accent": "#f59e0b",
       "accentDark": "#ffb733",
       "priority": 3,
       "url": "https://ahr999.aix4u.com",
+      "kind": "DATA",
+      "status": "DAILY",
       "tagline": "The Bitcoin AHR999 index, as open data",
-      "description": "Open dataset and dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI."
+      "description": "Open dataset and dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.",
+      "iconAt": [1, 0],
+      "eye": [2, 0],
+      "motion": "sway",
+      "skin": { "light": "", "dark": "" }
     },
     {
       "type": "product",
@@ -53,8 +77,14 @@
       "accentDark": "#48dcec",
       "priority": 4,
       "url": "https://chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo",
+      "kind": "CHROME",
+      "status": "FREE",
       "tagline": "Right-click any page into clean Markdown",
-      "description": "Chrome extension that converts the visible page (or selection) into clean Markdown via right-click; dedicated extraction for x.com posts and articles; local-only processing."
+      "description": "Chrome extension that converts the visible page (or selection) into clean Markdown via right-click; dedicated extraction for x.com posts and articles; local-only processing.",
+      "iconAt": [1, 1, 0.5, 0.76],
+      "eye": [0, 0, 0.5, 0.26],
+      "motion": "squash",
+      "skin": { "light": "", "dark": "" }
     },
     {
       "type": "product",
@@ -66,8 +96,14 @@
       "accentDark": "#5fd67c",
       "priority": 5,
       "url": "https://github.com/RuochenLyu/apple-health-analyst",
+      "kind": "CLI",
+      "status": "OSS",
       "tagline": "Apple Health reports, private and agent-ready",
-      "description": "Two-stage CLI and agent skill: parses Apple Health exports locally into structured insights, then renders narrative HTML reports with SVG charts."
+      "description": "Two-stage CLI and agent skill: parses Apple Health exports locally into structured insights, then renders narrative HTML reports with SVG charts.",
+      "iconAt": [0, 0, 0.5, 0.22],
+      "eye": [3, 0, 0.5, 0.21],
+      "motion": "metronome",
+      "skin": { "light": "", "dark": "" }
     },
     {
       "type": "link",
