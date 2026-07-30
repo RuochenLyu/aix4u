@@ -141,39 +141,46 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
               ))
             }
 
-            {
-              /* Placeholder garnish: one pixel badge. A real skin carries its own
-                 art, so the badge steps aside. */
-              isProduct && !skinned && item.icon && (
-                <span class="piece__badge" aria-hidden="true">
-                  <img src={item.icon} alt="" width="24" height="24" loading="eager" />
-                </span>
-              )
-            }
+            {/* Everything drawn *over* the cells lives in one layer, and that layer
+                is clipped by the same `--swept` counter as the skin under it: when
+                the line-clear sweep takes a row, the art, the badge, the glyph and
+                the face go with it (DESIGN §2 v2.1.2). Giving each mark its own
+                timeline is how an eye ends up floating over an empty field. */}
+            <span class="piece__over" aria-hidden="true">
+              {
+                /* Placeholder garnish: one pixel badge. A real skin carries its own
+                   art, so the badge steps aside. */
+                isProduct && !skinned && item.icon && (
+                  <span class="piece__badge">
+                    <img src={item.icon} alt="" width="24" height="24" loading="eager" draggable="false" />
+                  </span>
+                )
+              }
 
-            {
-              /* Link tiles are a single cell with a centred glyph. */
-              !isProduct && (
-                <span class="cell__mark" aria-hidden="true">
-                  {item.icon ? (
-                    <img class="cell__art" src={item.icon} alt="" width="24" height="24" loading="eager" />
-                  ) : item.logo ? (
-                    <PixelLogo logo={item.logo} />
-                  ) : (
-                    <span class="cell__glyph">{item.label}</span>
-                  )}
-                </span>
-              )
-            }
+              {
+                /* Link tiles are a single cell with a centred glyph. */
+                !isProduct && (
+                  <span class="cell__mark">
+                    {item.icon ? (
+                      <img class="cell__art" src={item.icon} alt="" width="24" height="24" loading="eager" draggable="false" />
+                    ) : item.logo ? (
+                      <PixelLogo logo={item.logo} />
+                    ) : (
+                      <span class="cell__glyph">{item.label}</span>
+                    )}
+                  </span>
+                )
+              }
 
-            {
-              isProduct && (
-                <span class="eye" aria-hidden="true">
-                  <span class="eye__ball"><span class="eye__pupil"></span></span>
-                  <span class="eye__lash"></span>
-                </span>
-              )
-            }
+              {
+                isProduct && (
+                  <span class="eye">
+                    <span class="eye__ball"><span class="eye__pupil" /></span>
+                    <span class="eye__lash" />
+                  </span>
+                )
+              }
+            </span>
           </span>
         </span>
       </span>

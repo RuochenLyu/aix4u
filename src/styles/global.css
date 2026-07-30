@@ -923,6 +923,19 @@ a {
   --bevel-dark: rgba(0, 0, 0, 0.55);
 }
 
+/* --- the overlay: everything drawn on top of the cells ------------------- */
+
+/* One layer for the badge, the link-tile glyph and the face, so they share the
+   piece's fate during a line clear instead of each keeping their own timeline
+   (DESIGN §2 v2.1.2). It is a plain box the size of the piece — the marks inside
+   it are positioned exactly as they were when they hung off `.piece__body`. */
+.piece__over {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
 /* --- placeholder icon badge --------------------------------------------- */
 
 /* Garnish while the skins are still being drawn (DESIGN §11): one pixel stamp
@@ -1940,8 +1953,13 @@ a {
   animation: hard-drop var(--hard-drop-dur, 400ms) var(--gravity) 0ms forwards;
 }
 
+/* The trail is part of the fall, so it has to end with the fall. A filled
+   `trail-in` alone held the ticks at full strength through the whole sweep and
+   left three dashes hanging over an empty field (DESIGN §2 v2.1.2). */
 .playfield.is-clearing .piece--floating .piece__trail {
-  animation: trail-in var(--hard-drop-dur, 400ms) linear 0ms both;
+  animation:
+    trail-in var(--hard-drop-dur, 400ms) linear 0ms both,
+    trail-out 160ms linear calc(var(--hard-drop-dur, 400ms) + 40ms) both;
 }
 
 /* Impact, knock and squash all key off that same per-piece duration. */
@@ -2007,7 +2025,13 @@ a {
   --mote: var(--tile-glyph);
 }
 
-.piece__skin {
+/* The skin and the overlay are clipped away from the bottom up as the sweep takes
+   each row (DESIGN §2 v2.1.2). The art is one image and the marks are absolutely
+   placed, so without a shared clip a dissolved bottom row would still be showing
+   its picture — and, worse, the eye and the tile glyph would hang in the empty
+   field with nothing under them. One counter, one clip, one body. */
+.piece__skin,
+.piece__over {
   clip-path: inset(0 0 calc(var(--swept, 0) * var(--cell)) 0);
 }
 
