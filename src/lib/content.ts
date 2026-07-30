@@ -251,7 +251,7 @@ export type SceneItem = ProductItem | LinkItem;
 
 export interface SiteContent {
   next: { teaser: string; url: string };
-  panel: { idle: string; cta: string };
+  panel: { idle: string };
   items: SceneItem[];
   products: ProductItem[];
   links: LinkItem[];
@@ -434,7 +434,12 @@ function validate(input: unknown): SiteContent {
 
   const panelRaw = root['panel'];
   if (typeof panelRaw !== 'object' || panelRaw === null) fail('panel', 'expected an object');
-  const panel = { idle: str('panel', panelRaw, 'idle'), cta: str('panel', panelRaw, 'cta') };
+  // `▸ PLAY` is retired (DESIGN §4.4 v2.1.2): the CTA is a key legend now, and a
+  // key legend is chrome copy, not content. A stale `cta` fails the build.
+  if ((panelRaw as Record<string, unknown>)['cta'] !== undefined) {
+    fail('panel', '"cta" is retired: the panel shows a key legend, not a button (DESIGN §4.4)');
+  }
+  const panel = { idle: str('panel', panelRaw, 'idle') };
 
   if (!Array.isArray(root['items'])) fail('items', 'expected an array');
   const rawItems = root['items'] as unknown[];
@@ -542,8 +547,3 @@ function validate(input: unknown): SiteContent {
 }
 
 export const content: SiteContent = validate(raw);
-
-/** `MEIKYU · WEB · DAILY — Deduce the daily dungeon in six tries` (DESIGN §4.4). */
-export function panelLine(product: ProductItem): string {
-  return `${product.name.toUpperCase()} · ${product.kind} · ${product.status} — ${product.tagline}`;
-}

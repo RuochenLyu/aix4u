@@ -17,7 +17,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { content, panelLine } from '../src/lib/content';
+import { content } from '../src/lib/content';
 
 const DIST = 'dist';
 
@@ -83,8 +83,8 @@ for (const file of files) {
       if (!rel.includes(token)) problems.push(`${where} is off-site but its rel is missing "${token}"`);
     }
 
-    // Products are the anchors that carry a panel line; they also carry the title.
-    if (attrs.has('data-panel')) {
+    // Products are the anchors that carry a flavour line; they also carry the title.
+    if (attrs.has('data-flavor')) {
       const expected = expectedTitles.get(href);
       const title = attrs.get('title') ?? '';
       if (!title) problems.push(`${where} is a product and has no title`);
@@ -103,11 +103,13 @@ if (external < content.products.length + content.links.length) {
   );
 }
 
-// The panel CTA is wired to a product URL at runtime, so its policy cannot be
-// read off the static href — assert the copy it types is the one the panel
-// promises, which is the part the markup cannot drift from on its own.
-if (content.products.some((product) => panelLine(product).trim() === '')) {
-  problems.push('a product produces an empty panel line');
+// The panel reads its rows off the anchors' data attributes at runtime, so the
+// copy cannot be checked from the href — assert it exists at the source instead,
+// which is the part the markup cannot drift from on its own.
+for (const product of content.products) {
+  if (product.tagline.trim() === '' || product.kind.trim() === '' || product.status.trim() === '') {
+    problems.push(`${product.id} would render an empty info-panel row`);
+  }
 }
 
 if (problems.length > 0) {

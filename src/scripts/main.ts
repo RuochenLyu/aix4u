@@ -279,54 +279,52 @@ if (playfield && fillerLayer && ghost && shell) {
 
   const panel = document.getElementById('panel');
   const panelText = document.getElementById('panel-text');
-  const panelCta = document.getElementById('panel-cta') as HTMLAnchorElement | null;
+  const panelName = document.getElementById('panel-name');
+  const panelKind = document.getElementById('panel-kind');
+  const panelStatus = document.getElementById('panel-status');
+  const panelOpen = document.getElementById('panel-open');
   const IDLE_LINE = content.panel.idle;
-  const CTA_LABEL = content.panel.cta;
-  /** ~24 characters a second (DESIGN §4.4). */
-  const TYPE_MS = 1000 / 24;
+  /**
+   * ~80 characters a second (DESIGN §4.4 v2.1.2). The v2 panel typed at 24, which
+   * was tested on the device and read as the page lagging rather than as a
+   * machine printing — and it typed the name and the tags too, so the thing you
+   * most wanted to read arrived last.
+   */
+  const TYPE_MS = 1000 / 80;
 
   let selected: string | null = null;
   /** The piece a touch visitor has selected but not yet opened. */
   let armed: string | null = null;
   let typeTimer = 0;
   let typeBody = '';
-  let typeCta = '';
-  let typeIndex = 0;
 
   function renderTyped(count: number): void {
-    if (!panelText) return;
-    panelText.textContent = typeBody.slice(0, Math.min(count, typeBody.length));
-    if (!panelCta) return;
-    const ctaCount = Math.max(0, count - typeBody.length);
-    panelCta.textContent = typeCta.slice(0, ctaCount);
-    panelCta.hidden = ctaCount === 0;
+    if (panelText) panelText.textContent = typeBody.slice(0, Math.min(count, typeBody.length));
   }
 
   function finishTyping(): void {
     window.clearInterval(typeTimer);
     typeTimer = 0;
-    typeIndex = typeBody.length + typeCta.length;
-    renderTyped(typeIndex);
+    renderTyped(typeBody.length);
     panel?.classList.remove('is-typing');
   }
 
-  function typeOut(body: string, cta: string): void {
+  /** Only the flavour row types. Everything that identifies the piece is already up. */
+  function typeOut(body: string): void {
     window.clearInterval(typeTimer);
     typeBody = body;
-    typeCta = cta;
-    typeIndex = 0;
-    const total = body.length + cta.length;
 
     if (reducedMotion.matches) {
       finishTyping();
       return;
     }
+    let index = 0;
     renderTyped(0);
     panel?.classList.add('is-typing');
     typeTimer = window.setInterval(() => {
-      typeIndex += 1;
-      renderTyped(typeIndex);
-      if (typeIndex >= total) finishTyping();
+      index += 1;
+      renderTyped(index);
+      if (index >= typeBody.length) finishTyping();
     }, TYPE_MS);
   }
 
@@ -347,8 +345,8 @@ if (playfield && fillerLayer && ghost && shell) {
 
   function selectPiece(id: string): void {
     const el = pieceElements.get(id);
-    const line = el?.dataset['panel'];
-    if (!line) return;
+    const flavor = el?.dataset['flavor'];
+    if (!flavor) return;
     // Interacting again while it is still typing skips to the end, which is what
     // an item panel in a game does when you mash the button (DESIGN §4.4).
     if (selected === id) {
@@ -357,8 +355,13 @@ if (playfield && fillerLayer && ghost && shell) {
     }
     selected = id;
     if (panel) panel.dataset['state'] = 'piece';
-    if (panelCta) panelCta.href = el!.getAttribute('href') ?? '#';
-    typeOut(`${line} `, CTA_LABEL);
+    // Row one lands whole, on the frame you select: the name and the two tags are
+    // the answer to "what is this", and an answer that types itself is a delay.
+    if (panelName) panelName.textContent = (el!.dataset['name'] ?? '').toUpperCase();
+    if (panelKind) panelKind.textContent = el!.dataset['kind'] ?? '';
+    if (panelStatus) panelStatus.textContent = el!.dataset['status'] ?? '';
+    if (panelOpen) panelOpen.hidden = false;
+    typeOut(flavor);
     moveCursor();
   }
 
@@ -369,16 +372,29 @@ if (playfield && fillerLayer && ghost && shell) {
     window.clearInterval(typeTimer);
     typeTimer = 0;
     panel?.classList.remove('is-typing');
+    if (panelOpen) panelOpen.hidden = true;
     typeBody = IDLE_LINE;
-    typeCta = '';
     renderTyped(IDLE_LINE.length);
     moveCursor();
+  }
+
+  /**
+   * `⏎ OPEN` has to work from a hover, not only from a focus (DESIGN §4.4
+   * v2.1.2). A focused anchor already opens itself on Enter; this is the pointer
+   * case, where the panel is describing a piece the keyboard has never touched.
+   */
+  function openSelected(): void {
+    if (!selected) return;
+    const el = pieceElements.get(selected);
+    const href = el?.getAttribute('href');
+    if (!href) return;
+    window.open(href, '_blank', 'noopener,noreferrer');
   }
 
   const coarse = window.matchMedia('(pointer: coarse)');
 
   for (const [id, el] of pieceElements) {
-    if (!el.dataset['panel']) continue; // link tiles keep their own tooltip
+    if (!el.dataset['flavor']) continue; // link tiles carry their own name-plate
 
     el.addEventListener('pointerenter', () => {
       if (coarse.matches) return;
@@ -396,8 +412,9 @@ if (playfield && fillerLayer && ghost && shell) {
     });
 
     // Touch is two-stage: the first tap selects and shows the line, the second
-    // (or `▸ PLAY`) opens it. Otherwise a phone visitor never gets to read the
-    // description of the thing they are about to leave the page for.
+    // opens it — which is what `TAP AGAIN TO OPEN` in the panel is telling you.
+    // Otherwise a phone visitor never gets to read the description of the thing
+    // they are about to leave the page for.
     el.addEventListener('click', (event) => {
       if (!coarse.matches) return;
       if (armed === id) return;
@@ -673,10 +690,18 @@ if (playfield && fillerLayer && ghost && shell) {
   wake();
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'r' && event.key !== 'R') return;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest('input, textarea, [contenteditable]')) return;
+
+    if (event.key === 'Enter') {
+      // A focused piece opens itself; this is the hover case the legend promises.
+      if (!selected || target?.closest('.piece, .panel__hint')) return;
+      event.preventDefault();
+      openSelected();
+      return;
+    }
+    if (event.key !== 'r' && event.key !== 'R') return;
     void reshuffle();
   });
 

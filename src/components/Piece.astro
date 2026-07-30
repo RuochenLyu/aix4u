@@ -22,7 +22,7 @@
  *   body   the landing squash, and the cast shadow
  */
 import PixelLogo from './PixelLogo.astro';
-import { MOTION_PRESETS, panelLine, type SceneItem } from '../lib/content';
+import { MOTION_PRESETS, type SceneItem } from '../lib/content';
 import type { PiecePlacement } from '../lib/scene';
 import { SHAPES, edgesOf } from '../lib/tetromino';
 
@@ -107,7 +107,9 @@ const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
   data-motion={isProduct ? item.motion : 'squash'}
   data-face={isProduct ? item.face.preset : undefined}
   data-beat={motion.beat}
-  data-panel={isProduct ? panelLine(item) : undefined}
+  data-kind={isProduct ? item.kind : undefined}
+  data-status={isProduct ? item.status : undefined}
+  data-flavor={isProduct ? item.tagline : undefined}
   href={item.url}
   target="_blank"
   rel={isProduct ? 'noopener noreferrer' : 'me noopener noreferrer'}

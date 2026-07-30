@@ -1473,35 +1473,75 @@ a {
     0 2px 0 var(--panel-drop);
 }
 
-.panel__line {
+/* Two rows, always. The height is the same whether the panel is showing its idle
+   sentence or a product, so selecting a piece never nudges the page — the fixed
+   height *is* the feature (DESIGN §4.4 v2.1.2). Idle centres its one row in that
+   height; a product fills both. */
+.panel__readout {
+  display: grid;
   flex: 1;
+  align-content: center;
+  gap: 0.15rem;
   min-width: 0;
-  margin: 0;
   padding-inline: clamp(0.2rem, 0.6vw, 0.45rem);
+}
+
+.panel__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0;
+  min-width: 0;
   color: var(--panel-ink);
   font-family: var(--font-mono);
   font-size: clamp(0.62rem, 1.15vw, 0.86rem);
-  line-height: 1.45;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
-/* Idle copy is the site's voice, so it stays quiet; a selected product's line is
-   the machine reading out an item, so it lights up. */
-.panel[data-state='idle'] .panel__line {
-  color: var(--panel-ink-soft);
+.panel__row--body {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.panel[data-state='piece'] .panel__text {
+/* The product's name is the read-out's headline, so it is typeset in the machine
+   font, not the body one. */
+.panel__name {
   color: var(--panel-ink);
+  font-family: var(--font-pixel);
+  font-size: 1.05em;
+  letter-spacing: 0.04em;
+}
+
+/* TYPE and STATUS are chips rather than a `·`-separated run: they are metadata,
+   and metadata that looks like prose gets read as prose. */
+.panel__chip {
+  padding: 0.05em 0.45em;
+  border: 1px solid var(--panel-chip-line);
+  border-radius: 3px;
+  color: var(--panel-chip-ink);
+  font-family: var(--font-pixel);
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+}
+
+/* Idle is one quiet line, vertically centred in the very same box. */
+.panel[data-state='idle'] .panel__row--head {
+  display: none;
+}
+
+.panel[data-state='idle'] .panel__row--body {
+  color: var(--panel-ink-soft);
 }
 
 /* The caret only exists while something is being typed. */
 .panel__caret {
   display: none;
+  flex: none;
   width: 0.5em;
   height: 1em;
   margin-left: 0.15em;
   background: var(--panel-caret);
-  vertical-align: -0.15em;
 }
 
 .panel.is-typing .panel__caret {
@@ -1509,23 +1549,31 @@ a {
   animation: caret-blink 640ms steps(1, end) infinite;
 }
 
-.panel__cta {
-  margin-left: 0.6em;
-  padding: 0.1em 0.5em;
-  border: 2px solid var(--panel-cta);
-  border-radius: 3px;
-  color: var(--panel-cta);
+/* "Press this, get that" — the bezel already speaks in key legends, so the CTA
+   is one too (DESIGN §4.4 v2.1.2). Not a button: the only pressable thing in the
+   status bar stays the reshuffle key, and two buttons would make neither read. */
+.panel__open {
+  flex: none;
+  align-self: center;
+  color: var(--panel-ink-soft);
   font-family: var(--font-pixel);
-  font-size: 0.92em;
-  letter-spacing: 0.06em;
-  text-decoration: none;
+  font-size: clamp(0.5rem, 0.92vw, 0.68rem);
+  letter-spacing: 0.08em;
   white-space: nowrap;
 }
 
-.panel__cta:hover,
-.panel__cta:focus-visible {
-  background: var(--panel-cta);
-  color: var(--panel-bg);
+.panel__open-coarse {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .panel__open-fine {
+    display: none;
+  }
+
+  .panel__open-coarse {
+    display: inline;
+  }
 }
 
 /* The button legend at the right end of the status bar (DESIGN §2 v2.1). It is a
@@ -1594,7 +1642,7 @@ a {
 }
 
 :root {
-  --panel-height: 3rem;
+  --panel-height: 3.85rem;
   --panel-bg: #0d0f13;
   --panel-edge: var(--chassis-edge);
   --panel-inlay: rgba(255, 255, 255, 0.06);
@@ -1604,7 +1652,8 @@ a {
   --panel-ink: #e9e3d3;
   --panel-ink-soft: #8d8878;
   --panel-caret: #a8f533;
-  --panel-cta: #ffc93c;
+  --panel-chip-line: rgba(233, 227, 211, 0.3);
+  --panel-chip-ink: #c3bdac;
 }
 
 /* On a phone the field is taller than the screen, so the panel rides the bottom
