@@ -1,5 +1,6 @@
 /**
- * Client entry: theme persistence plus the seed/scene lifecycle.
+ * Client entry: theme persistence, the seed/scene lifecycle, and the three
+ * behaviours v2 added — the info panel, the eyes, and the NEXT easter egg.
  *
  * The DOM already contains every piece (rendered at build time from
  * DEFAULT_SEED). Nothing is created or destroyed here except the anonymous
@@ -8,7 +9,7 @@
 
 import { content } from '../lib/content';
 import { SHAPES } from '../lib/tetromino';
-import { buildScene, breakpointFor, crossDirection, randomSeed, type Scene } from '../lib/scene';
+import { buildScene, breakpointFor, randomSeed, type PiecePlacement, type Scene } from '../lib/scene';
 
 const root = document.documentElement;
 const playfield = document.getElementById('playfield');
@@ -45,17 +46,18 @@ themeToggle?.addEventListener('click', () => {
 /* --- scene ---------------------------------------------------------------- */
 
 if (playfield && fillerLayer && ghost) {
+  const field = playfield;
   const pieceElements = new Map<string, HTMLElement>();
-  const labelElements = new Map<string, HTMLElement>();
-  for (const el of playfield.querySelectorAll<HTMLElement>('[data-piece]')) {
+  for (const el of field.querySelectorAll<HTMLElement>('[data-piece]')) {
     pieceElements.set(el.dataset['piece']!, el);
   }
-  for (const el of playfield.querySelectorAll<HTMLElement>('[data-label]')) {
-    labelElements.set(el.dataset['label']!, el);
-  }
+  const bands = [...field.querySelectorAll<HTMLElement>('.band')];
+  const eyes = [...field.querySelectorAll<HTMLElement>('.eye')];
+  const cursor = document.getElementById('cursor');
+  const egg = document.getElementById('egg');
 
-  const field = playfield;
   let scene = currentScene(readSeedFromUrl() ?? randomSeed());
+  let placements = new Map<string, PiecePlacement>();
   let shuffling = false;
 
   function currentScene(seed: number): Scene {
@@ -77,6 +79,7 @@ if (playfield && fillerLayer && ghost) {
 
   function applyScene(next: Scene): void {
     scene = next;
+    placements = new Map(next.pieces.map((piece) => [piece.id, piece]));
     const { breakpoint: bp } = next;
     field.dataset['seed'] = String(next.seed);
     field.style.setProperty('--cols', String(bp.cols));
@@ -98,22 +101,12 @@ if (playfield && fillerLayer && ghost) {
       el.style.setProperty('--ph', String(shape.height));
       el.style.setProperty('--order', String(placement.order));
       el.style.setProperty('--fall-delay', `${placement.order * 80}ms`);
-      el.style.setProperty('--bob-period', `${placement.bobPeriod || 6}s`);
+      if (el.dataset['beat'] !== 'metronome') {
+        el.style.setProperty('--bob-period', `${placement.bobPeriod || 6}s`);
+      }
       el.style.setProperty('--bob-delay', `${placement.bobDelay}s`);
-
-      const label = labelElements.get(placement.id);
-      if (!label || !placement.label) continue;
-      label.dataset['side'] = placement.label.side;
-      label.dataset['cross'] = crossDirection(placement.label.cross);
-      label.dataset['connected'] = String(placement.label.connected);
-      label.classList.toggle('label--compact', placement.label.compact);
-      label.style.setProperty('--gx', String(placement.label.x));
-      label.style.setProperty('--gy', String(placement.label.y));
-      label.style.setProperty('--lw', String(placement.label.w));
-      label.style.setProperty('--lh', String(placement.label.h));
-      label.style.setProperty('--leader', String(placement.label.leader));
-      label.style.setProperty('--cross', String(placement.label.crossAbs));
-      label.style.setProperty('--fall-delay', `${placement.order * 80}ms`);
+      el.style.setProperty('--blink-period', `${placement.blinkPeriod}s`);
+      el.style.setProperty('--blink-delay', `${placement.blinkDelay}s`);
     }
 
     fillerLayer!.replaceChildren(
@@ -138,6 +131,15 @@ if (playfield && fillerLayer && ghost) {
         return span;
       }),
     );
+
+    // The mystery block, once it has dropped, is part of the world: it finds a
+    // new resting place in every scene after that rather than vanishing.
+    if (egg) {
+      egg.style.setProperty('--gx', String(next.egg.x));
+      egg.style.setProperty('--gy', String(next.egg.y));
+    }
+
+    moveCursor();
   }
 
   /**
@@ -156,7 +158,229 @@ if (playfield && fillerLayer && ghost) {
     root.style.setProperty('--ambient-y', `${(rect.top + window.scrollY) % period}px`);
   }
 
-  /** Entry timings, kept in step with the CSS (fall 560ms, +260 impact, +370 card). */
+  /* --- sticker bands ----------------------------------------------------- */
+
+  /**
+   * The CSS already sizes band text from the name's length, so this is a safety
+   * net for the moment before Silkscreen loads (or if it never does and a
+   * fallback font with wider glyphs takes over): step the size down once, then
+   * allow two lines. Truncating is not one of the options (DESIGN §3.2).
+   */
+  function fitBands(): void {
+    for (const band of bands) {
+      const text = band.querySelector<HTMLElement>('.band__text');
+      if (!text) continue;
+      band.removeAttribute('data-fit');
+      if (text.scrollWidth <= band.clientWidth + 1) continue;
+      band.dataset['fit'] = 'tight';
+      if (text.scrollWidth <= band.clientWidth + 1) continue;
+      band.dataset['fit'] = 'wrap';
+    }
+  }
+
+  /* --- eyes -------------------------------------------------------------- */
+
+  /**
+   * The pupil steps towards the pointer in whole pixel units, five positions per
+   * axis. It follows the *direction*, not the distance, so a piece in the corner
+   * still looks straight at you (DESIGN §3.3).
+   */
+  const PUPIL_STEPS = 2;
+  const IDLE_SLEEP_MS = 30_000;
+  let pointerX = -1;
+  let pointerY = -1;
+  let eyeFrame = 0;
+  let sleepTimer = 0;
+
+  function updateEyes(): void {
+    eyeFrame = 0;
+    if (pointerX < 0) return;
+    for (const eye of eyes) {
+      const rect = eye.getBoundingClientRect();
+      if (rect.width === 0) continue;
+      const dx = pointerX - (rect.left + rect.width / 2);
+      const dy = pointerY - (rect.top + rect.height / 2);
+      const len = Math.hypot(dx, dy) || 1;
+      eye.style.setProperty('--pupil-x', String(Math.round((dx / len) * PUPIL_STEPS)));
+      eye.style.setProperty('--pupil-y', String(Math.round((dy / len) * PUPIL_STEPS)));
+    }
+  }
+
+  function scheduleEyes(): void {
+    if (eyeFrame || reducedMotion.matches) return;
+    eyeFrame = window.requestAnimationFrame(updateEyes);
+  }
+
+  function wake(): void {
+    field.classList.remove('is-asleep');
+    window.clearTimeout(sleepTimer);
+    if (reducedMotion.matches) return;
+    sleepTimer = window.setTimeout(() => field.classList.add('is-asleep'), IDLE_SLEEP_MS);
+  }
+
+  /** Eyes screw shut when the field takes a hard-drop hit (DESIGN §3.3). */
+  function squeeze(): void {
+    if (reducedMotion.matches) return;
+    field.classList.add('is-squeezing');
+    window.setTimeout(() => field.classList.remove('is-squeezing'), 300);
+  }
+
+  window.addEventListener(
+    'pointermove',
+    (event) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      wake();
+      scheduleEyes();
+    },
+    { passive: true },
+  );
+  window.addEventListener('keydown', wake, { passive: true });
+  window.addEventListener('scroll', scheduleEyes, { passive: true });
+
+  /* --- info panel -------------------------------------------------------- */
+
+  const panel = document.getElementById('panel');
+  const panelText = document.getElementById('panel-text');
+  const panelCta = document.getElementById('panel-cta') as HTMLAnchorElement | null;
+  const IDLE_LINE = content.panel.idle;
+  const CTA_LABEL = content.panel.cta;
+  /** ~24 characters a second (DESIGN §4.4). */
+  const TYPE_MS = 1000 / 24;
+
+  let selected: string | null = null;
+  /** The piece a touch visitor has selected but not yet opened. */
+  let armed: string | null = null;
+  let typeTimer = 0;
+  let typeBody = '';
+  let typeCta = '';
+  let typeIndex = 0;
+
+  function renderTyped(count: number): void {
+    if (!panelText) return;
+    panelText.textContent = typeBody.slice(0, Math.min(count, typeBody.length));
+    if (!panelCta) return;
+    const ctaCount = Math.max(0, count - typeBody.length);
+    panelCta.textContent = typeCta.slice(0, ctaCount);
+    panelCta.hidden = ctaCount === 0;
+  }
+
+  function finishTyping(): void {
+    window.clearInterval(typeTimer);
+    typeTimer = 0;
+    typeIndex = typeBody.length + typeCta.length;
+    renderTyped(typeIndex);
+    panel?.classList.remove('is-typing');
+  }
+
+  function typeOut(body: string, cta: string): void {
+    window.clearInterval(typeTimer);
+    typeBody = body;
+    typeCta = cta;
+    typeIndex = 0;
+    const total = body.length + cta.length;
+
+    if (reducedMotion.matches) {
+      finishTyping();
+      return;
+    }
+    renderTyped(0);
+    panel?.classList.add('is-typing');
+    typeTimer = window.setInterval(() => {
+      typeIndex += 1;
+      renderTyped(typeIndex);
+      if (typeIndex >= total) finishTyping();
+    }, TYPE_MS);
+  }
+
+  function moveCursor(): void {
+    if (!cursor) return;
+    const placement = selected ? placements.get(selected) : undefined;
+    if (!placement) {
+      cursor.hidden = true;
+      return;
+    }
+    const shape = SHAPES[placement.shape];
+    cursor.style.setProperty('--gx', String(placement.x));
+    cursor.style.setProperty('--gy', String(placement.y));
+    cursor.style.setProperty('--pw', String(shape.width));
+    cursor.style.setProperty('--ph', String(shape.height));
+    cursor.hidden = false;
+  }
+
+  function selectPiece(id: string): void {
+    const el = pieceElements.get(id);
+    const line = el?.dataset['panel'];
+    if (!line) return;
+    // Interacting again while it is still typing skips to the end, which is what
+    // an item panel in a game does when you mash the button (DESIGN §4.4).
+    if (selected === id) {
+      if (typeTimer) finishTyping();
+      return;
+    }
+    selected = id;
+    if (panel) panel.dataset['state'] = 'piece';
+    if (panelCta) panelCta.href = el!.getAttribute('href') ?? '#';
+    typeOut(`${line} `, CTA_LABEL);
+    moveCursor();
+  }
+
+  function clearSelection(): void {
+    selected = null;
+    armed = null;
+    if (panel) panel.dataset['state'] = 'idle';
+    window.clearInterval(typeTimer);
+    typeTimer = 0;
+    panel?.classList.remove('is-typing');
+    typeBody = IDLE_LINE;
+    typeCta = '';
+    renderTyped(IDLE_LINE.length);
+    moveCursor();
+  }
+
+  const coarse = window.matchMedia('(pointer: coarse)');
+
+  for (const [id, el] of pieceElements) {
+    if (!el.dataset['panel']) continue; // link tiles keep their own tooltip
+
+    el.addEventListener('pointerenter', () => {
+      if (coarse.matches) return;
+      selectPiece(id);
+    });
+    el.addEventListener('pointerleave', () => {
+      if (coarse.matches) return;
+      if (document.activeElement === el) return;
+      clearSelection();
+    });
+    el.addEventListener('focus', () => selectPiece(id));
+    el.addEventListener('blur', () => {
+      if (coarse.matches) return;
+      clearSelection();
+    });
+
+    // Touch is two-stage: the first tap selects and shows the line, the second
+    // (or `▸ PLAY`) opens it. Otherwise a phone visitor never gets to read the
+    // description of the thing they are about to leave the page for.
+    el.addEventListener('click', (event) => {
+      if (!coarse.matches) return;
+      if (armed === id) return;
+      event.preventDefault();
+      armed = id;
+      selectPiece(id);
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.piece, .panel, .egg')) return;
+    if (selected) clearSelection();
+  });
+
+  clearSelection();
+
+  /* --- entry & reshuffle ------------------------------------------------- */
+
+  /** Entry timings, kept in step with the CSS (fall 560ms, +260 impact). */
   const FALL_MS = 560;
   const STAGGER_MS = 80;
   const SETTLE_MS = 420;
@@ -169,7 +393,7 @@ if (playfield && fillerLayer && ghost) {
 
     // The entry animations are filled `both`, and a filled animation keeps
     // overriding the property forever — which would freeze the hover lift and
-    // the shadow deepen. So the class comes off once the last card has landed;
+    // the shadow deepen. So the class comes off once the last piece has landed;
     // every animation's final frame equals the resting style, so nothing moves.
     const lastOrder = scene.pieces.reduce((max, piece) => Math.max(max, piece.order), 0);
     window.clearTimeout(entryTimer);
@@ -181,14 +405,62 @@ if (playfield && fillerLayer && ghost) {
 
   const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
+  /* --- the NEXT mystery block ------------------------------------------- */
+
+  const SHUFFLE_KEY = 'aix4u-shuffles';
+  const EGG_KEY = 'aix4u-egg';
+  let eggDropped = false;
+
+  function session(key: string): string | null {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function rememberSession(key: string, value: string): void {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      /* private mode: the egg simply stays in its crate */
+    }
+  }
+
+  /**
+   * After the third reshuffle of a session the `?` in the NEXT slot stops being
+   * a promise and actually falls into the stack (DESIGN §6.5). Once per session:
+   * a gag that repeats is not a gag.
+   */
+  function maybeDropEgg(): void {
+    if (!egg || eggDropped) return;
+    const count = Number.parseInt(session(SHUFFLE_KEY) ?? '0', 10) + 1;
+    rememberSession(SHUFFLE_KEY, String(count));
+    if (count < 3 || session(EGG_KEY)) return;
+
+    eggDropped = true;
+    rememberSession(EGG_KEY, '1');
+    egg.hidden = false;
+    egg.classList.add('is-dropping');
+  }
+
+  if (session(EGG_KEY) && egg) {
+    // Already earned it earlier this session (a reload does not take it back).
+    eggDropped = true;
+    egg.hidden = false;
+  }
+
   /** Hard drop → line-clear flash → new seed → the entry animation again. */
   async function reshuffle(): Promise<void> {
     if (shuffling) return;
     const seed = randomSeed();
     writeSeedToUrl(seed);
+    clearSelection();
 
     if (reducedMotion.matches) {
       applyScene(currentScene(seed));
+      fitBands();
+      maybeDropEgg();
       return;
     }
 
@@ -213,6 +485,7 @@ if (playfield && fillerLayer && ghost) {
     // The first piece hits the stack 260ms in; the field takes the hit with it.
     await wait(240);
     field.classList.add('is-shaking');
+    squeeze();
     await wait(200);
     field.classList.remove('is-shaking');
     await wait(Math.max(0, lastOrder * 40 - 180));
@@ -227,14 +500,21 @@ if (playfield && fillerLayer && ghost) {
 
     field.classList.remove('is-cleared');
     alignAmbience();
+    fitBands();
     playEntry();
     shuffling = false;
+    maybeDropEgg();
   }
 
   applyScene(scene);
   field.classList.add('is-ready');
   alignAmbience();
+  fitBands();
   playEntry();
+  wake();
+  // Silkscreen's metrics are what the computed band size assumes; re-check once
+  // the real font is in.
+  document.fonts?.ready.then(fitBands).catch(() => undefined);
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'r' && event.key !== 'R') return;
@@ -257,6 +537,8 @@ if (playfield && fillerLayer && ghost) {
       // The cell size tracks the viewport even inside one breakpoint, so the
       // lattice has to be re-measured on every resize, not just on a reflow.
       alignAmbience();
+      fitBands();
+      moveCursor();
     }, 180);
   });
 }

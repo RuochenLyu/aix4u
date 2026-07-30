@@ -1,0 +1,26 @@
+---
+/**
+ * The one fixed info slot (DESIGN §4.4) — everything the old label cards used to
+ * say, in a single place that never moves.
+ *
+ * It is styled as part of the machine, not as chrome floating over it: pixel
+ * border, inset well, its own scanlines. Idle it carries the site's one-liner;
+ * hover/focus/tap on a piece types out `NAME · TYPE · STATUS — flavour ▸ PLAY`.
+ *
+ * The idle line is in the static HTML, so a no-JS visitor gets a real sentence
+ * rather than an empty box.
+ */
+import { content } from '../lib/content';
+---
+
+<div class="panel" id="panel" data-state="idle">
+  <div class="panel__screen">
+    <p class="panel__line" id="panel-line" aria-live="polite" aria-atomic="true">
+      <span class="panel__text" id="panel-text">{content.panel.idle}</span><span
+        class="panel__caret"
+        aria-hidden="true"></span><a class="panel__cta" id="panel-cta" href="#" rel="noopener" hidden
+        >{content.panel.cta}</a
+      >
+    </p>
+  </div>
+</div>

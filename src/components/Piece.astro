@@ -1,7 +1,21 @@
 ---
+/**
+ * One tetromino = one product (DESIGN §3). Four layers, back to front: the skin
+ * (an art asset, or the accent-fill placeholder until one lands), the CSS
+ * cells with their seams and bevels, the sticker name band, and the eye.
+ *
+ * The nesting of the transform layers is load-bearing. Each animation owns one
+ * element so they compose instead of fighting over a single `transform`:
+ *   drop   the gravity fall / hard drop
+ *   spin   the personality moves that happen *while* falling (T's tease
+ *          rotation, S's sway)
+ *   bob    the idle breathing / metronome tick
+ *   lift   hover and press
+ *   body   the landing squash, and the cast shadow
+ */
 import PixelLogo from './PixelLogo.astro';
-import type { SceneItem } from '../lib/content';
-import { crossDirection, type PiecePlacement } from '../lib/scene';
+import { MOTION_PRESETS, panelLine, type SceneItem } from '../lib/content';
+import type { PiecePlacement } from '../lib/scene';
 import { SHAPES } from '../lib/tetromino';
 
 interface Props {
@@ -12,7 +26,27 @@ interface Props {
 const { item, placement } = Astro.props;
 const shape = SHAPES[placement.shape];
 const isProduct = item.type === 'product';
-const label = placement.label;
+const band = isProduct ? shape.band : null;
+
+/**
+ * A two-line band splits on the seam the name already has — `X2Markdown` →
+ * `X2` / `MARKDOWN` (DESIGN §3.2) — then on a space, then in the middle.
+ */
+function bandLines(name: string, lines: 1 | 2): string[] {
+  if (lines === 1) return [name.toUpperCase()];
+  const camel = /^(.+?)([A-Z][a-z].*)$/.exec(name);
+  if (camel) return [camel[1]!.toUpperCase(), camel[2]!.toUpperCase()];
+  const space = name.indexOf(' ');
+  if (space > 0) return [name.slice(0, space).toUpperCase(), name.slice(space + 1).toUpperCase()];
+  const mid = Math.ceil(name.length / 2);
+  return [name.slice(0, mid).toUpperCase(), name.slice(mid).toUpperCase()];
+}
+
+const lines = band && item.type === 'product' ? bandLines(item.bandName, band.lines) : [];
+/** Longest line drives the fit; the CSS sizes the text from this (see global.css). */
+const bandChars = Math.max(1, ...lines.map((line) => line.length));
+
+const motion = isProduct ? MOTION_PRESETS[item.motion] : MOTION_PRESETS['squash'];
 
 const style: Record<string, string> = {
   '--gx': String(placement.x),
@@ -22,30 +56,38 @@ const style: Record<string, string> = {
   '--order': String(placement.order),
   '--fall-delay': `${placement.order * 80}ms`,
   '--fall-duration': '560ms',
-  '--bob-period': `${placement.bobPeriod || 6}s`,
+  '--bob-period': `${motion.beat === 'metronome' ? 2.6 : placement.bobPeriod || 6}s`,
   '--bob-delay': `${placement.bobDelay}s`,
+  '--blink-period': `${placement.blinkPeriod}s`,
+  '--blink-delay': `${placement.blinkDelay}s`,
+  '--m-tease': `${motion.tease}deg`,
+  '--m-prop': `${motion.prop}px`,
+  '--m-sway': `${motion.sway}px`,
+  '--m-squash': String(motion.squash),
+  '--m-bob': `${motion.bob}px`,
 };
 
 if (item.type === 'product') {
   style['--accent'] = item.accent;
   style['--accent-dark'] = item.accentDark;
+  style['--skin-light'] = item.skin.light ? `url("${item.skin.light}")` : 'none';
+  style['--skin-dark'] = item.skin.dark ? `url("${item.skin.dark}")` : 'none';
+  style['--eye-x'] = String(item.eye.cx + item.eye.ax);
+  style['--eye-y'] = String(item.eye.cy + item.eye.ay);
+  style['--badge-x'] = String(item.iconAt.cx + item.iconAt.ax);
+  style['--badge-y'] = String(item.iconAt.cy + item.iconAt.ay);
 }
 
-// The card carries its piece's accent too: in dark mode the card is lit in that
-// colour, which is what ties it to its tetromino when the leader is short.
-const labelStyle = label
-  ? {
-      ...(item.type === 'product' ? { '--accent': item.accent, '--accent-dark': item.accentDark } : {}),
-      '--gx': String(label.x),
-      '--gy': String(label.y),
-      '--lw': String(label.w),
-      '--lh': String(label.h),
-      '--leader': String(label.leader),
-      '--cross': String(label.crossAbs),
-      '--fall-delay': `${placement.order * 80}ms`,
-      '--fall-duration': '560ms',
-    }
-  : undefined;
+if (band) {
+  style['--band-x'] = String(band.x);
+  style['--band-y'] = String(band.y);
+  style['--band-w'] = String(band.w);
+  style['--band-h'] = String(band.h);
+  style['--band-lines'] = String(band.lines);
+  style['--band-chars'] = String(bandChars);
+}
+
+const skinned = isProduct && Boolean(item.skin.light || item.skin.dark);
 ---
 
 <a
@@ -53,11 +95,16 @@ const labelStyle = label
     'piece',
     isProduct ? 'piece--product' : 'piece--link',
     placement.pool === 'floating' ? 'piece--floating' : 'piece--landed',
+    skinned && 'piece--skinned',
   ]}
   id={`piece-${item.id}`}
   data-piece={item.id}
   data-pool={placement.pool}
+  data-shape={placement.shape}
   data-name={item.name}
+  data-motion={isProduct ? item.motion : 'squash'}
+  data-beat={motion.beat}
+  data-panel={isProduct ? panelLine(item) : undefined}
   href={item.url}
   rel={isProduct ? 'noopener' : 'me noopener'}
   title={isProduct ? undefined : item.name}
@@ -65,54 +112,86 @@ const labelStyle = label
   style={style}
 >
   <span class="piece__drop">
-    {/* Motion-trail ticks hang above the piece while it falls (DESIGN §5.1). */}
+    {/* Motion-trail ticks hang above the piece while it falls (DESIGN §6.1). */}
     <span class="piece__trail" aria-hidden="true"></span>
-    <span class="piece__bob">
-      <span class="piece__lift">
-        <span class="piece__body">
-          {
-            shape.cells.map(([cx, cy], index) => (
-              <span
-                class:list={['cell', index === shape.icon && 'cell--icon']}
-                style={{ '--cx': String(cx), '--cy': String(cy) }}
-                aria-hidden="true"
-              >
-                {
-                  index === shape.icon &&
-                    (item.icon ? (
-                      <img class="cell__art" src={item.icon} alt="" width="24" height="24" loading="eager" />
-                    ) : item.type === 'link' && item.logo ? (
-                      <PixelLogo logo={item.logo} />
-                    ) : (
-                      <span class="cell__glyph">{isProduct ? item.name.charAt(0) : item.label}</span>
-                    ))
-                }
-              </span>
-            ))
-          }
+    {/* Landing sparks: four pixel plus-glyphs, one shot, gone (DESIGN §6.1). */}
+    <span class="piece__sparks" aria-hidden="true">
+      <span class="spark"></span>
+      <span class="spark"></span>
+      <span class="spark"></span>
+      <span class="spark"></span>
+    </span>
+    <span class="piece__spin">
+      <span class="piece__bob">
+        <span class="piece__lift">
+          <span class="piece__body">
+            {isProduct && <span class="piece__skin" aria-hidden="true"></span>}
+            {
+              shape.cells.map(([cx, cy]) => (
+                <span
+                  class="cell"
+                  data-cx={String(cx)}
+                  data-cy={String(cy)}
+                  style={{ '--cx': String(cx), '--cy': String(cy) }}
+                  aria-hidden="true"
+                />
+              ))
+            }
+
+            {
+              /* Placeholder garnish: one pixel badge on a cell the band leaves
+                 free. A real skin carries its own art, so the badge steps aside. */
+              isProduct && !skinned && item.icon && (
+                <span class="piece__badge" aria-hidden="true">
+                  <img src={item.icon} alt="" width="24" height="24" loading="eager" />
+                </span>
+              )
+            }
+
+            {
+              /* Link tiles keep the old centred glyph — they have no band. */
+              !isProduct && (
+                <span class="cell__mark" aria-hidden="true">
+                  {item.icon ? (
+                    <img class="cell__art" src={item.icon} alt="" width="24" height="24" loading="eager" />
+                  ) : item.logo ? (
+                    <PixelLogo logo={item.logo} />
+                  ) : (
+                    <span class="cell__glyph">{item.label}</span>
+                  )}
+                </span>
+              )
+            }
+
+            {
+              band && (
+                <span class="band">
+                  <span class="band__text">
+                    {lines.map((line, index) => (
+                      <>
+                        {index > 0 && <br />}
+                        {line}
+                      </>
+                    ))}
+                  </span>
+                </span>
+              )
+            }
+
+            {
+              isProduct && (
+                <span class="eye" aria-hidden="true">
+                  <span class="eye__pupil"></span>
+                  <span class="eye__lid"></span>
+                </span>
+              )
+            }
+          </span>
         </span>
       </span>
     </span>
   </span>
-  <span class="visually-hidden">
-    {item.name}{item.type === 'product' ? ` — ${item.tagline}` : ''}
-  </span>
+  {/* The band already carries the name; this is the flavour line for screen
+      readers and for a no-JS crawl, since the info panel is JS-driven. */}
+  {item.type === 'product' && <span class="visually-hidden">{` — ${item.tagline}`}</span>}
 </a>
-
-{
-  label && item.type === 'product' && (
-    <div
-      class:list={['label', label.compact && 'label--compact']}
-      data-label={item.id}
-      data-side={label.side}
-      data-cross={crossDirection(label.cross)}
-      data-connected={String(label.connected)}
-      style={labelStyle}
-      aria-hidden="true"
-    >
-      <span class="label__leader"></span>
-      <span class="label__name">{item.name}</span>
-      <span class="label__tagline">{item.tagline}</span>
-    </div>
-  )
-}

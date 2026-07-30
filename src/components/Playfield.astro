@@ -9,7 +9,7 @@ import { SHAPES } from '../lib/tetromino';
 // client runs the same function, so `?seed=20260729` on a wide viewport
 // reproduces this exact frame.
 const scene = buildScene(DEFAULT_SEED, DEFAULT_VIEWPORT, content.items);
-const byId = new Map(content.items.map((item) => [item.id, item]));
+const placements = new Map(scene.pieces.map((piece) => [piece.id, piece]));
 const ghostShape = SHAPES[scene.ghost.shape];
 ---
 
@@ -48,11 +48,36 @@ const ghostShape = SHAPES[scene.ghost.shape];
   </div>
 
   {
-    scene.pieces.map((placement) => {
-      const item = byId.get(placement.id);
-      return item ? <Piece item={item} placement={placement} /> : null;
+    /* Pieces are emitted in priority order — products first, most prominent
+       first, then the link tiles — so Tab walks the scene the way the design
+       ranks it (DESIGN §4.4). Stacking is z-index's job, not the DOM's. */
+    content.items.map((item) => {
+      const placement = placements.get(item.id);
+      return placement ? <Piece item={item} placement={placement} /> : null;
     })
   }
+
+  {/* The NEXT mystery block, parked until the third reshuffle (DESIGN §6.5). */}
+  <a
+    class="egg"
+    id="egg"
+    href={content.next.url}
+    rel="noopener"
+    target="_blank"
+    hidden
+    style={{ '--gx': String(scene.egg.x), '--gy': String(scene.egg.y) }}
+  >
+    <span class="egg__cell" aria-hidden="true">?</span>
+    <span class="visually-hidden">Tell me what to build next</span>
+  </a>
+
+  {/* Pixel selection brackets, parked off-scene until something is selected. */}
+  <div class="cursor" id="cursor" aria-hidden="true" hidden>
+    <span class="cursor__corner"></span>
+    <span class="cursor__corner"></span>
+    <span class="cursor__corner"></span>
+    <span class="cursor__corner"></span>
+  </div>
 
   <div class="line-flash" id="line-flash" aria-hidden="true"></div>
 </div>

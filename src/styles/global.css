@@ -94,7 +94,9 @@
   --ambient-cell: 48px;
   --ambient-x: 0px;
   --ambient-y: 0px;
-  --field-height-budget: 70vh;
+  /* The field shares the viewport with the bezel, the info panel and the hint,
+     so the budget is a height minus that chrome, not a bare vh. */
+  --field-height-budget: calc(72vh - 3.4rem);
   --hud-height: 3.4rem;
 }
 
@@ -454,6 +456,19 @@ a {
   .stage {
     align-items: start;
   }
+
+  /* The field is taller than the phone, so the panel rides the bottom of the
+     viewport: the selected piece's line has to be readable without scrolling
+     back down for it (DESIGN §7). */
+  .panel {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: 0.4rem;
+  }
+
+  .panel__screen {
+    min-height: 2.7rem;
+  }
 }
 
 /* The engine repaints the scene on load, so the build-time frame stays hidden
@@ -494,12 +509,19 @@ a {
 }
 
 .piece__drop,
+.piece__spin,
 .piece__bob,
 .piece__lift,
 .piece__body {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* The personality moves that happen mid-air (tease rotation, sway) get their own
+   layer so they compose with the fall instead of overwriting it. */
+.piece__spin {
+  transform-origin: 50% 50%;
 }
 
 .piece__drop {
@@ -581,8 +603,15 @@ a {
     inset calc(-1 * var(--bevel-w)) 0 0 calc(-1 * var(--seam-w)) var(--bevel-dark);
 }
 
-.cell--icon {
+/* Link tiles are 1x1 and carry no band, so their glyph just fills the cell. */
+.cell__mark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
   color: var(--glyph);
+  pointer-events: none;
 }
 
 .cell__glyph {
@@ -594,7 +623,7 @@ a {
 }
 
 .cell__art,
-.cell .pixel-logo {
+.cell__mark .pixel-logo {
   width: 72%;
   height: 72%;
   image-rendering: pixelated;
@@ -605,7 +634,8 @@ a {
    `invert` + `hue-rotate(180deg)` flips lightness while putting the hue back, so
    the art lights up without losing its internal drawing (a flat silhouette turns
    Meikyu's arch into a white blob) and the torch stays warm, the heart stays red. */
-:root[data-theme='dark'] .cell__art {
+:root[data-theme='dark'] .cell__art,
+:root[data-theme='dark'] .piece__badge img {
   filter: invert(1) hue-rotate(180deg) drop-shadow(0 0 3px var(--piece-glow));
 }
 
@@ -654,7 +684,7 @@ a {
 }
 
 .piece--link .cell__art,
-.piece--link .cell .pixel-logo {
+.piece--link .cell__mark .pixel-logo {
   width: 62%;
   height: 62%;
 }
@@ -728,223 +758,388 @@ a {
   box-shadow: none;
 }
 
-/* --- label cards --------------------------------------------------------- */
+/* --- skin ---------------------------------------------------------------- */
 
-.label {
+/* The product's art, one image per theme, stretched over the piece's whole
+   bounding box (the art is drawn at those exact proportions, so "fill" is not a
+   distortion) and left crunchy. The CSS seams, bevels, band and eye all sit on
+   top of it — the skin is the bottom layer, not a replacement for the others.
+   Until an asset lands, `--skin-*` is `none` and the accent fill shows through. */
+.piece__skin {
   position: absolute;
-  left: calc(var(--gx) * var(--cell));
-  top: calc(var(--gy) * var(--cell));
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: calc(var(--cell) * 0.04);
-  width: calc(var(--lw) * var(--cell));
-  min-height: calc(var(--lh) * var(--cell));
-  padding: calc(var(--cell) * 0.085) calc(var(--cell) * 0.13);
-  border: 3px solid var(--card-line);
-  border-radius: 4px;
-  background: var(--card-bg);
-  box-shadow: 4px 4px 0 var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  color: var(--card-ink);
+  inset: 0;
+  background-image: var(--skin-light, none);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
   pointer-events: none;
 }
 
-/* Dark cards are lit in their piece's own colour, which is what ties a card to
-   its tetromino at a glance when the leader is short. */
-:root[data-theme='dark'] .label {
-  --card-line: var(--accent-dark, #f3ecdb);
-  --card-ink: var(--accent-dark, #f3ecdb);
-  box-shadow: 4px 4px 0 var(--card-shadow), 0 0 10px color-mix(in srgb, var(--accent-dark, #f3ecdb) 22%, transparent);
+:root[data-theme='dark'] .piece__skin {
+  background-image: var(--skin-dark, none);
 }
 
-.label__name {
+/* A skinned cell keeps its seam and bevel and drops its fill, so the art reads
+   through the grid instead of being painted over by it. */
+.piece--skinned .cell {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px);
+}
+
+/* --- sticker name band --------------------------------------------------- */
+
+/* A cartridge sticker: slightly inset into the piece (dark hairline above, lit
+   hairline below), high-contrast, carrying the full product name in the pixel
+   font. Real text inside the piece's own <a>, so the name is in the HTML.
+
+   Type size is computed, not guessed: the smaller of "as tall as the band
+   allows" and "as wide as the longest line allows", where 0.62 is Silkscreen's
+   advance-to-em ratio. That keeps the static, script-free HTML correct — the
+   JS refit (see main.ts) is only a safety net for a fallback font. */
+.band {
+  --band-shrink: 1;
+  position: absolute;
+  left: calc(var(--band-x) * var(--cell));
+  top: calc(var(--band-y) * var(--cell));
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: calc(var(--band-w) * var(--cell));
+  min-height: calc(var(--band-h) * var(--cell));
+  border-radius: 2px;
+  background: var(--band-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--band-edge),
+    0 -1px 0 var(--band-groove),
+    0 1px 0 var(--band-sheen);
+  pointer-events: none;
+}
+
+.band__text {
+  padding-inline: 0.2em;
+  color: var(--band-ink);
   font-family: var(--font-pixel);
-  font-size: clamp(8px, calc(var(--cell) * 0.22), 15px);
-  line-height: 1.1;
+  font-size: calc(
+    var(--band-shrink) *
+      min(
+        var(--band-h) * var(--cell) * 0.58 / var(--band-lines),
+        var(--band-w) * var(--cell) * 0.9 / (var(--band-chars) * 0.62)
+      )
+  );
+  line-height: 1.16;
   letter-spacing: 0.02em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.label__tagline {
-  font-size: clamp(7px, calc(var(--cell) * 0.17), 12px);
-  line-height: 1.25;
-  color: var(--ink-soft);
+/* Fit fallbacks, in the order DESIGN §3.2 mandates: one size down, then two
+   lines. Truncation is never an option, so there is no `text-overflow` here. */
+.band[data-fit='tight'] {
+  --band-shrink: 0.84;
 }
 
-:root[data-theme='dark'] .label__tagline {
-  color: color-mix(in srgb, var(--accent-dark, #f3ecdb) 72%, #8d8778);
+.band[data-fit='wrap'] {
+  --band-shrink: 0.78;
 }
 
-.label--compact .label__name {
-  font-size: clamp(7px, calc(var(--cell) * 0.2), 14px);
+.band[data-fit='wrap'] .band__text {
+  white-space: normal;
 }
 
-.label--compact .label__tagline {
-  display: none;
+/* Light: a bright paper sticker with near-black ink — maximum contrast against
+   a saturated cell. */
+.piece--product {
+  --band-bg: #f7f4ea;
+  --band-ink: #1b1d22;
+  --band-edge: rgba(27, 29, 34, 0.55);
+  --band-groove: rgba(0, 0, 0, 0.35);
+  --band-sheen: rgba(255, 255, 255, 0.5);
 }
 
-/* Compact cards keep their tagline for hover; it lifts above the scene so the
-   reveal reads as deliberate rather than as a layout accident. */
-.piece:hover + .label,
-.piece:focus-visible + .label {
+/* Dark: the sticker is backlit in the piece's own accent, which is what makes a
+   dim pane read as a lit label rather than as a white patch. */
+:root[data-theme='dark'] .piece--product {
+  --band-bg: rgba(8, 9, 12, 0.72);
+  --band-ink: var(--accent-dark);
+  --band-edge: color-mix(in srgb, var(--accent-dark) 55%, transparent);
+  --band-groove: rgba(0, 0, 0, 0.7);
+  --band-sheen: color-mix(in srgb, var(--accent-dark) 22%, transparent);
+}
+
+:root[data-theme='dark'] .band__text {
+  text-shadow: 0 0 6px color-mix(in srgb, var(--accent-dark) 60%, transparent);
+}
+
+/* --- placeholder icon badge --------------------------------------------- */
+
+/* Garnish while the skins are still being drawn (DESIGN §11): one pixel stamp
+   on a cell the band leaves free. It is deliberately small — a stamp, not a
+   "letters in cells" fallback — and a real skin removes it entirely. */
+.piece__badge {
+  position: absolute;
+  left: calc(var(--badge-x) * var(--cell));
+  top: calc(var(--badge-y) * var(--cell));
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: calc(var(--cell) * 0.4);
+  height: calc(var(--cell) * 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.piece__badge img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* --- the eye ------------------------------------------------------------- */
+
+/* One eye per piece (DESIGN §3.3): pixel sclera, a pupil that steps towards the
+   pointer, a lid that blinks, sleeps and squeezes. All code, no assets — it has
+   to animate. */
+.eye {
+  --pupil-x: 0;
+  --pupil-y: 0;
+  --eye-size: max(7px, calc(var(--cell) * 0.3));
+  --eye-step: calc(var(--eye-size) * 0.17);
+
+  position: absolute;
+  left: calc(var(--eye-x) * var(--cell));
+  top: calc(var(--eye-y) * var(--cell));
+  z-index: 4;
+  width: var(--eye-size);
+  height: var(--eye-size);
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--eye-white);
+  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-size) * 0.12)) var(--eye-rim);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.piece--product {
+  --eye-white: #f7f4ea;
+  --eye-rim: #1b1d22;
+  --eye-pupil: #1b1d22;
+  --eye-lid: color-mix(in srgb, var(--accent) 70%, #1b1d22);
+}
+
+:root[data-theme='dark'] .piece--product {
+  --eye-white: color-mix(in srgb, var(--accent-dark) 82%, #fdfaf0);
+  --eye-rim: rgba(0, 0, 0, 0.75);
+  --eye-pupil: #0a0b0e;
+  --eye-lid: color-mix(in srgb, var(--accent-dark) 34%, #0a0b0e);
+}
+
+/* The pupil moves in whole steps of a pixel grid — smooth tracking would make
+   the eye look like a vector graphic wearing a pixel costume. */
+.eye__pupil {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42%;
+  height: 42%;
+  background: var(--eye-pupil);
+  transform: translate(-50%, -50%)
+    translate(calc(var(--pupil-x) * var(--eye-step)), calc(var(--pupil-y) * var(--eye-step)));
+  transition: transform 90ms steps(2, end);
+}
+
+/* The lid drops from the top, so a half-closed eye reads as sleepy rather than
+   as a shrinking square. */
+.eye__lid {
+  position: absolute;
+  inset: 0;
+  background: var(--eye-lid);
+  box-shadow: inset 0 -1px 0 var(--eye-rim);
+  transform: scaleY(0);
+  transform-origin: 50% 0;
+}
+
+/* Blink: two frames shut, on a seeded phase so no two pieces blink together.
+   The keyframe is mostly "open", which is what makes the period read as a wait
+   rather than as a flutter. */
+.js .playfield.is-idle .eye__lid {
+  animation: eye-blink var(--blink-period, 6s) steps(1, end) var(--blink-delay, 0s) infinite;
+}
+
+/* Sleep after 30s of nothing (DESIGN §3.3), and squeeze shut on a hard-drop
+   impact. Both beat the blink, so they stop it rather than layering onto it. */
+.playfield.is-asleep .eye__lid,
+.playfield.is-squeezing .eye__lid {
+  animation: none;
+  transform: scaleY(1);
+}
+
+.playfield.is-asleep .eye__lid {
+  transition: transform 260ms steps(3, end);
+}
+
+.playfield.is-asleep .eye__pupil {
+  opacity: 0;
+}
+
+/* --- landing sparks ------------------------------------------------------ */
+
+/* Three or four pixel plus-glyphs kicked out of the impact point and gone
+   (DESIGN §6.1). They are decoration on the fall, so they live outside the body
+   layer and never touch layout. */
+.piece__sparks {
+  position: absolute;
+  bottom: calc(var(--cell) * -0.1);
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.spark {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: max(2px, calc(var(--cell) * 0.055));
+  height: max(2px, calc(var(--cell) * 0.055));
+  background: var(--spark);
+  box-shadow:
+    max(2px, calc(var(--cell) * 0.055)) 0 0 var(--spark),
+    calc(-1 * max(2px, calc(var(--cell) * 0.055))) 0 0 var(--spark),
+    0 max(2px, calc(var(--cell) * 0.055)) 0 var(--spark),
+    0 calc(-1 * max(2px, calc(var(--cell) * 0.055))) 0 var(--spark);
+  opacity: 0;
+}
+
+.piece--product {
+  --spark: #fffaf0;
+}
+
+:root[data-theme='dark'] .piece--product {
+  --spark: var(--accent-dark);
+}
+
+.spark:nth-child(1) {
+  --spark-dx: calc(var(--cell) * -0.62);
+  --spark-dy: calc(var(--cell) * -0.34);
+}
+
+.spark:nth-child(2) {
+  --spark-dx: calc(var(--cell) * -0.2);
+  --spark-dy: calc(var(--cell) * -0.5);
+}
+
+.spark:nth-child(3) {
+  --spark-dx: calc(var(--cell) * 0.26);
+  --spark-dy: calc(var(--cell) * -0.46);
+}
+
+.spark:nth-child(4) {
+  --spark-dx: calc(var(--cell) * 0.66);
+  --spark-dy: calc(var(--cell) * -0.28);
+}
+
+/* --- selection cursor --------------------------------------------------- */
+
+/* Corner brackets over the selected piece — the game-cursor idiom, drawn in the
+   scene rather than as a browser outline (DESIGN §4.4). */
+.cursor {
+  position: absolute;
+  left: calc(var(--gx) * var(--cell));
+  top: calc(var(--gy) * var(--cell));
   z-index: 7;
+  width: calc(var(--pw) * var(--cell));
+  height: calc(var(--ph) * var(--cell));
+  margin: calc(var(--cell) * -0.1) 0 0 calc(var(--cell) * -0.1);
+  padding: calc(var(--cell) * 0.1);
+  box-sizing: content-box;
+  pointer-events: none;
 }
 
-.piece:hover + .label .label__tagline,
-.piece:focus-visible + .label .label__tagline {
-  display: block;
-}
-
-/* Stepped pixel leader: a run along the card→piece axis, plus an elbow back to
-   the card's centre line when the card had to slide past its piece. */
-.label__leader {
+.cursor__corner {
+  --arm: max(6px, calc(var(--cell) * 0.26));
+  --thick: max(2px, calc(var(--cell) * 0.055));
   position: absolute;
-  background: var(--card-line);
+  width: var(--arm);
+  height: var(--arm);
+  border: 0 solid var(--cursor-ink);
 }
 
-.label__leader::after {
-  content: '';
+.cursor__corner:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-top-width: var(--thick);
+  border-left-width: var(--thick);
+}
+
+.cursor__corner:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-top-width: var(--thick);
+  border-right-width: var(--thick);
+}
+
+.cursor__corner:nth-child(3) {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: var(--thick);
+  border-left-width: var(--thick);
+}
+
+.cursor__corner:nth-child(4) {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: var(--thick);
+  border-right-width: var(--thick);
+}
+
+:root {
+  --cursor-ink: #22242a;
+}
+
+:root[data-theme='dark'] {
+  --cursor-ink: #f3ecdb;
+}
+
+/* --- the NEXT mystery block --------------------------------------------- */
+
+/* The crate from the HUD, actually dropped into the stack (DESIGN §6.5). It
+   borrows the crate's own material so the joke lands: that is the same block. */
+.egg {
   position: absolute;
-  background: var(--card-line);
+  left: calc(var(--gx) * var(--cell));
+  top: calc(var(--gy) * var(--cell));
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--cell);
+  height: var(--cell);
+  text-decoration: none;
 }
 
-.label[data-side='right'] .label__leader,
-.label[data-side='left'] .label__leader {
-  width: calc(var(--leader) * var(--cell));
-  height: 2px;
+.egg__cell {
+  display: grid;
+  place-items: center;
+  width: 72%;
+  height: 72%;
+  border-radius: var(--cell-radius);
+  background: linear-gradient(to bottom, #4d5464 0%, #313846 100%);
+  box-shadow:
+    inset 0 0 0 2px #717a8b,
+    inset 0 4px 0 -2px rgba(255, 255, 255, 0.2),
+    inset 0 -4px 0 -2px rgba(0, 0, 0, 0.45),
+    0 2px 0 rgba(0, 0, 0, 0.45);
+  color: #f0ead9;
+  font-family: var(--font-pixel);
+  font-size: clamp(9px, calc(var(--cell) * 0.28), 20px);
+  transition: transform 130ms steps(2, end);
 }
 
-.label[data-side='right'] .label__leader {
-  right: 100%;
-  transform-origin: right center;
-}
-
-.label[data-side='left'] .label__leader {
-  left: 100%;
-  transform-origin: left center;
-}
-
-.label[data-side='above'] .label__leader,
-.label[data-side='below'] .label__leader {
-  width: 2px;
-  height: calc(var(--leader) * var(--cell));
-}
-
-.label[data-side='above'] .label__leader {
-  top: 100%;
-  transform-origin: center top;
-}
-
-.label[data-side='below'] .label__leader {
-  bottom: 100%;
-  transform-origin: center bottom;
-}
-
-/* Cards grow out of the edge that faces their piece. */
-.label[data-side='right'] {
-  transform-origin: left center;
-}
-
-.label[data-side='left'] {
-  transform-origin: right center;
-}
-
-.label[data-side='above'] {
-  transform-origin: center bottom;
-}
-
-.label[data-side='below'] {
-  transform-origin: center top;
-}
-
-/* Straight run: the card lines up with its piece. */
-.label[data-cross='flat'][data-side='right'] .label__leader,
-.label[data-cross='flat'][data-side='left'] .label__leader {
-  top: calc(50% - 1px);
-}
-
-.label[data-cross='flat'][data-side='above'] .label__leader,
-.label[data-cross='flat'][data-side='below'] .label__leader {
-  left: calc(50% - 1px);
-}
-
-/* Elbow: `start` means the piece sits before the card's centre on the cross
-   axis (above it, or left of it), `end` means after. */
-.label[data-cross='start'][data-side='right'] .label__leader,
-.label[data-cross='start'][data-side='left'] .label__leader {
-  top: calc(50% - 1px - var(--cross) * var(--cell));
-}
-
-.label[data-cross='end'][data-side='right'] .label__leader,
-.label[data-cross='end'][data-side='left'] .label__leader {
-  top: calc(50% - 1px + var(--cross) * var(--cell));
-}
-
-.label[data-cross='start'][data-side='above'] .label__leader,
-.label[data-cross='start'][data-side='below'] .label__leader {
-  left: calc(50% - 1px - var(--cross) * var(--cell));
-}
-
-.label[data-cross='end'][data-side='above'] .label__leader,
-.label[data-cross='end'][data-side='below'] .label__leader {
-  left: calc(50% - 1px + var(--cross) * var(--cell));
-}
-
-.label[data-cross='flat'] .label__leader::after,
-.label[data-connected='false'] .label__leader {
-  display: none;
-}
-
-.label[data-side='right'] .label__leader::after,
-.label[data-side='left'] .label__leader::after {
-  width: 2px;
-  height: calc(var(--cross) * var(--cell));
-}
-
-.label[data-side='right'] .label__leader::after {
-  right: 0;
-}
-
-.label[data-side='left'] .label__leader::after {
-  left: 0;
-}
-
-.label[data-cross='start'][data-side='right'] .label__leader::after,
-.label[data-cross='start'][data-side='left'] .label__leader::after {
-  top: 0;
-}
-
-.label[data-cross='end'][data-side='right'] .label__leader::after,
-.label[data-cross='end'][data-side='left'] .label__leader::after {
-  bottom: 0;
-}
-
-.label[data-side='above'] .label__leader::after,
-.label[data-side='below'] .label__leader::after {
-  height: 2px;
-  width: calc(var(--cross) * var(--cell));
-}
-
-.label[data-side='above'] .label__leader::after {
-  top: 0;
-}
-
-.label[data-side='below'] .label__leader::after {
-  bottom: 0;
-}
-
-.label[data-cross='start'][data-side='above'] .label__leader::after,
-.label[data-cross='start'][data-side='below'] .label__leader::after {
-  left: 0;
-}
-
-.label[data-cross='end'][data-side='above'] .label__leader::after,
-.label[data-cross='end'][data-side='below'] .label__leader::after {
-  right: 0;
-}
-
-.label--compact {
-  padding: calc(var(--cell) * 0.06) calc(var(--cell) * 0.11);
+.egg:hover .egg__cell,
+.egg:focus-visible .egg__cell {
+  transform: translateY(-2px) scale(1.04);
 }
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
@@ -979,6 +1174,101 @@ a {
   background: var(--flash);
   opacity: 0;
   pointer-events: none;
+}
+
+/* --- info panel ---------------------------------------------------------- */
+
+/* The item-description slot (DESIGN §4.4). It is a fixed part of the machine,
+   docked above the footer: a recessed screen with its own scanlines, sized so
+   two lines of copy never make the page jump. Not a popover — the whole point of
+   v2 is that nothing floats over the scene any more. */
+.panel {
+  position: relative;
+  z-index: 8;
+  padding: 0 clamp(0.5rem, 2.4vw, 1.75rem);
+}
+
+.panel__screen {
+  display: flex;
+  align-items: center;
+  min-height: var(--panel-height);
+  margin-inline: auto;
+  padding: 0.5rem clamp(0.6rem, 1.6vw, 1.1rem);
+  max-width: 1160px;
+  border: 2px solid var(--panel-edge);
+  border-radius: 6px;
+  background-color: var(--panel-bg);
+  background-image: repeating-linear-gradient(to bottom, var(--panel-scan) 0 1px, transparent 1px 3px);
+  box-shadow:
+    inset 0 0 0 2px var(--panel-inlay),
+    inset 0 3px 8px var(--panel-well),
+    0 2px 0 var(--panel-drop);
+}
+
+.panel__line {
+  margin: 0;
+  color: var(--panel-ink);
+  font-family: var(--font-mono);
+  font-size: clamp(0.62rem, 1.15vw, 0.86rem);
+  line-height: 1.45;
+}
+
+/* Idle copy is the site's voice, so it stays quiet; a selected product's line is
+   the machine reading out an item, so it lights up. */
+.panel[data-state='idle'] .panel__line {
+  color: var(--panel-ink-soft);
+}
+
+.panel[data-state='piece'] .panel__text {
+  color: var(--panel-ink);
+}
+
+/* The caret only exists while something is being typed. */
+.panel__caret {
+  display: none;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  background: var(--panel-caret);
+  vertical-align: -0.15em;
+}
+
+.panel.is-typing .panel__caret {
+  display: inline-block;
+  animation: caret-blink 640ms steps(1, end) infinite;
+}
+
+.panel__cta {
+  margin-left: 0.6em;
+  padding: 0.1em 0.5em;
+  border: 2px solid var(--panel-cta);
+  border-radius: 3px;
+  color: var(--panel-cta);
+  font-family: var(--font-pixel);
+  font-size: 0.92em;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.panel__cta:hover,
+.panel__cta:focus-visible {
+  background: var(--panel-cta);
+  color: var(--panel-bg);
+}
+
+:root {
+  --panel-height: 3rem;
+  --panel-bg: #0d0f13;
+  --panel-edge: var(--chassis-edge);
+  --panel-inlay: rgba(255, 255, 255, 0.06);
+  --panel-well: rgba(0, 0, 0, 0.7);
+  --panel-drop: rgba(0, 0, 0, 0.35);
+  --panel-scan: rgba(255, 255, 255, 0.035);
+  --panel-ink: #e9e3d3;
+  --panel-ink-soft: #8d8878;
+  --panel-caret: #a8f533;
+  --panel-cta: #ffc93c;
 }
 
 /* --- footer hint: a dark pill between chevrons --------------------------- */
@@ -1114,21 +1404,102 @@ a {
   }
 }
 
+/* One squash keyframe for every piece, with the depth as a variable: O lands
+   hardest, I barely gives (DESIGN §3.4). The horizontal bulge is derived from the
+   squash so the piece keeps its area and reads as elastic rather than as scaled. */
 @keyframes piece-impact {
   0% {
     transform: scale3d(1, 1, 1);
   }
   13% {
-    transform: scale3d(1.035, 0.94, 1);
+    transform: scale3d(calc(1 + (1 - var(--m-squash, 0.94)) * 0.6), var(--m-squash, 0.94), 1);
   }
   36% {
-    transform: scale3d(0.99, 1.025, 1);
+    transform: scale3d(calc(1 - (1 - var(--m-squash, 0.94)) * 0.18), calc(1 + (1 - var(--m-squash, 0.94)) * 0.42), 1);
   }
   64% {
     transform: scale3d(1.004, 0.992, 1);
   }
   100% {
     transform: scale3d(1, 1, 1);
+  }
+}
+
+/* T's tease: it comes down turned, then snaps square in the last stretch of the
+   fall — the T-spin wink. Stepped, because a smooth arc would look like Flash. */
+@keyframes piece-tease {
+  0%,
+  56% {
+    transform: rotate(var(--m-tease, 0deg));
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* S rides its own wave down. */
+@keyframes piece-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(var(--m-sway, 0px), 0, 0);
+  }
+  75% {
+    transform: translate3d(calc(-1 * var(--m-sway, 0px)), 0, 0);
+  }
+}
+
+/* L props its vertical arm up one step after landing, then drops it back. One
+   step, not an ease — that is the whole joke. */
+@keyframes prop-up {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  30%,
+  62% {
+    transform: translate3d(0, calc(-1 * var(--m-prop, 0px)), 0);
+  }
+}
+
+/* Two frames shut on a long wait: the period reads as a pause, not a flutter. */
+@keyframes eye-blink {
+  0%,
+  95% {
+    transform: scaleY(0);
+  }
+  96%,
+  99% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+/* Sparks kick out and up from the impact point, and are gone in a fifth of a
+   second — a flash of debris, not a particle system. */
+@keyframes spark-burst {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--spark-dx), var(--spark-dy), 0);
+  }
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
   }
 }
 
@@ -1171,46 +1542,7 @@ a {
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(0, -2px, 0);
-  }
-}
-
-@keyframes label-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  55% {
-    opacity: 1;
-    transform: scale(1.03);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes leader-draw-x {
-  from {
-    transform: scaleX(0);
-  }
-  80% {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@keyframes leader-draw-y {
-  from {
-    transform: scaleY(0);
-  }
-  80% {
-    transform: scaleY(1);
-  }
-  to {
-    transform: scaleY(1);
+    transform: translate3d(0, calc(-1 * var(--m-bob, 2px)), 0);
   }
 }
 
@@ -1281,21 +1613,29 @@ a {
     trail-out 200ms linear calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 60ms) both;
 }
 
-.js .playfield.is-entering .label {
-  animation: label-pop 220ms cubic-bezier(0.2, 1.3, 0.5, 1)
-    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
+/* Personality, on top of the shared entry (DESIGN §3.4). Both moves live on the
+   `spin` layer and run for exactly the fall, so they are over by the impact. */
+.js .playfield.is-entering .piece[data-motion='tease-rotate'] .piece__spin {
+  animation: piece-tease var(--fall-duration, 560ms) steps(6, end) var(--fall-delay, 0ms) both;
 }
 
-.js .playfield.is-entering .label[data-side='left'] .label__leader,
-.js .playfield.is-entering .label[data-side='right'] .label__leader {
-  animation: leader-draw-x 200ms steps(5, end)
-    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
+.js .playfield.is-entering .piece[data-motion='sway'] .piece__spin {
+  animation: piece-sway var(--fall-duration, 560ms) ease-in-out var(--fall-delay, 0ms) 1 both;
 }
 
-.js .playfield.is-entering .label[data-side='above'] .label__leader,
-.js .playfield.is-entering .label[data-side='below'] .label__leader {
-  animation: leader-draw-y 200ms steps(5, end)
-    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 150ms) both;
+/* The hard drop is faster and shorter, so the sway rides it at its own tempo. */
+.playfield.is-clearing .piece--floating[data-motion='sway'] .piece__spin {
+  animation: piece-sway 260ms ease-in-out calc(var(--order, 0) * 40ms) 1 both;
+}
+
+/* …and L's arm props up right after it, on the cells of the top row. */
+.js .playfield.is-entering .piece[data-motion='prop-up'] .cell[data-cy='0'] {
+  animation: prop-up 260ms steps(2, end) calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 60ms) both;
+}
+
+.js .playfield.is-entering .piece--product .spark {
+  animation: spark-burst 200ms steps(4, end)
+    calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + 20ms) both;
 }
 
 /* Bobbing only starts once the piece has landed, hence the composed delay. */
@@ -1305,6 +1645,11 @@ a {
   animation-timing-function: ease-in-out;
   animation-delay: calc(var(--fall-delay, 0ms) + var(--fall-duration, 560ms) + var(--bob-delay, 0s));
   animation-iteration-count: infinite;
+}
+
+/* I keeps time instead of breathing: the same bob, snapped onto a beat. */
+.js .playfield.is-idle .piece--floating[data-beat='metronome'] .piece__bob {
+  animation-timing-function: steps(2, end);
 }
 
 .js .playfield.is-idle .ghost {
@@ -1337,38 +1682,62 @@ a {
 
 .playfield.is-cleared .piece,
 .playfield.is-cleared .filler,
-.playfield.is-cleared .label {
+.playfield.is-cleared .egg {
   opacity: 0;
+}
+
+/* The egg is not part of the seed, so it drops on its own cue rather than with
+   the entry: the class goes on when the third reshuffle has settled. */
+.egg.is-dropping {
+  --fall-from: calc(-1 * (var(--gy) * var(--cell) + 6 * var(--cell)));
+  animation: piece-fall 620ms var(--gravity) 0ms both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .js .playfield.is-entering .piece__drop,
+  .js .playfield.is-entering .piece__spin,
   .js .playfield.is-entering .piece__body,
   .js .playfield.is-entering .piece__trail,
+  .js .playfield.is-entering .piece .cell,
+  .js .playfield.is-entering .piece .spark,
   .js .playfield.is-entering .filler,
-  .js .playfield.is-entering .label,
-  .js .playfield.is-entering .label__leader,
   .js .playfield.is-idle .piece--floating .piece__bob,
   .js .playfield.is-idle .ghost,
+  .js .playfield.is-idle .eye__lid,
   .js .playfield.is-ready.is-shaking,
   .playfield.is-clearing .piece--floating .piece__drop,
   .playfield.is-clearing .piece--floating .piece__trail,
   .playfield.is-clearing .piece--floating .piece__body,
-  .playfield.is-flashing .line-flash {
+  .playfield.is-clearing .piece .piece__spin,
+  .playfield.is-flashing .line-flash,
+  .egg.is-dropping,
+  .panel.is-typing .panel__caret {
     animation: none !important;
   }
 
   .piece__lift,
   .piece__body,
   .piece--link::after,
+  .eye__pupil,
+  .egg__cell,
   .hint__button,
   .theme-toggle .icon {
     transition: none !important;
   }
 
+  /* The eye stays open and still — the one anthropomorphism that must not move
+     when motion is unwelcome (DESIGN §3.3). */
+  .eye__lid {
+    transform: scaleY(0) !important;
+  }
+
+  .eye__pupil {
+    transform: translate(-50%, -50%) !important;
+  }
+
   .playfield.is-cleared .piece,
   .playfield.is-cleared .filler,
-  .playfield.is-cleared .label {
+  .playfield.is-cleared .egg {
     opacity: 1;
   }
 }

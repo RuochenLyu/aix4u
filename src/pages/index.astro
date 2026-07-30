@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Hud from '../components/Hud.astro';
 import Playfield from '../components/Playfield.astro';
+import InfoPanel from '../components/InfoPanel.astro';
 
 const title = 'aix4u — products by Ruochen';
 const description =
@@ -15,6 +16,8 @@ const description =
     <h1 class="visually-hidden">{title}</h1>
     <Playfield />
   </main>
+
+  <InfoPanel />
 
   <footer class="hint">
     <span class="hint__chevrons hint__chevrons--in" aria-hidden="true">&gt;&gt;&gt;</span>

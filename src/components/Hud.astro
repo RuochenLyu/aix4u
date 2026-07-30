@@ -1,6 +1,6 @@
 ---
 /**
- * The console bezel (DESIGN §2, §3.4).
+ * The console bezel (DESIGN §2, §4.3).
  *
  * Near-black in both themes — it is the machine's chassis, not part of the
  * screen, so it does not invert with the theme. Inside: an outlined pixel
@@ -23,12 +23,14 @@ const teaser = content.next.teaser.trim();
 
     <span class="hud__divider" aria-hidden="true"></span>
 
+    {/* Collection framing (DESIGN §4.3): `??` says more pieces are still falling. */}
     <p class="hud__counter">
-      <span class="hud__counter-word">PRODUCTS</span>
+      <span class="hud__counter-word">COLLECTED</span>
       <span class="hud__digits">
         <span class="hud__digits-ghost" aria-hidden="true">{ghost}</span>
         <span class="hud__digits-value">{count}</span>
       </span>
+      <span class="hud__total" aria-label="of an unannounced total">/??</span>
     </p>
 
     <span class="hud__divider" aria-hidden="true"></span>
