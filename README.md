@@ -208,4 +208,4 @@ Changes to the design go through that document first.
 
 ## License
 
-MIT © Ruochen Lyu
+MIT © kshift — see [LICENSE](LICENSE) for the legal copyright holder.

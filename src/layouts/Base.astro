@@ -18,42 +18,83 @@ interface Props {
 const { title, description, geometry } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://aix4u.com');
 const ogImage = new URL('/og.png', canonical);
+const site = (Astro.site ?? new URL('https://aix4u.com')).origin;
 
-const itemList = {
+/**
+ * Entity linking (DESIGN §12.5 v2.1.4): one graph — the WebSite, the Person
+ * behind it, and the product ItemList, every item carrying its own url. The
+ * public name is kshift, never the legal name (§12.2); `sameAs` is what ties
+ * aix4u.com to kshift.me / x.com/kshift / github.com/RuochenLyu into one
+ * entity across domains. check:links asserts all three survive the build.
+ */
+const personId = `${site}/#kshift`;
+const structuredData = {
   '@context': 'https://schema.org',
-  '@type': 'ItemList',
-  name: 'Products by Ruochen',
-  description,
-  url: canonical.href,
-  numberOfItems: content.products.length,
-  itemListElement: content.products.map((product, index) => ({
-    '@type': 'ListItem',
-    position: index + 1,
-    item: {
-      '@type': 'SoftwareApplication',
-      name: product.name,
-      url: product.url,
-      description: product.description,
-      applicationCategory: 'WebApplication',
-      author: { '@type': 'Person', name: 'Ruochen Lyu', url: 'https://github.com/RuochenLyu' },
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${site}/#website`,
+      url: `${site}/`,
+      name: 'aix4u',
+      description,
+      author: { '@id': personId },
     },
-  })),
+    {
+      '@type': 'Person',
+      '@id': personId,
+      name: 'kshift',
+      url: `${site}/`,
+      sameAs: ['https://kshift.me', 'https://x.com/kshift', 'https://github.com/RuochenLyu'],
+    },
+    {
+      '@type': 'ItemList',
+      name: 'Products by kshift',
+      description,
+      url: canonical.href,
+      numberOfItems: content.products.length,
+      itemListElement: content.products.map((product, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'SoftwareApplication',
+          name: product.name,
+          url: product.url,
+          description: product.description,
+          applicationCategory: 'WebApplication',
+          author: { '@id': personId },
+        },
+      })),
+    },
+  ],
 };
+
+/**
+ * Skin preloads (DESIGN §12.4 v2.1.4): the theme is resolved before first
+ * paint by the inline script below, which then injects `<link rel="preload"
+ * as="image">` for exactly the active theme's PNGs — a static tag pair would
+ * double-fetch. The same script keeps `theme-color` in step with the chassis.
+ */
+const skins = {
+  light: content.products.map((product) => product.skin.light).filter(Boolean),
+  dark: content.products.map((product) => product.skin.dark).filter(Boolean),
+};
+const themeColors = { light: '#c9d2dd', dark: '#141519' };
 ---
 
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical.href} />
     <link rel="icon" href="/favicon.png" type="image/png" sizes="256x256" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    <meta name="author" content="Ruochen Lyu" />
+    <meta name="author" content="kshift" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content={themeColors.light} />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="aix4u" />
@@ -71,11 +112,13 @@ const itemList = {
     <link rel="preload" href="/fonts/silkscreen-latin-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin />
 
-    <script is:inline>
+    <script is:inline define:vars={{ skins, themeColors }}>
       // Resolve the theme before first paint: `?theme=` (a debug/share override
       // in the same spirit as `?seed=`, not persisted) wins, then the stored
       // choice, then the OS. Also flips `no-js` to `js` so the CSS knows the
-      // engine is coming.
+      // engine is coming — and, now that the theme is known, preloads exactly
+      // the active theme's skins and points `theme-color` at its chassis
+      // (DESIGN §12.4, §12.6 v2.1.4).
       (() => {
         const root = document.documentElement;
         root.classList.remove('no-js');
@@ -90,10 +133,18 @@ const itemList = {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         root.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[theme]);
+        for (const href of skins[theme]) {
+          const link = document.createElement('link');
+          link.rel = 'preload';
+          link.as = 'image';
+          link.href = href;
+          document.head.appendChild(link);
+        }
       })();
     </script>
 
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(itemList)} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>
   <body>
     <div class="ambience" aria-hidden="true"></div>

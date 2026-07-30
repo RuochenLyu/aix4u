@@ -101,6 +101,43 @@ for (const file of files) {
   }
 }
 
+// The entity graph (DESIGN §12.5 v2.1.4): the Person's `sameAs` is what ties
+// aix4u.com to the rest of the kshift identity, so all three URLs have to
+// survive every build — a structured-data block that quietly drops one is the
+// SEO version of the missing aria-label above.
+const REQUIRED_SAME_AS = ['https://kshift.me', 'https://x.com/kshift', 'https://github.com/RuochenLyu'];
+
+function sameAsValues(node: unknown, out: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const entry of node) sameAsValues(entry, out);
+  } else if (node !== null && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'sameAs') {
+        for (const url of Array.isArray(value) ? value : [value]) {
+          if (typeof url === 'string') out.add(url);
+        }
+      } else {
+        sameAsValues(value, out);
+      }
+    }
+  }
+}
+
+const sameAs = new Set<string>();
+for (const file of files) {
+  const html = readFileSync(file, 'utf8');
+  for (const match of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
+    try {
+      sameAsValues(JSON.parse(match[1]!), sameAs);
+    } catch {
+      problems.push(`${file}: JSON-LD block does not parse`);
+    }
+  }
+}
+for (const url of REQUIRED_SAME_AS) {
+  if (!sameAs.has(url)) problems.push(`JSON-LD is missing "${url}" from the Person's sameAs`);
+}
+
 // A page with no external anchors would pass every rule above by doing nothing,
 // which is the one way this check could quietly stop checking.
 if (external < content.products.length + content.links.length) {

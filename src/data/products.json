@@ -5,7 +5,7 @@
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
   },
   "panel": {
-    "idle": "AIX4U — indie products by Ruochen."
+    "idle": "AIX4U — indie products by kshift."
   },
   "items": [
     {
@@ -115,6 +115,7 @@
     {
       "type": "link",
       "id": "kshift",
+      "icon": "/icons/kshift.png",
       "name": "kshift.me",
       "label": "K",
       "url": "https://kshift.me"
