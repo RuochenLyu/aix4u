@@ -29,7 +29,7 @@ Pixel/retro handheld-console aesthetic. Cute but gender-neutral.
 - **The bezel is opaque and sits above the field**: pieces falling in slide *behind* the HUD and the footer pill, which is what sells "a screen inside a machine".
 
 ### Light mode ("TV gray")
-Pale gray-blue background (`#c9d2dd` ± tuning), saturated piece colors, thick near-black outlines (`~#22242a`), hard two-step pixel shadows.
+Pale gray-blue background (`#c9d2dd` ± tuning), saturated piece colors, thick near-black outlines (`~#22242a`), and the keycap extrusion above — a solid side face plus one hard contact line. (This bullet used to call for "hard two-step pixel shadows"; the v2.1 Depth entry supersedes it, since two stacked offsets are exactly what read as paper on the real device.)
 
 ### Dark mode ("backlit console")
 Deep charcoal (`~#141519`), soft accent glow around each piece. Not an inversion — "the backlight is on at night". Theme: `prefers-color-scheme` → manual toggle → `localStorage`, inline head script prevents FOUC; `?theme=light|dark` forces a theme for one load without persisting it (a debug/share override in the same spirit as `?seed=`).

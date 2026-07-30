@@ -52,14 +52,14 @@
   --cell-sheen-top: rgba(255, 255, 255, 0.3);
   --cell-sheen-bottom: rgba(0, 0, 0, 0.1);
   --cell-scan: rgba(0, 0, 0, 0.055);
-  --piece-shadow: rgba(34, 36, 42, 0.56);
-  --piece-shadow-step: rgba(34, 36, 42, 0.26);
+  /* The keycap model (DESIGN §2 v2.1): thickness is a *side face*, and the only
+     shadow is one tight contact line where the key meets the ground. The v2 pair
+     of offset copies is gone — two offsets read as paper lying on paper. */
+  --contact: rgba(34, 36, 42, 0.34);
   --piece-glow: transparent;
-  --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-  /* One notch heavier than v2 (5/5 → 6/6): a thicker block casts a longer stair
-     (DESIGN §2 v2.1). */
-  --cast-on: drop-shadow(6px 6px 0 var(--piece-shadow)) drop-shadow(6px 6px 0 var(--piece-shadow-step));
-  --cast-hover: drop-shadow(10px 10px 0 var(--piece-shadow)) drop-shadow(6px 6px 0 var(--piece-shadow-step));
+  --cast-off: drop-shadow(0 0 0 transparent);
+  --cast-on: drop-shadow(0 2px 0 var(--contact));
+  --cast-hover: drop-shadow(0 2px 0 var(--contact));
   --card-bg: #fbfcfe;
   --card-line: #22242a;
   --card-ink: #22242a;
@@ -120,11 +120,14 @@
   --cell-sheen-top: rgba(255, 255, 255, 0.09);
   --cell-sheen-bottom: rgba(0, 0, 0, 0.3);
   --cell-scan: rgba(0, 0, 0, 0.22);
-  --piece-shadow: rgba(0, 0, 0, 0.6);
-  --piece-shadow-step: rgba(0, 0, 0, 0.3);
-  --cast-off: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
-  --cast-on: drop-shadow(0 0 9px var(--piece-glow)) drop-shadow(0 0 24px var(--piece-glow));
-  --cast-hover: drop-shadow(0 0 13px var(--piece-glow)) drop-shadow(0 0 34px var(--piece-glow));
+  /* At night the glow stays — it is the backlight — but it sits *with* the side
+     face and the contact line, never instead of them: a glowing flat shape is
+     still a flat shape. A glow has no offset, so it is not one of the stacked
+     offset copies the design bans. */
+  --contact: rgba(0, 0, 0, 0.62);
+  --cast-off: drop-shadow(0 0 0 transparent);
+  --cast-on: drop-shadow(0 0 10px var(--piece-glow)) drop-shadow(0 2px 0 var(--contact));
+  --cast-hover: drop-shadow(0 0 14px var(--piece-glow)) drop-shadow(0 2px 0 var(--contact));
   --card-bg: #16181d;
   --card-line: #f3ecdb;
   --card-ink: #f3ecdb;
@@ -256,8 +259,17 @@ a {
   --cell-radius: clamp(2px, calc(var(--cell) * 0.055), 4px);
   --seam-w: clamp(2px, calc(var(--cell) * 0.065), 5px);
   --bevel-w: clamp(2px, calc(var(--cell) * 0.1), 7px);
-  /* The extruded bottom edge: the piece's own thickness (DESIGN §2 v2.1). */
-  --extrude-w: clamp(3px, calc(var(--cell) * 0.085), 6px);
+
+  /* The extrusion tokens (DESIGN §2 v2.1). Pieces, link tiles and the chrome
+     buttons are all keys, and one page gets one physics: the same thickness rule,
+     the same travel, and the same way of deriving a side colour — the face colour
+     taken down 35 % towards black. Piece thickness is cell-derived because a key
+     on a 20px grid and a key on a 72px grid are the same key at two scales; the
+     chrome buttons are not on the grid, so theirs is fixed. */
+  --keycap-thickness: clamp(3px, calc(var(--cell) * 0.09), 7px);
+  --keycap-chrome: 3px;
+  --keycap-travel: 2px;
+  --keycap-side-chrome: #04050a;
 
   position: relative;
   z-index: 1;
@@ -293,7 +305,7 @@ a {
     inset 0 0 0 2px var(--chassis-inlay),
     inset 0 3px 0 -1px rgba(255, 255, 255, 0.09),
     inset 0 -3px 0 -1px rgba(0, 0, 0, 0.6),
-    0 3px 0 rgba(0, 0, 0, 0.35);
+    0 var(--keycap-chrome) 0 var(--keycap-side-chrome);
   color: var(--chassis-ink);
   font-family: var(--font-pixel);
 }
@@ -402,7 +414,7 @@ a {
     inset 0 0 0 2px #717a8b,
     inset 0 4px 0 -2px rgba(255, 255, 255, 0.2),
     inset 0 -4px 0 -2px rgba(0, 0, 0, 0.45),
-    0 2px 0 rgba(0, 0, 0, 0.45);
+    0 var(--keycap-chrome) 0 var(--keycap-side-chrome);
 }
 
 .hud__crate-mark {
@@ -511,6 +523,9 @@ a {
 }
 
 .piece {
+  /* Key travel: 0 at rest, up off its side on hover, sunk into it when pressed
+     (DESIGN §2 v2.1). Every cell reads it to size its side face. */
+  --lift: 0px;
   width: calc(var(--pw) * var(--cell));
   height: calc(var(--ph) * var(--cell));
   color: inherit;
@@ -539,18 +554,28 @@ a {
 }
 
 /* Hover/press live on their own layer so they compose with the fall and the
-   bob instead of fighting them for one transform. */
+   bob instead of fighting them for one transform. The travel is driven by
+   `--lift` so the body and its side face always move by the same amount and in
+   opposite directions — which is what keeps the ground line still. */
 .piece__lift {
+  transform: translate3d(0, calc(-1 * var(--lift)), 0);
   transition: transform 130ms steps(2, end);
 }
 
-.piece:hover .piece__lift,
-.piece:focus-visible .piece__lift {
-  transform: translate3d(0, -2px, 0);
+.piece:hover,
+.piece:focus-visible {
+  --lift: var(--keycap-travel);
+}
+
+.piece:active {
+  --lift: calc(-1 * var(--keycap-travel));
 }
 
 .piece:active .piece__lift {
-  transform: translate3d(0, 2px, 0);
+  transition-duration: 60ms;
+}
+
+.piece:active .cell {
   transition-duration: 60ms;
 }
 
@@ -590,14 +615,20 @@ a {
 
 /* Every cell knows which of its four edges face the outside world (`--e-*`, set
    at build time from the silhouette). Two things read those flags: the seam,
-   which a skinned piece draws only on its outline, and the extruded bottom edge,
-   which is what gives a piece thickness instead of outline (DESIGN §2 v2.1).
+   which a skinned piece draws only on its outline, and the side face, which is
+   what makes a piece a key rather than a card (DESIGN §2 v2.1).
 
-   `--ex` is the extrusion depth for *this* cell: zero on a cell with a
-   neighbour below it, so the strip traces the bottom silhouette and never runs
-   through the middle of a piece. */
+   The side is an *outset* shadow — the cell's own silhouette, offset down, in the
+   extrude ink — so it hangs below the cell instead of eating into it, and the
+   face keeps its full grid square. Cells with a neighbour below get zero, which
+   is what makes the side trace the bottom silhouette and step around corners a
+   pixel at a time.
+
+   `--lift` is the key travel, and it is the whole trick: when the body rises 2px
+   the side grows 2px, so the *ground line stays put* and the key reads as
+   pressed or released rather than as a floating card. */
 .cell {
-  --ex: calc(var(--e-bottom, 1) * var(--extrude-w));
+  --ex: calc(var(--e-bottom, 1) * max(1px, var(--keycap-thickness) + var(--lift, 0px)));
 
   position: absolute;
   left: calc(var(--cx) * var(--cell));
@@ -613,18 +644,16 @@ a {
     repeating-linear-gradient(to bottom, var(--cell-scan) 0 1px, transparent 1px 3px),
     /* and a vertical sheen over the flat fill */
     linear-gradient(to bottom, var(--cell-sheen-top) 0%, transparent 38%, transparent 70%, var(--cell-sheen-bottom) 100%);
-  /* Painted front to back: the seam ring, the extrusion just inside the bottom
-     of it, then a flat pixel bevel — light along the top and left, shade along
-     the bottom and right. No blur anywhere. Where a cell is extruded, the
-     opaque accent strip takes the bottom bevel's place; where it is not, the
-     strip collapses under the seam and the bevel shows as before. */
+  /* The side face first, then the seam ring, then a flat pixel bevel — light
+     along the top and left, shade along the bottom and right. No blur anywhere. */
   box-shadow:
+    0 var(--ex) 0 0 var(--extrude-ink),
     inset 0 0 0 var(--seam-w) var(--seam),
-    inset 0 calc(-1 * (var(--seam-w) + var(--ex))) 0 0 var(--extrude-ink),
     inset 0 var(--bevel-w) 0 calc(-1 * var(--seam-w)) var(--bevel-light),
     inset var(--bevel-w) 0 0 calc(-1 * var(--seam-w)) var(--bevel-light),
     inset 0 calc(-1.35 * var(--bevel-w)) 0 calc(-1 * var(--seam-w)) var(--bevel-dark),
     inset calc(-1 * var(--bevel-w)) 0 0 calc(-1 * var(--seam-w)) var(--bevel-dark);
+  transition: box-shadow 130ms steps(2, end);
 }
 
 /* Link tiles are a single cell, so their glyph just fills it. */
@@ -667,9 +696,9 @@ a {
   --piece-fill: var(--accent);
   --piece-glow: var(--accent);
   --trail: var(--accent);
-  /* The thickness of the block: its own colour, taken down far enough to read as
-     a shaded face rather than as a second colour (see docs/reference/m1.png). */
-  --extrude-ink: color-mix(in srgb, var(--accent) 58%, #16181d);
+  /* The side face: its own colour taken down 35 % — the one derivation rule every
+     key on the page uses (see docs/reference/m1.png for the target). */
+  --extrude-ink: color-mix(in srgb, var(--accent) 65%, #000);
 }
 
 /* Dark mode is a backlit console, so a product block is a dim pane of its own
@@ -682,8 +711,10 @@ a {
   --seam: var(--accent-dark);
   --glyph: var(--accent-dark);
   --cell-sheen-top: color-mix(in srgb, var(--accent-dark) 12%, transparent);
-  /* At night the extrusion is the unlit face of the block, not a darker paint. */
-  --extrude-ink: color-mix(in srgb, var(--accent-dark) 16%, #06070a);
+  /* At night the side is the unlit face of a backlit key: the same 35 % rule
+     applied to the dark accent, which lands close to the background without
+     disappearing into it. The glow must not stand in for it. */
+  --extrude-ink: color-mix(in srgb, var(--accent-dark) 30%, #000);
 }
 
 :root[data-theme='dark'] .cell__glyph {
@@ -697,16 +728,18 @@ a {
   --seam-w: 2px;
   --glyph: var(--tile-glyph);
   --trail: var(--ink-soft);
-  --extrude-ink: color-mix(in srgb, var(--tile-fill) 56%, #14161b);
-  --cast-on: drop-shadow(4px 4px 0 var(--piece-shadow-step));
-  --cast-hover: drop-shadow(6px 6px 0 var(--piece-shadow-step));
+  /* Same side-colour rule as the products: the face taken down 35 % (DESIGN §2). */
+  --extrude-ink: color-mix(in srgb, var(--tile-fill) 65%, #000);
   z-index: 2;
 }
 
+/* The link tiles are where this look came from — the user pointed at them and
+   said every piece should be a key like that — so they now share the products'
+   tokens outright instead of carrying their own shadow recipe. */
 :root[data-theme='dark'] .piece--link {
-  --extrude-ink: color-mix(in srgb, var(--tile-fill) 40%, #05060a);
-  --cast-on: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.65));
-  --cast-hover: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.65));
+  --extrude-ink: color-mix(in srgb, var(--tile-fill) 55%, #000);
+  --cast-on: drop-shadow(0 2px 0 var(--contact));
+  --cast-hover: drop-shadow(0 2px 0 var(--contact));
 }
 
 .piece--link .cell__glyph {
@@ -829,11 +862,11 @@ a {
   background-color: transparent;
   background-image: none;
   box-shadow:
+    0 var(--ex) 0 0 var(--extrude-ink),
     inset 0 calc(var(--e-top, 1) * var(--seam-w)) 0 0 var(--seam),
     inset 0 calc(-1 * var(--e-bottom, 1) * var(--seam-w)) 0 0 var(--seam),
     inset calc(var(--e-left, 1) * var(--seam-w)) 0 0 0 var(--seam),
     inset calc(-1 * var(--e-right, 1) * var(--seam-w)) 0 0 0 var(--seam),
-    inset 0 calc(-1 * var(--e-bottom, 1) * (var(--seam-w) + var(--extrude-w))) 0 0 var(--extrude-ink),
     /* The bevels are gated on the same flags. An interior bevel is an interior
        line by another name, and the art already drew that line. Both the offset
        and the spread have to go to zero together: a zero offset with a negative
@@ -1176,16 +1209,21 @@ a {
     inset 0 0 0 2px #717a8b,
     inset 0 4px 0 -2px rgba(255, 255, 255, 0.2),
     inset 0 -4px 0 -2px rgba(0, 0, 0, 0.45),
-    0 2px 0 rgba(0, 0, 0, 0.45);
+    0 calc(var(--keycap-chrome) + var(--lift, 0px)) 0 var(--keycap-side-chrome);
   color: #f0ead9;
   font-family: var(--font-pixel);
   font-size: clamp(9px, calc(var(--cell) * 0.28), 20px);
-  transition: transform 130ms steps(2, end);
+  transform: translateY(calc(-1 * var(--lift, 0px)));
+  transition: transform 130ms steps(2, end), box-shadow 130ms steps(2, end);
 }
 
 .egg:hover .egg__cell,
 .egg:focus-visible .egg__cell {
-  transform: translateY(-2px) scale(1.04);
+  --lift: var(--keycap-travel);
+}
+
+.egg:active .egg__cell {
+  --lift: calc(-1 * var(--keycap-travel));
 }
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
@@ -1319,16 +1357,21 @@ a {
    raised key on a recessed screen — the one thing in the bezel you can press — so
    it keeps the chassis material the old footer pill had, at status-bar scale. */
 .panel__hint {
+  --lift: 0px;
   flex: none;
   align-self: stretch;
   padding: 0.3em 0.9em;
   border: 2px solid var(--chassis-edge);
   border-radius: 4px;
   background: linear-gradient(to bottom, var(--chassis-top) 0%, var(--chassis-bottom) 100%);
+  /* The same key as the pieces, at chrome scale: a side face plus one contact
+     line, and travel that grows the side rather than sliding a shadow. */
   box-shadow:
     inset 0 0 0 2px var(--chassis-inlay),
     inset 0 2px 0 -1px rgba(255, 255, 255, 0.1),
-    0 2px 0 rgba(0, 0, 0, 0.45);
+    0 calc(var(--keycap-chrome) + var(--lift)) 0 var(--keycap-side-chrome),
+    0 calc(var(--keycap-chrome) + var(--lift) + 1px) 0 var(--contact);
+  transform: translateY(calc(-1 * var(--lift)));
   color: var(--chassis-ink);
   font-family: var(--font-pixel);
   font-size: clamp(0.55rem, 1vw, 0.72rem);
@@ -1339,16 +1382,12 @@ a {
 }
 
 .panel__hint:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 0 0 2px var(--chassis-inlay),
-    inset 0 2px 0 -1px rgba(255, 255, 255, 0.14),
-    0 3px 0 rgba(0, 0, 0, 0.5);
+  --lift: var(--keycap-travel);
 }
 
 .panel__hint:active {
-  transform: translateY(1px);
-  box-shadow: inset 0 0 0 2px var(--chassis-inlay), 0 1px 0 rgba(0, 0, 0, 0.4);
+  --lift: calc(-1 * var(--keycap-travel));
+  transition-duration: 60ms;
 }
 
 .panel__key {
@@ -1802,6 +1841,7 @@ a {
 
   .piece__lift,
   .piece__body,
+  .cell,
   .piece--link::after,
   .eye__pupil,
   .egg__cell,
