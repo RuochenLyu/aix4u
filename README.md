@@ -19,8 +19,8 @@ src/data/products.json   the CMS — five products, three link tiles, one NEXT t
 src/lib/content.ts       build-time validation; a bad entry fails the build
 src/lib/tetromino.ts     shape geometry in grid cells
 src/lib/scene.ts         the scene engine (pure, isomorphic)
-src/components/          HUD, playfield, piece (skin + eye), bottom bezel (info panel + key legend)
-src/scripts/main.ts      client entry: theme, seed lifecycle, reshuffle, panel, eyes
+src/components/          HUD, playfield, piece (skin + face), bottom bezel (info panel + key legend)
+src/scripts/main.ts      client entry: theme, seed lifecycle, reshuffle, panel, pointer tracking
 src/styles/global.css    the whole visual language, themed with custom properties
 scripts/check-scene.ts   layout invariants, checked over thousands of seeds
 ```
@@ -50,16 +50,19 @@ product lives in the one bottom bezel, which types the selected product's line o
 and tagline still ship in each piece's own link as screen-reader text, so a crawler and a
 no-JS visitor read the whole page. Each shape has a single canonical orientation — the engine
 never rotates one, because the orientation is part of the meaning (L is a jar over a meadow,
-S is a wave, I is a strip, O is a page, T is a doorway) — and the eye and the icon badge are
-designed against that one silhouette. Each piece also has exactly one eye, which tracks the pointer
-in pixel steps, blinks on its own seeded phase, falls asleep after 30 seconds and screws
-shut when the field takes a hit.
+S is a wave, I is a strip, O is a page, T is a doorway) — and the face and the icon badge are
+designed against that one silhouette. Each piece wears a **face preset** derived from how it
+falls: the T is a half-lidded keeper, the L two close-set dots that glance at their own jar, the
+S one open eye and one squinting, the O two big eyes and a tiny "o" mouth, the I one calm eye
+that blinks on the same beat it floats to. Shared across all five: pupils step towards the
+pointer, blinks run on seeded phases, 30 seconds of nothing puts every face to sleep, a landing
+screws them shut, and hovering bows them into a ∪.
 
 `npm run check:scene` asserts the layout invariants over 3 200 scenes (eight viewport
 widths × four hundred seeds) plus every piece's identity geometry, and runs as part of
 every build: no two pieces overlap, nothing sits on the stack that should be floating,
 a suspended piece keeps air under it, the stack reads as a bed rather than a pile, every
-hole is covered and bridged, and no eye or badge strays outside its own piece's cells.
+hole is covered and bridged, and no face mark or badge strays outside its own piece's cells.
 
 **Every block is a key.** One extrusion model for the whole page: a piece, a link tile and a
 button all sit on a solid side face in their own colour taken down 35 %, with a single tight
@@ -111,7 +114,7 @@ Append an object to `items` in [`src/data/products.json`](src/data/products.json
   "tagline": "One line, read out by the info panel",
   "description": "A sentence or two. Used in the JSON-LD ItemList.",
   "iconAt": [1, 1],
-  "eye": [2, 0, 0.5, 0.22],
+  "face": { "preset": "keeper", "at": [2, 0, 0.38, 0.34] },
   "motion": "tease-rotate",
   "skin": { "light": "/skins/new-thing-light.png", "dark": "/skins/new-thing-dark.png" }
 }
@@ -132,7 +135,7 @@ Field notes:
 | `priority` | unique integer, `1` = most prominent. Beyond the lane count, pieces land in the stack |
 | `kind` / `status` | 2–10 uppercase characters each — the panel tags, e.g. `WEB` · `DAILY` |
 | `tagline` | one line, ≤ 7 words, verb-first, states what you get |
-| `eye` | `[cx, cy]` — the cell the single eye sits in, optionally `[cx, cy, ax, ay]` to place it within the cell. It must be a cell the shape occupies and must stay inside the silhouette; the build checks both |
+| `face` | `{ "preset": …, "at": [cx, cy, ax, ay] }`. Presets: `keeper`, `collector`, `watcher`, `mascot`, `calm` (defaults from the shape). `at` is the single eye, or the midpoint of a pair; a two-eyed preset also takes `gap` (cells between the eye centres) or a second anchor `at2`, and `mascot` takes an optional `mouth` anchor. Every resolved mark must land on cells the shape occupies, and two eyes may not overlap; the build checks both |
 | `iconAt` | same form, for the placeholder icon badge |
 | `motion` | personality preset: `tease-rotate`, `prop-up`, `sway`, `squash`, `metronome` (defaults from the shape) |
 | `skin` | `{ "light": …, "dark": … }` root-relative PNGs under `/skins/`, drawn at the piece's exact cell proportions and laid under the CSS silhouette seam and bevel. Leave either empty and the piece falls back to an accent fill plus the pixel icon badge |
@@ -162,13 +165,14 @@ Useful while working on the engine:
 - <kbd>R</kbd> reshuffles.
 - `npm run check:links` re-reads the built `dist/` and fails if any off-site anchor is
   missing `target="_blank"` or either half of `rel="noopener noreferrer"`, or if a product
-  anchor's `title` is not `Name — tagline`. It runs last in `npm run build`, after
+  anchor's `aria-label` is not `Name — tagline` — or if anything on the page carries a
+  `title` at all, since native tooltips are banned (DESIGN §4.15). It runs last in `npm run build`, after
   `astro build`, because the rule is about what ships rather than about the source.
 - `npm run check:scene` replays the engine over every breakpoint and hundreds of seeds and
   fails on any overlap, any piece resting where it should be suspended, any stack that reads
-  as a pile or leaves an unsupported hole, and any eye or icon badge that strays outside its
-  own piece. Run it after touching `src/lib/scene.ts`,
-  `src/lib/tetromino.ts` or a piece's `eye`/`iconAt`.
+  as a pile or leaves an unsupported hole, and any face mark or icon badge that strays outside
+  its own piece. Run it after touching `src/lib/scene.ts`,
+  `src/lib/tetromino.ts` or a piece's `face`/`iconAt`.
 - `npm run sync-fonts` re-copies the font subsets out of the `@fontsource/*` packages
   into `public/fonts/` (only needed after bumping those dependencies).
 
