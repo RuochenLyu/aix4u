@@ -1,18 +1,24 @@
 /**
- * Property check for the scene engine: across every breakpoint and a few
- * hundred seeds,
- *   - no label card may overlap a piece, the stack or another card, and
- *     nothing may leave the playfield;
- *   - every card must stay attached to its own piece — touching it, or joined
- *     by a leader that crosses no piece and no other card (DESIGN §6);
- *   - below the narrow breakpoint every product must float, with its card
- *     directly above or below it.
+ * Property check for the scene engine: across every breakpoint and a few hundred
+ * seeds,
+ *   - no two pieces may overlap, and no piece may sit on the stack filler;
+ *   - nothing may leave the playfield;
+ *   - a floating piece must keep clear air under it — it is suspended mid-fall,
+ *     so resting on the skyline would break the illusion;
+ *   - below the narrow breakpoint every product must float (DESIGN §7);
+ *   - the sticker band and the eye must stay inside the piece's own cells
+ *     (DESIGN §3.2, §3.3), so a name can never hang in the notch of an S.
+ *
+ * v2 dropped the label assertions along with the label engine. What is left is
+ * the part that was always the real invariant: the scene is a legal Tetris
+ * frame, and every piece carries its own identity inside its own silhouette.
+ *
  * Run with `npm run check:scene`.
  */
 
-import { buildScene, DEFAULT_SEED, leaderHits, leaderSegments, type Scene } from '../src/lib/scene';
-import { SHAPES } from '../src/lib/tetromino';
-import { content } from '../src/lib/content';
+import { buildScene, DEFAULT_SEED, type Scene } from '../src/lib/scene';
+import { SHAPES, hasCell } from '../src/lib/tetromino';
+import { content, type ProductItem } from '../src/lib/content';
 
 interface Rect {
   x: number;
@@ -23,6 +29,8 @@ interface Rect {
 }
 
 const EPSILON = 1e-6;
+/** Clearance a suspended piece must keep above whatever is under it, in cells. */
+const MIN_AIR = 0.4;
 
 function overlaps(a: Rect, b: Rect): boolean {
   return (
@@ -46,39 +54,24 @@ function problems(scene: Scene): string[] {
     y: cell.y,
     w: 1,
     h: 1,
-    what: 'stack filler',
+    what: `stack filler ${cell.x},${cell.y}`,
   }));
-  const labelRects: Rect[] = scene.pieces
-    .filter((piece) => piece.label)
-    .map((piece) => ({
-      x: piece.label!.x,
-      y: piece.label!.y,
-      w: piece.label!.w,
-      h: piece.label!.h,
-      what: `label ${piece.id}`,
-    }));
 
-  for (const label of labelRects) {
-    if (
-      label.x < -EPSILON ||
-      label.y < -EPSILON ||
-      label.x + label.w > bp.cols + EPSILON ||
-      label.y + label.h > bp.rows + EPSILON
-    ) {
-      found.push(`${label.what} leaves the field`);
-    }
-    for (const other of [...pieceRects, ...fillerRects]) {
-      if (overlaps(label, other)) found.push(`${label.what} overlaps ${other.what}`);
-    }
-  }
-
-  for (let i = 0; i < labelRects.length; i++) {
-    for (let j = i + 1; j < labelRects.length; j++) {
-      if (overlaps(labelRects[i]!, labelRects[j]!)) {
-        found.push(`${labelRects[i]!.what} overlaps ${labelRects[j]!.what}`);
+  // Pieces are solid objects: two of them sharing a cell is the one thing a
+  // Tetris frame can never show.
+  for (let i = 0; i < pieceRects.length; i++) {
+    for (let j = i + 1; j < pieceRects.length; j++) {
+      if (overlaps(pieceRects[i]!, pieceRects[j]!)) {
+        found.push(`${pieceRects[i]!.what} overlaps ${pieceRects[j]!.what}`);
       }
     }
+    for (const filler of fillerRects) {
+      if (overlaps(pieceRects[i]!, filler)) found.push(`${pieceRects[i]!.what} overlaps ${filler.what}`);
+    }
   }
+
+  const columnTops = new Array<number>(bp.cols).fill(0);
+  for (let x = 0; x < bp.cols; x++) columnTops[x] = scene.stackTops[x] ?? 0;
 
   for (const piece of scene.pieces) {
     const shape = SHAPES[piece.shape];
@@ -86,64 +79,102 @@ function problems(scene: Scene): string[] {
       found.push(`piece ${piece.id} leaves the field`);
     }
 
-    // Narrow screens float every product, so that each card can sit in its own
-    // piece's band rather than somewhere on a crowded stack (DESIGN §6).
+    // Narrow screens float every product (DESIGN §7).
     if (bp.floatAll && piece.shape !== 'DOT' && piece.pool !== 'floating') {
       found.push(`piece ${piece.id} is landed on a float-all breakpoint`);
     }
 
-    // The leader elbow is drawn in the strip between the card and its piece, so
-    // the recorded side must be one that actually separates the two.
-    const label = piece.label;
-    if (!label) continue;
-    const separates =
-      label.side === 'right'
-        ? label.x >= piece.x + shape.width - EPSILON
-        : label.side === 'left'
-          ? label.x + label.w <= piece.x + EPSILON
-          : label.side === 'above'
-            ? label.y + label.h <= piece.y + EPSILON
-            : label.y >= piece.y + shape.height - EPSILON;
-    if (!separates) found.push(`label ${piece.id} is not actually ${label.side} of its piece`);
-
-    // Association is a hard constraint: a card is either touching its piece or
-    // joined to it by a leader, and that leader may cross empty grid only.
-    if (!label.connected) found.push(`label ${piece.id} has no leader to its piece`);
-
-    // A leader may run over bare grid and over the anonymous stack filler; it
-    // may never cross a piece or another card.
-    const own = { x: piece.x, y: piece.y, w: shape.width, h: shape.height, what: `piece ${piece.id}` };
-    const others = [...pieceRects, ...labelRects].filter(
-      (rect) => rect.what !== own.what && rect.what !== `label ${piece.id}` && !overlaps(rect, own),
-    );
-    const card = { x: label.x, y: label.y, w: label.w, h: label.h };
-    for (const segment of leaderSegments(card, piece, shape.width, shape.height)) {
-      for (const other of others) {
-        if (leaderHits(segment, other)) found.push(`leader ${piece.id} crosses ${other.what}`);
-      }
+    if (piece.pool !== 'floating') continue;
+    let top = 0;
+    for (let dx = 0; dx < shape.width; dx++) top = Math.max(top, columnTops[piece.x + dx] ?? 0);
+    const air = bp.rows - top - (piece.y + shape.height);
+    if (air < MIN_AIR - EPSILON) {
+      found.push(`floating piece ${piece.id} has only ${air.toFixed(2)} cells of air under it`);
     }
+  }
 
-    if (bp.floatAll) {
-      if (label.side !== 'above' && label.side !== 'below') {
-        found.push(`label ${piece.id} sits ${label.side} of its piece on a float-all breakpoint`);
-      }
-      // "Directly above/below" — the card has to cover part of its own piece's
-      // columns, otherwise it reads as belonging to whatever is beside it.
-      if (label.x >= piece.x + shape.width - EPSILON || label.x + label.w <= piece.x + EPSILON) {
-        found.push(`label ${piece.id} does not sit over its own piece`);
-      }
-      if (label.leader > 1.2) found.push(`label ${piece.id} floats ${label.leader} cells from its piece`);
+  // The mystery block has to land somewhere legal too, or the easter egg pokes
+  // out of the floor.
+  if (scene.egg.x < 0 || scene.egg.x >= bp.cols || scene.egg.y < 0 || scene.egg.y >= bp.rows) {
+    found.push('the NEXT egg slot leaves the field');
+  }
+  for (const rect of [...pieceRects, ...fillerRects]) {
+    if (overlaps({ x: scene.egg.x, y: scene.egg.y, w: 1, h: 1, what: 'egg' }, rect)) {
+      found.push(`the NEXT egg slot overlaps ${rect.what}`);
     }
   }
 
   return found;
 }
 
-const VIEWPORTS = [1440, 1024, 900, 760, 480, 375, 320];
+/**
+ * Piece identity is static — it comes from products.json, not from the seed — so
+ * it is checked once rather than per scene.
+ */
+function identityProblems(product: ProductItem): string[] {
+  const found: string[] = [];
+  const shape = SHAPES[product.shape];
+  const band = shape.band;
+  if (!band) {
+    found.push(`${product.id}: shape ${product.shape} has no sticker band`);
+    return found;
+  }
+
+  if (band.x < 0 || band.y < 0 || band.x + band.w > shape.width || band.y + band.h > shape.height) {
+    found.push(`${product.id}: the ${product.shape} band leaves the piece's bounding box`);
+  }
+
+  // Every column the band crosses must have a cell behind it at that height, or
+  // the name floats in the notch of the shape.
+  const step = 0.25;
+  for (let x = band.x + step / 2; x < band.x + band.w; x += step) {
+    for (const y of [band.y + 0.02, band.y + band.h - 0.02]) {
+      if (!hasCell(shape, Math.floor(x), Math.floor(y))) {
+        found.push(
+          `${product.id}: the ${product.shape} band crosses empty space at (${x.toFixed(2)}, ${y.toFixed(2)})`,
+        );
+        return found;
+      }
+    }
+  }
+
+  // The eye and the icon badge are drawn on top of the piece, so they must not
+  // land on the band — a name with a pupil in it is unreadable.
+  const marks: [string, { cx: number; cy: number; ax: number; ay: number }, number][] = [
+    ['eye', product.eye, 0.15],
+    ['icon badge', product.iconAt, 0.2],
+  ];
+  for (const [what, at, half] of marks) {
+    const cx = at.cx + at.ax;
+    const cy = at.cy + at.ay;
+    if (
+      cx + half > band.x &&
+      cx - half < band.x + band.w &&
+      cy + half > band.y &&
+      cy - half < band.y + band.h
+    ) {
+      found.push(`${product.id}: the ${what} at (${cx}, ${cy}) sits on the sticker band`);
+    }
+    if (cy - half < 0 || cy + half > shape.height || cx - half < 0 || cx + half > shape.width) {
+      found.push(`${product.id}: the ${what} at (${cx}, ${cy}) hangs off the piece`);
+    }
+  }
+
+  return found;
+}
+
+const VIEWPORTS = [1600, 1440, 1024, 900, 760, 480, 375, 320];
 const SEEDS = 400;
 
 let failures = 0;
 let checked = 0;
+
+for (const product of content.products) {
+  for (const problem of identityProblems(product)) {
+    failures++;
+    console.error(`identity: ${problem}`);
+  }
+}
 
 for (const viewport of VIEWPORTS) {
   for (let i = 0; i < SEEDS; i++) {
@@ -161,4 +192,6 @@ if (failures > 0) {
   console.error(`\n${failures} layout violation(s) across ${checked} scenes.`);
   process.exit(1);
 }
-console.log(`scene check: ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps.`);
+console.log(
+  `scene check: ${content.products.length} piece identities, ${checked} scenes across ${VIEWPORTS.length} viewports, no overlaps.`,
+);
