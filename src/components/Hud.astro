@@ -41,8 +41,10 @@ const teaser = content.next.teaser.trim();
         teaser ? (
           <span class="hud__next-teaser">{teaser}</span>
         ) : (
-          <span class="hud__crate" aria-label="Next product: unannounced" role="img">
-            <span class="hud__crate-mark" aria-hidden="true">?</span>
+          /* Just the glyph: the NEXT section is already an inset box, and a box
+             inside that box read as clutter on the device (DESIGN §6.5 v2.1.2). */
+          <span class="hud__next-mark" aria-label="Next product: unannounced" role="img">
+            ?
           </span>
         )
       }

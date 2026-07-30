@@ -26,6 +26,8 @@ Pixel/retro handheld-console aesthetic. Cute but gender-neutral.
 - **(v2.1) One chassis width**: the HUD, the playfield and the bottom bezel share a single content width and horizontal margins — three different widths read as three unrelated widgets. The reshuffle hint is no longer a free-floating pill: it docks **inside the bottom bezel's right end** (panel text left, key hint right), the way a game status bar carries its button legend.
 - **(v2.1.1) Depth — the keycap is convex, and the recipe already exists on the page**: the gray bed tiles read as keys, and what makes them keys is the **inset bevel** — a light inner edge along the top/left and a dark inner edge along the bottom/right, *inside* the silhouette — plus a 1px dark outer lip at the bottom and one faint contact shadow. Pieces adopt **that exact recipe** (the tiles' tokens, scaled), with the bevel frame drawn *over* the skin: the art stays full-strength in the middle, the inner frame curves the surface. The previous external "extruded side face" strip is retired — a dark bar under a flat image reads as a floating paper shadow, not thickness (verified on device). Multi-offset drop shadows stay banned. Press states: hover brightens the top bevel and lifts 1px; active inverts the bevel (dark top, light bottom = pressed in) and sinks 1px — the classic convex/concave flip. One recipe for pieces, tiles and chrome keys.
 - **(v2.1) Background recedes**: fine-grid opacity halved, coarse line barely-there; the scene's contrast budget belongs to the pieces, not the lattice.
+- **(v2.1.2) Native feel**: the scene is an app surface, not a document — `user-select: none` on scene chrome/pieces (panel text stays selectable), `-webkit-touch-callout: none`, `draggable="false"` on every img, `-webkit-tap-highlight-color: transparent`, `overscroll-behavior: none`, and `html` painted with the theme background so iOS/macOS rubber-band never exposes raw white.
+- **(v2.1.2) Reshuffle vanishes as one body**: a piece's skin, face, icon and trails dissolve together with its cells during the line-clear crumble — an orphaned eye or glyph floating over an empty field between phases is a bug, not a transition. Same for link-tile glyphs.
 - **The bezels are opaque and sit above the field**: pieces falling in slide *behind* the HUD and the bottom bezel, which is what sells "a screen inside a machine".
 
 ### Light mode ("TV gray")
@@ -98,11 +100,11 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 - Overflow: floating pool caps at ~5 (or when lanes get tight); lowest priority spills into the stack. More products ⇒ prouder stack.
 - Narrow (<~700px): **all products float**, stack holds only link tiles + filler.
 
-### 4.15 Link policy (v2.1.1)
-Every off-site link — products, link tiles, the `?` piece — opens in a new tab: `target="_blank"` + `rel="noopener noreferrer"`. Product `<a>`s carry a descriptive `title` (`"Meikyu — Deduce the daily dungeon in six tries"`) on top of the existing sr-only name+flavor text, so anchors are fully described for crawlers and hover users alike.
+### 4.15 Link policy (v2.1.2)
+Every off-site link — products, link tiles, the `?` tile — opens in a new tab: `target="_blank"` + `rel="noopener noreferrer"`. **No `title` attributes anywhere on the page**: a native browser tooltip is a foreign object in a machine that has its own info panel, and it fires on a delay nobody asked for. Anchors are described by `aria-label` plus the sr-only name+flavor text, so crawlers and assistive tech lose nothing. `check:links` asserts the `aria-label`, as it used to assert the title.
 
 ### 4.2 Link tiles
-Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/RuochenLyu`), kshift.me (a pixel keycap with `⇧`), X (`x.com/kshift`). Configured in JSON (`type: "link"`); `title` + `aria-label` required.
+Plain 1×1 gray tiles in the stack, visually quieter: GitHub (`github.com/RuochenLyu`), kshift.me, X (`x.com/kshift`). Configured in JSON (`type: "link"`); `aria-label` required, and the hover name-plate (a pixel card above the tile) says the destination. **(v2.1.2)** kshift's `⇧` keycap tested as unreadable — nobody knew what it meant — so it carries a pixel capital `K` until the real icon lands with the next asset batch. The `?` tile (§6.5) is one of these, with a different glyph and nothing else.
 
 ### 4.3 HUD
 - Pixel logo `AIX4U`.
@@ -122,6 +124,12 @@ A **fixed slot** in the bottom bezel, sharing it with the key legend (§2 v2.1) 
 - Keyboard: pieces are focusable in priority order; panel follows focus; Enter navigates.
 - The panel is `aria-live="polite"`; piece `<a>`s carry name + tagline as sr-only text, so no-JS/SEO keeps full content.
 
+
+**(v2.1.2) Panel layout revision** — from device review:
+- **Fixed two-row height, zero reflow**: row 1 renders instantly on select — product name (pixel font) + `TYPE · STATUS` as small chips; row 2 is the flavor line. Only row 2 types, at ~80 chars/s (24 was tested and reads as lag, not charm). Any interaction mid-type completes it instantly.
+- **`▸ PLAY` is retired.** The CTA affordance is a key legend in the bezel's language: desktop shows `⏎ OPEN` at the panel's right when a piece is selected (Enter works); touch shows `TAP AGAIN TO OPEN`. A lone button inside a status bar read as web chrome.
+- Idle state stays one line, vertically centered in the same fixed height.
+
 ## 5. Randomness
 One integer seed drives everything (composition, blink phases, stagger jitter, ghost path) via a deterministic PRNG. New visit → random seed; `R`/tap → new seed; `?seed=<n>` reproduces a scene (written back via `history.replaceState`).
 
@@ -133,7 +141,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 2. **Idle**: bob ±2px, per-piece period/phase ("breathing, not elevators"); ghost piece falls slowly forever in the background — **(v2.1) each cycle draws a random shape from the seven standard tetrominoes at a random x** (seeded), styled as a sparse dotted outline, quieter than today; eyes blink/track/sleep (§3.3).
 3. **Reshuffle (~2s, v2.1 — real physics)**: each floating piece hard-drops to its **true resting position** computed against the skyline (stack + previously dropped pieces + floor); pieces over open floor fall all the way down. Impacts land staggered (per-piece distance ⇒ per-piece timing), each with its own 2px shake and eye-squeeze. Then the **line clear**: a white scan sweeps the settled rows bottom-up (one row per ~2 frames), each swept row's cells dissolve into a few pixel motes; when the field is clear — new seed, entry replays. The old "everything stops at one height, whole layer blinks" reading is explicitly rejected.
 4. **Hover/press**: two-step 2px lift + shadow/glow deepen; active sinks 2px (key-press feel).
-5. **NEXT easter egg (v2.1.1)**: the mystery element is a **real tetromino**, not a stray 1×1 tile — a gray, dashed-outline piece (shape seeded per session from the shapes no product uses, e.g. J/Z) with a `?` in one cell, resting **on top of the bed** like the piece that hasn't revealed itself yet. It links to `https://github.com/RuochenLyu/aix4u/issues/new` ("tell me what to build next"). After the 3rd reshuffle in a session it re-drops from the NEXT slot with the full falling treatment (once per session); before that it simply sits in the scene. A lone `?` square floating in the bed reads as a glitch, not an invitation.
+5. **NEXT easter egg (v2.1.2)**: the mystery `?` is a **1×1 gray tile**, styled and placed exactly like the GitHub/X link tiles in the bed. (The v2.1.1 "real tetromino" reading was tried and reverted on device: a 3×2 dashed piece spent six cells of prime scene space on a footnote link.) It links to `https://github.com/RuochenLyu/aix4u/issues/new`. The third-reshuffle arrival stays: the tile drops from the NEXT slot once per session with the full falling treatment. In the HUD, the NEXT slot shows **a bare `?` glyph — no inner framed box** (a box inside the slot's box read as clutter).
 
 ## 7. Layout & responsiveness
 - Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.

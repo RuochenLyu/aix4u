@@ -2,7 +2,7 @@
 import Piece from './Piece.astro';
 import { content } from '../lib/content';
 import type { Scene } from '../lib/scene';
-import { GHOST_SHAPES, SPARE_SHAPES, markedCell } from '../lib/tetromino';
+import { GHOST_SHAPES } from '../lib/tetromino';
 
 interface Props {
   /** Built in index.astro — the same geometry also sizes the HUD and the bezel. */
@@ -12,8 +12,6 @@ interface Props {
 const { scene } = Astro.props;
 const placements = new Map(scene.pieces.map((piece) => [piece.id, piece]));
 const ghostShape = GHOST_SHAPES[scene.ghost.shape]!;
-const eggShape = SPARE_SHAPES[scene.egg.shape]!;
-const eggMark = markedCell(eggShape);
 ---
 
 <div
@@ -57,34 +55,45 @@ const eggMark = markedCell(eggShape);
     })
   }
 
-  {/* The mystery piece: a whole tetromino in a silhouette no product uses, stood
-      on the bed as the one that has not been revealed yet (DESIGN §6.5 v2.1.1).
-      It is in the scene from the first frame; the third reshuffle is what makes
-      it drop from the NEXT slot for real. */}
+  {/* The mystery `?`: a 1x1 tile perched on the bed, built out of the same parts
+      as the GitHub and X tiles beside it (DESIGN §6.5 v2.1.2). v2.1.1 made it a
+      whole tetromino and the device review sent it back — six cells of prime
+      scene space for a footnote link. It is in the scene from the first frame;
+      the third reshuffle is what makes it drop out of the NEXT slot for real. */}
   <a
-    class="egg"
+    class="piece piece--link piece--egg piece--landed"
     id="egg"
     href={content.next.url}
     rel="noopener noreferrer"
     target="_blank"
-    title="Tell me what to build next"
+    data-name="What's next?"
+    aria-label="Tell me what to build next"
     style={{
       '--gx': String(scene.egg.x),
       '--gy': String(scene.egg.y),
-      '--pw': String(eggShape.width),
-      '--ph': String(eggShape.height),
+      '--pw': '1',
+      '--ph': '1',
     }}
   >
-    <span class="egg__drop">
-      <span class="egg__trail" aria-hidden="true"></span>
-      <span class="egg__body">
-        {
-          eggShape.cells.map(([cx, cy]) => (
-            <span class="cell egg__cell" style={{ '--cx': String(cx), '--cy': String(cy) }} aria-hidden="true">
-              {cx === eggMark[0] && cy === eggMark[1] ? '?' : ''}
+    <span class="piece__drop">
+      <span class="piece__trail" aria-hidden="true"></span>
+      <span class="piece__spin">
+        <span class="piece__bob">
+          <span class="piece__lift">
+            <span class="piece__body">
+              <span
+                class="cell"
+                data-cx="0"
+                data-cy="0"
+                style={{ '--cx': '0', '--cy': '0', '--e-top': '1', '--e-right': '1', '--e-bottom': '1', '--e-left': '1' }}
+                aria-hidden="true"
+              />
+              <span class="piece__over" aria-hidden="true">
+                <span class="cell__mark"><span class="cell__glyph">?</span></span>
+              </span>
             </span>
-          ))
-        }
+          </span>
+        </span>
       </span>
     </span>
     <span class="visually-hidden">Tell me what to build next</span>

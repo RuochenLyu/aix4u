@@ -26,7 +26,7 @@
  * of the playfield. The renderer multiplies them by the CSS `--cell` length.
  */
 
-import { SHAPES, GHOST_SHAPES, SPARE_SHAPES, type ShapeName } from './tetromino';
+import { SHAPES, GHOST_SHAPES, type ShapeName } from './tetromino';
 import type { SceneItem } from './content';
 
 export const DEFAULT_SEED = 20260729;
@@ -120,15 +120,12 @@ export function rollGhost(rng: Rng, cols: number): GhostPlacement {
 }
 
 /**
- * Where the mystery `?` piece rests (DESIGN §6.5 v2.1.1). It is a real tetromino
- * standing on top of the bed, present in every frame — a lone 1x1 `?` floating in
- * the stack read as a glitch, a whole piece reads as the one that has not been
- * revealed yet. `shape` indexes `SPARE_SHAPES` and is chosen per *session*, not
- * per scene, so the silhouette you are waiting on does not change under you when
- * the board reshuffles.
+ * Where the mystery `?` tile rests (DESIGN §6.5 v2.1.2). It is a 1x1 tile
+ * perched on the bed, placed and drawn exactly like the GitHub and X link tiles.
+ * v2.1.1 promoted it to a whole tetromino and the device review sent it back: a
+ * 3x2 dashed piece spent six cells of prime scene space on a footnote link.
  */
 export interface EggPlacement {
-  shape: number;
   x: number;
   y: number;
 }
@@ -188,17 +185,7 @@ function shapeOf(item: SceneItem): ShapeName {
   return item.type === 'product' ? item.shape : 'DOT';
 }
 
-/**
- * `eggShape` indexes `SPARE_SHAPES` and comes from the *session*, not the seed
- * (DESIGN §6.5 v2.1.1); the build-time frame has no session, so it falls back to
- * the first spare shape and the client re-applies the real one on load.
- */
-export function buildScene(
-  seed: number,
-  viewportWidth: number,
-  items: readonly SceneItem[],
-  eggShape = 0,
-): Scene {
+export function buildScene(seed: number, viewportWidth: number, items: readonly SceneItem[]): Scene {
   const base = breakpointFor(viewportWidth);
   const rng = createRandom(seed);
 
@@ -240,74 +227,45 @@ export function buildScene(
 
   const ghost: GhostPlacement = { ...rollGhost(rng, bp.cols), delay: int(rng, 0, 6) };
 
-  const egg = eggSlot(rng, bp, tops, pieces, eggShape % SPARE_SHAPES.length);
+  const egg = eggSlot(rng, bp, tops, pieces);
 
   return { seed, breakpoint: bp, pieces, filler, stackTops: tops, ghost, egg };
 }
 
 /**
- * Stand the mystery piece on the skyline (DESIGN §6.5 v2.1.1): the whole
- * tetromino resting on top of the bed, the way the next piece would if it had
- * already dropped. It has to *sit on* the stack rather than hover over a dip, and
- * it must not land inside a suspended piece — which is why the floating pool is an
- * obstacle here and not just the skyline.
+ * Perch the mystery `?` on the bed (DESIGN §6.5 v2.1.2) — the same grade of spot
+ * a link tile takes: a 1x1 sitting on top of a bed column, never buried in it and
+ * never over bare floor, because a tile standing on nothing has not landed yet.
+ * It is not in `stackTops`, so nothing is built on top of it; what it does have
+ * to avoid is the pieces, which is why they are passed in.
  */
 function eggSlot(
   rng: Rng,
   bp: Breakpoint,
   tops: readonly number[],
   pieces: readonly PiecePlacement[],
-  shapeIndex: number,
 ): EggPlacement {
-  const shape = SPARE_SHAPES[shapeIndex]!;
-  const overlaps = (x: number, y: number): boolean =>
+  const taken = (x: number, y: number): boolean =>
     pieces.some((piece) => {
-      const other = SHAPES[piece.shape];
-      return (
-        x < piece.x + other.width &&
-        piece.x < x + shape.width &&
-        y < piece.y + other.height &&
-        piece.y < y + shape.height
-      );
+      const shape = SHAPES[piece.shape];
+      return x >= piece.x && x < piece.x + shape.width && y >= piece.y && y < piece.y + shape.height;
     });
 
-  /** The lowest cell in each of the shape's columns. */
-  const bottomOf: number[] = [];
-  for (let dx = 0; dx < shape.width; dx++) {
-    bottomOf[dx] = Math.max(...shape.cells.filter(([cx]) => cx === dx).map(([, cy]) => cy));
+  const slots: { x: number; y: number; depth: number }[] = [];
+  for (let x = 0; x < bp.cols; x++) {
+    const depth = tops[x] ?? 0;
+    if (depth === 0) continue;
+    const y = bp.rows - depth - 1;
+    if (y < 0 || taken(x, y)) continue;
+    slots.push({ x, y, depth });
   }
+  if (slots.length === 0) return { x: 0, y: bp.rows - 1 };
 
-  const slots: { x: number; y: number; onBed: boolean; rests: boolean }[] = [];
-  for (let x = 0; x + shape.width <= bp.cols; x++) {
-    let highest = 0;
-    let onBed = true;
-    for (let dx = 0; dx < shape.width; dx++) {
-      const top = tops[x + dx] ?? 0;
-      if (top === 0) onBed = false;
-      highest = Math.max(highest, top);
-    }
-    // Height comes from the bounding box, because the box is what must stay clear
-    // of the bed — the same rule the landed pieces obey. That alone can leave a
-    // shape with a ragged bottom (the Z) hanging a row up, so a slot only counts
-    // if one of the columns that reaches the shape's lowest row is also one of
-    // the tallest: that is the column the piece actually stands on.
-    const y = bp.rows - highest - shape.height;
-    const rests = shape.cells.some(
-      ([dx, dy]) => dy === shape.height - 1 && (tops[x + dx] ?? 0) === highest,
-    );
-    if (y < 0 || overlaps(x, y)) continue;
-    slots.push({ x, y, onBed, rests });
-  }
-
-  // Standing on the bed, on its own feet, first: a piece with one end over bare
-  // floor reads as falling rather than waiting. Then anything legal, and only a
-  // boxed-in field gives up and tucks it into the corner.
-  const best = slots.filter((slot) => slot.onBed && slot.rests);
-  const resting = slots.filter((slot) => slot.rests);
-  const pool = best.length > 0 ? best : resting.length > 0 ? resting : slots;
-  if (pool.length === 0) return { shape: shapeIndex, x: 0, y: 0 };
-  const pick = pool[int(rng, 0, pool.length - 1)]!;
-  return { shape: shapeIndex, x: pick.x, y: pick.y };
+  // The shallowest columns first, so the `?` tucks into a dip rather than
+  // crowning the tallest bump; the seed picks among the three lowest.
+  slots.sort((a, b) => a.depth - b.depth);
+  const pick = slots[int(rng, 0, Math.min(2, slots.length - 1))]!;
+  return { x: pick.x, y: pick.y };
 }
 
 /**

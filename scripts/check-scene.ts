@@ -21,7 +21,7 @@
  */
 
 import { buildScene, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
-import { SHAPES, SPARE_SHAPES, hasCell } from '../src/lib/tetromino';
+import { SHAPES, hasCell } from '../src/lib/tetromino';
 import { content, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
 interface Rect {
@@ -159,26 +159,18 @@ function problems(scene: Scene): string[] {
     if (!solid.has(`${tile.x}:${tile.y + 1}`)) found.push(`link tile ${tile.id} perches on nothing`);
   }
 
-  // The mystery piece is a whole tetromino resting on the bed (DESIGN §6.5
-  // v2.1.1), so it answers to the same rules as everything else in the frame: it
-  // stays in the field, it touches nothing, and it stands on something.
-  const eggShape = SPARE_SHAPES[scene.egg.shape];
-  if (!eggShape) {
-    found.push(`the mystery piece has no shape ${scene.egg.shape}`);
-  } else {
-    const egg: Rect = { x: scene.egg.x, y: scene.egg.y, w: eggShape.width, h: eggShape.height, what: 'the mystery piece' };
-    if (egg.x < 0 || egg.y < 0 || egg.x + egg.w > bp.cols || egg.y + egg.h > bp.rows) {
-      found.push('the mystery piece leaves the field');
-    }
-    for (const rect of [...pieceRects, ...fillerRects]) {
-      if (overlaps(egg, rect)) found.push(`the mystery piece overlaps ${rect.what}`);
-    }
-    let rests = false;
-    for (const [dx, dy] of eggShape.cells) {
-      const below = `${egg.x + dx}:${egg.y + dy + 1}`;
-      if (egg.y + dy + 1 >= bp.rows || solid.has(below)) rests = true;
-    }
-    if (!rests) found.push('the mystery piece hovers over nothing');
+  // The mystery `?` is a 1x1 tile on the bed (DESIGN §6.5 v2.1.2), so it answers
+  // to the same rules the link tiles do: it stays in the field, it touches
+  // nothing, and it stands on something.
+  const egg: Rect = { x: scene.egg.x, y: scene.egg.y, w: 1, h: 1, what: 'the mystery tile' };
+  if (egg.x < 0 || egg.y < 0 || egg.x + egg.w > bp.cols || egg.y + egg.h > bp.rows) {
+    found.push('the mystery tile leaves the field');
+  }
+  for (const rect of [...pieceRects, ...fillerRects]) {
+    if (overlaps(egg, rect)) found.push(`the mystery tile overlaps ${rect.what}`);
+  }
+  if (egg.y + 1 < bp.rows && !solid.has(`${egg.x}:${egg.y + 1}`)) {
+    found.push('the mystery tile perches on nothing');
   }
 
   return found;

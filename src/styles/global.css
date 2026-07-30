@@ -414,26 +414,12 @@ a {
   letter-spacing: 0.14em;
 }
 
-/* The NEXT slot is a crate, not a dashed box (DESIGN §2). */
-.hud__crate {
-  display: grid;
-  place-items: center;
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 3px;
-  background: linear-gradient(to bottom, #4d5464 0%, #313846 100%);
-  box-shadow:
-    inset 0 0 0 2px #717a8b,
-    inset 0 4px 0 -2px var(--crate-hi),
-    inset 4px 0 0 -2px var(--crate-hi),
-    inset 0 -4px 0 -2px var(--crate-lo),
-    inset -4px 0 0 -2px var(--crate-lo),
-    0 var(--keycap-lip) 0 var(--keycap-lip-ink);
-}
-
-.hud__crate-mark {
-  color: #f0ead9;
-  font-size: 0.95rem;
+/* The NEXT slot shows a bare `?` (DESIGN §6.5 v2.1.2). It used to be a little
+   crate — a beveled box inside the section's own inset box, which on the device
+   read as a widget wearing two frames rather than as a slot. */
+.hud__next-mark {
+  color: var(--chassis-ink);
+  font-size: 1.05em;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
@@ -1371,122 +1357,34 @@ a {
   --cursor-ink: #f3ecdb;
 }
 
-/* --- the mystery piece --------------------------------------------------- */
+/* --- the mystery tile ---------------------------------------------------- */
 
-/* A whole tetromino in a silhouette no product has claimed, standing on the bed
-   (DESIGN §6.5 v2.1.1). Gray and dotted, because it is not a product yet: the
-   dotted outline is the same grammar as the background ghost — "a piece, but not
-   a real one" — while the gray fill and the `?` say this one you can press.
+/* The `?` *is* a link tile (DESIGN §6.5 v2.1.2): the same classes, the same
+   keycap, the same hover name-plate as GitHub and X, sitting in the bed with
+   them. It has no look of its own at all — only a different glyph — which is why
+   there is nothing here but the drop it earns on the third reshuffle.
 
-   The v2 version was a single 1x1 `?` tile sitting in the stack, which read as a
-   rendering glitch rather than as a promise. */
-.egg {
-  --mote: #f0ead9;
-  --lift: 0px;
-  position: absolute;
-  left: calc(var(--gx) * var(--cell));
-  top: calc(var(--gy) * var(--cell));
-  z-index: 2;
-  width: calc(var(--pw) * var(--cell));
-  height: calc(var(--ph) * var(--cell));
-  text-decoration: none;
-}
-
-.egg__drop,
-.egg__body {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.egg__drop {
-  position: relative;
-}
-
-.egg__body {
-  transform: translateY(calc(-1 * var(--lift)));
-  transform-origin: 50% 100%;
-  transition: transform 130ms steps(2, end);
-}
-
-/* The cells reuse `.cell` for their geometry and their crumble, and override the
-   look: no fill of their own, a dotted outline instead of a seam, and no lip —
-   an unrevealed piece has no thickness to speak of yet. */
-.egg__cell {
-  display: grid;
-  place-items: center;
-  border: max(2px, calc(var(--cell) * 0.045)) dotted var(--egg-line);
-  background-color: var(--egg-fill);
-  background-image: none;
-  box-shadow: none;
-  color: var(--egg-ink);
-  font-family: var(--font-pixel);
-  font-size: clamp(9px, calc(var(--cell) * 0.34), 22px);
-  line-height: 1;
-  transition: border-color 130ms steps(2, end), background-color 130ms steps(2, end);
-}
-
-:root {
-  --egg-fill: rgba(157, 171, 187, 0.34);
-  --egg-line: rgba(34, 36, 42, 0.42);
-  --egg-ink: #2b2f38;
-}
-
-:root[data-theme='dark'] {
-  --egg-fill: rgba(43, 47, 57, 0.5);
-  --egg-line: rgba(243, 236, 219, 0.28);
-  --egg-ink: #cfc8b8;
-}
-
-.egg:hover,
-.egg:focus-visible {
-  --lift: var(--keycap-travel);
-  --egg-line: var(--focus);
-  --egg-fill: rgba(157, 171, 187, 0.5);
-}
-
-:root[data-theme='dark'] .egg:hover,
-:root[data-theme='dark'] .egg:focus-visible {
-  --egg-fill: rgba(60, 66, 80, 0.6);
-}
-
-.egg:active {
-  --lift: calc(-1 * var(--keycap-travel));
-}
-
+   v2.1.1 drew it as a gray dashed tetromino standing on the bed. On the device
+   that was six cells of the best space in the scene spent on a footnote, so the
+   3x2 is gone and everything it duplicated went with it. */
 /* The drop the third reshuffle earns: the full falling treatment — trail on the
    way down, squash on the landing frame — because the point is that it arrives
    like any other piece, having sat there quietly all session. */
-.egg.is-dropping .egg__drop {
+.piece--egg.is-dropping .piece__drop {
   --fall-from: calc(-1 * (var(--gy) * var(--cell) + 6 * var(--cell)));
   animation: piece-fall 620ms var(--gravity) both;
 }
 
-.egg.is-dropping .egg__body {
+.piece--egg.is-dropping .piece__body {
   animation: piece-impact 260ms ease-out 620ms both;
 }
 
-.egg.is-dropping .egg__trail {
+.piece--egg.is-dropping .piece__trail {
   animation:
     trail-in 620ms linear both,
     trail-out 200ms linear 700ms both;
 }
 
-.egg__trail {
-  position: absolute;
-  bottom: 100%;
-  left: 14%;
-  width: 72%;
-  height: calc(var(--cell) * 1.2);
-  background-image:
-    repeating-linear-gradient(to bottom, var(--egg-line) 0 26%, transparent 26% 52%),
-    repeating-linear-gradient(to bottom, var(--egg-line) 0 26%, transparent 26% 52%);
-  background-repeat: no-repeat;
-  background-position: 20% 100%, 78% 100%;
-  background-size: 2px 62%, 2px 88%;
-  opacity: 0;
-  pointer-events: none;
-}
 
 /* --- ghost piece & line-clear flash -------------------------------------- */
 
@@ -1760,11 +1658,6 @@ a {
 
   .hud__next-teaser {
     max-width: 7ch;
-  }
-
-  .hud__crate {
-    width: 1.45rem;
-    height: 1.45rem;
   }
 
   /* One lamp is enough on a phone bezel: show the theme you are in. */
@@ -2292,8 +2185,7 @@ a {
 }
 
 .playfield.is-cleared .piece,
-.playfield.is-cleared .filler,
-.playfield.is-cleared .egg {
+.playfield.is-cleared .filler {
   opacity: 0;
 }
 
@@ -2323,9 +2215,9 @@ a {
   .cell.is-motes,
   .cell.is-motes::after,
   .filler.is-motes,
-  .egg.is-dropping .egg__drop,
-  .egg.is-dropping .egg__body,
-  .egg.is-dropping .egg__trail,
+  .piece--egg.is-dropping .piece__drop,
+  .piece--egg.is-dropping .piece__body,
+  .piece--egg.is-dropping .piece__trail,
   .panel.is-typing .panel__caret {
     animation: none !important;
   }
@@ -2335,8 +2227,6 @@ a {
   .cell,
   .piece--link::after,
   .eye__track,
-  .egg__cell,
-  .egg__body,
   .panel__hint,
   .theme-toggle .icon {
     transition: none !important;
@@ -2369,8 +2259,7 @@ a {
   }
 
   .playfield.is-cleared .piece,
-  .playfield.is-cleared .filler,
-  .playfield.is-cleared .egg {
+  .playfield.is-cleared .filler {
     opacity: 1;
   }
 }

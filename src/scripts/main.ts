@@ -8,7 +8,7 @@
  */
 
 import { content } from '../lib/content';
-import { SHAPES, GHOST_SHAPES, SPARE_SHAPES, markedCell } from '../lib/tetromino';
+import { SHAPES, GHOST_SHAPES } from '../lib/tetromino';
 import {
   buildScene,
   breakpointFor,
@@ -70,7 +70,6 @@ if (playfield && fillerLayer && ghost && shell) {
 
   /* --- the session ------------------------------------------------------- */
 
-  const SESSION_KEY = 'aix4u-session';
   const SHUFFLE_KEY = 'aix4u-shuffles';
   const EGG_KEY = 'aix4u-egg';
 
@@ -90,25 +89,10 @@ if (playfield && fillerLayer && ghost && shell) {
     }
   }
 
-  /**
-   * The mystery piece's silhouette is a property of the *visit*, not of the seed
-   * (DESIGN §6.5 v2.1.1) — reshuffling the board should not change which piece
-   * you are waiting for. A reload keeps it; a new tab draws again.
-   */
-  function sessionSeed(): number {
-    const stored = Number.parseInt(session(SESSION_KEY) ?? '', 10);
-    if (Number.isFinite(stored) && stored > 0) return stored;
-    const fresh = randomSeed();
-    rememberSession(SESSION_KEY, String(fresh));
-    return fresh;
-  }
-
-  const eggShape = sessionSeed() % SPARE_SHAPES.length;
-
   let scene = currentScene(readSeedFromUrl() ?? randomSeed());
 
   function currentScene(seed: number): Scene {
-    return buildScene(seed, window.innerWidth, content.items, eggShape);
+    return buildScene(seed, window.innerWidth, content.items);
   }
 
   function readSeedFromUrl(): number | null {
@@ -171,28 +155,11 @@ if (playfield && fillerLayer && ghost && shell) {
     ghostRng = createRandom((next.seed ^ 0x9e3779b9) >>> 0);
     drawGhost(next.ghost);
 
-    // The mystery piece is part of the world from the first frame: it finds a new
-    // spot on the bed in every scene rather than waiting to be earned.
+    // The mystery tile is part of the world from the first frame: it finds a new
+    // perch on the bed in every scene rather than waiting to be earned.
     if (egg) {
-      const shape = SPARE_SHAPES[next.egg.shape]!;
       egg.style.setProperty('--gx', String(next.egg.x));
       egg.style.setProperty('--gy', String(next.egg.y));
-      egg.style.setProperty('--pw', String(shape.width));
-      egg.style.setProperty('--ph', String(shape.height));
-      const body = egg.querySelector('.egg__body');
-      if (body && body.childElementCount !== shape.cells.length) {
-        const mark = markedCell(shape);
-        body.replaceChildren(
-          ...shape.cells.map(([cx, cy]) => {
-            const span = document.createElement('span');
-            span.className = 'cell egg__cell';
-            span.style.setProperty('--cx', String(cx));
-            span.style.setProperty('--cy', String(cy));
-            if (cx === mark[0] && cy === mark[1]) span.textContent = '?';
-            return span;
-          }),
-        );
-      }
     }
 
     moveCursor();
@@ -442,7 +409,7 @@ if (playfield && fillerLayer && ghost && shell) {
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.piece, .panel, .egg')) return;
+    if (target?.closest('.piece, .panel')) return;
     if (selected) clearSelection();
   });
 
@@ -480,9 +447,9 @@ if (playfield && fillerLayer && ghost && shell) {
   let eggDropped = Boolean(session(EGG_KEY));
 
   /**
-   * The mystery piece is in the scene the whole time. What the third reshuffle of
+   * The mystery tile is in the scene the whole time. What the third reshuffle of
    * a session earns is the *arrival* — it re-drops out of the NEXT slot with the
-   * full falling treatment, trail and squash and all (DESIGN §6.5 v2.1.1). Once
+   * full falling treatment, trail and squash and all (DESIGN §6.5 v2.1.2). Once
    * per session: a gag that repeats is not a gag.
    */
   function maybeDropEgg(): void {
@@ -598,7 +565,7 @@ if (playfield && fillerLayer && ghost && shell) {
     if (egg) {
       const top = Number(egg.style.getPropertyValue('--gy') || 0);
       for (const cell of egg.querySelectorAll<HTMLElement>('.cell')) {
-        push(top + Number(cell.style.getPropertyValue('--cy') || 0), cell);
+        push(top + Number(cell.dataset['cy'] ?? 0), cell);
       }
     }
 
