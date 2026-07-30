@@ -61,10 +61,12 @@ A slightly inset label strip — like a cartridge sticker — crosses each piece
 - **I**: band across all 4 cells (`HEALTH ANALYST` fits one line).
 - **T**: band across the 3-wide bar (`MEIKYU`).
 - **L**: band across the 3-wide horizontal arm (`RAYTALLY`).
-- **S**: band wraps the waist row where all 3 columns have coverage (`AHR999`).
+- **S**: band along the **lower arm**, 2 cells (`AHR999`). *(This called for "the waist row where all 3 columns have coverage" until the geometry was checked: a horizontal S is two offset pairs, so no strip spans all three columns, and any waist band hangs its first glyphs out in the notch. The lower arm is the trough of the wave and is fully backed.)*
 - **O**: two-line band (`X2` / `MARKDOWN`).
 
-Band text is real HTML text inside the piece's `<a>` (SEO keeps the name; no image text). Text auto-fits: font-size steps down once, then two-line fallback — never truncate a name.
+Bands sit **low in their row**, the way a sticker sits low on a cartridge — which is also what keeps the top of the row clear for the eye and the placeholder icon badge.
+
+Band text is real HTML text inside the piece's `<a>` (SEO keeps the name; no image text). Type size is *computed* from the name's length and the band's box, so the script-free HTML is already correct. Auto-fit: font-size steps down once, then two-line fallback — never truncate a name. A shape whose band cannot hold the full name (only the S today) carries a shorter `bandName`; the full name still ships in the info panel, the sr-only line and the JSON-LD.
 
 ### 3.3 Eye (anthropomorphism level: Mino)
 One single pixel eye per piece (position fixed per design, never on the band). Behavior:

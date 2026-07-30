@@ -904,29 +904,16 @@ a {
   width: var(--eye-size);
   height: calc(var(--eye-size) * 0.86);
   overflow: hidden;
-  /* Wider than it is tall, and rounded off at the corners: a square with a dot
-     in it reads as a button or a little screen, which is exactly the wrong
-     reading for the one feature that makes the piece alive. */
-  border-radius: 42% 42% 46% 46%;
+  /* Wider than it is tall, and almost round. The obvious pixel-pure choice — a
+     rounded square, matching the cells — was tried and rejected twice: a square
+     with a dot in it reads as a button, and a square with a highlighted dot in it
+     reads as a save icon. Legibility of the one anthropomorphic feature beats
+     edge purity on a 26px detail. */
+  border-radius: 46% 46% 50% 50%;
   background: var(--eye-white);
-  box-shadow:
-    inset 0 0 0 1px var(--eye-rim),
-    inset 0 -1px 0 1px var(--eye-rim);
+  box-shadow: inset 0 0 0 max(1px, calc(var(--eye-size) * 0.09)) var(--eye-rim);
   transform: translate(-50%, -50%);
   pointer-events: none;
-}
-
-/* The specular pixel. One lit corner is the whole difference between "an eye"
-   and "a hole". */
-.eye::after {
-  content: '';
-  position: absolute;
-  top: 18%;
-  left: 16%;
-  width: 18%;
-  height: 22%;
-  background: var(--eye-spark);
-  z-index: 1;
 }
 
 .piece--product {
@@ -954,11 +941,24 @@ a {
   z-index: 2;
   width: 46%;
   height: 54%;
-  border-radius: 1px;
+  border-radius: 40%;
   background: var(--eye-pupil);
   transform: translate(-50%, -50%)
     translate(calc(var(--pupil-x) * var(--eye-step)), calc(var(--pupil-y) * var(--eye-step)));
   transition: transform 90ms steps(2, end);
+}
+
+/* The specular pixel rides *on* the pupil rather than on the sclera, because the
+   pupil moves and would otherwise slide over it. One lit corner is the whole
+   difference between "an eye" and "a hole". */
+.eye__pupil::after {
+  content: '';
+  position: absolute;
+  top: 14%;
+  left: 14%;
+  width: 22%;
+  height: 22%;
+  background: var(--eye-spark);
 }
 
 /* The lid drops from the top, so a half-closed eye reads as sleepy rather than

@@ -5,7 +5,7 @@
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
   },
   "panel": {
-    "idle": "AIX4U — indie products, dropping like tetrominoes.",
+    "idle": "AIX4U — indie products by Ruochen.",
     "cta": "▸ PLAY"
   },
   "items": [
@@ -40,7 +40,7 @@
       "url": "https://raytally.com",
       "kind": "WEB",
       "status": "DAILY",
-      "tagline": "Product ideas mined daily from search trends",
+      "tagline": "Glowing product ideas, collected daily",
       "description": "A daily brainstorm feed that mines verifiable search-trend shifts for product ideas.",
       "iconAt": [0, 0],
       "eye": [2, 1, 0.5, 0.2],
