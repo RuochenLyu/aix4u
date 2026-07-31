@@ -1116,12 +1116,12 @@ if (playfield && fillerLayer && ghost && shell) {
   const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
   const konamiWindow: string[] = [];
   /**
-   * Once per *session*, like the mystery tile's drop — not once per page. A
-   * reload is not a new visit, and a spectacle you can re-summon with F5 is a
-   * button, not an easter egg.
+   * Once per page *load*, in memory only. This was once-per-session via
+   * sessionStorage, which outlives F5 in the same tab — on device that read
+   * as "the egg broke", because the one visitor who knows the code is exactly
+   * the visitor who will try it again after a reload.
    */
-  const KONAMI_KEY = 'aix4u-konami';
-  let konamiSpent = Boolean(session(KONAMI_KEY));
+  let konamiSpent = false;
 
   /**
    * Storm dimensions (v2.2.1). The first pass rained twelve dotted outlines and
@@ -1150,7 +1150,6 @@ if (playfield && fillerLayer && ghost && shell) {
   async function konamiRain(): Promise<void> {
     if (konamiSpent || reducedMotion.matches) return;
     konamiSpent = true;
-    rememberSession(KONAMI_KEY, '1');
 
     const bp = scene.breakpoint;
     const palette = rainPalette();
