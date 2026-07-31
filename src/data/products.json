@@ -1,5 +1,5 @@
 {
-  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative PNGs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `iconAt` is a [cx, cy] cell of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `face` names a preset from src/lib/content.ts and anchors it the same way — a one-eyed preset takes `at`, a two-eyed one takes `at` as the midpoint plus an optional `gap`, or both anchors as `at`/`at2`; `motion` names a personality preset from src/lib/content.ts; `noRef: true` keeps `?ref=aix4u` off a product's rendered link (DESIGN §13.3 — store pages dislike stranger params). Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
+  "$comment": "The CMS is this file. See README.md — adding a product is one entry in `items`. `shape` also fixes the canonical orientation (the engine never rotates); `skin.light`/`skin.dark` are root-relative WebPs under /skins/ laid across the whole piece, and an empty string falls back to the accent-fill placeholder; `iconAt` is a [cx, cy] cell of that shape, optionally [cx, cy, ax, ay] to nudge inside the cell; `face` names a preset from src/lib/content.ts and anchors it the same way — a one-eyed preset takes `at`, a two-eyed one takes `at` as the midpoint plus an optional `gap`, or both anchors as `at`/`at2`; `motion` names a personality preset from src/lib/content.ts; `noRef: true` keeps `?ref=aix4u` off a product's rendered link (DESIGN §13.3 — store pages dislike stranger params). Pieces carry no name text — the name lives in the info panel (DESIGN §3.2).",
   "next": {
     "teaser": "",
     "url": "https://github.com/RuochenLyu/aix4u/issues/new"
@@ -11,7 +11,7 @@
     {
       "type": "product",
       "id": "meikyu",
-      "icon": "/icons/meikyu.png",
+      "icon": "/icons/meikyu.webp",
       "name": "Meikyu",
       "shape": "T",
       "accent": "#e8a33d",
@@ -25,12 +25,12 @@
       "iconAt": [1, 1],
       "face": { "preset": "keeper", "at": [2, 0, 0.38, 0.34] },
       "motion": "tease-rotate",
-      "skin": { "light": "/skins/meikyu-light.png", "dark": "/skins/meikyu-dark.png" }
+      "skin": { "light": "/skins/meikyu-light.webp", "dark": "/skins/meikyu-dark.webp" }
     },
     {
       "type": "product",
       "id": "raytally",
-      "icon": "/icons/raytally.png",
+      "icon": "/icons/raytally.webp",
       "name": "RayTally",
       "shape": "L",
       "accent": "#d9f24e",
@@ -44,12 +44,12 @@
       "iconAt": [0, 0],
       "face": { "preset": "collector", "at": [2, 1, 0.38, 0.28] },
       "motion": "prop-up",
-      "skin": { "light": "/skins/raytally-light.png", "dark": "/skins/raytally-dark.png" }
+      "skin": { "light": "/skins/raytally-light.webp", "dark": "/skins/raytally-dark.webp" }
     },
     {
       "type": "product",
       "id": "ahr999",
-      "icon": "/icons/ahr999.png",
+      "icon": "/icons/ahr999.webp",
       "name": "AHR999 Dataset",
       "shape": "S",
       "accent": "#f59e0b",
@@ -63,12 +63,12 @@
       "iconAt": [1, 0],
       "face": { "preset": "watcher", "at": [0, 1, 0.54, 0.26] },
       "motion": "sway",
-      "skin": { "light": "/skins/ahr999-light.png", "dark": "/skins/ahr999-dark.png" }
+      "skin": { "light": "/skins/ahr999-light.webp", "dark": "/skins/ahr999-dark.webp" }
     },
     {
       "type": "product",
       "id": "x2markdown",
-      "icon": "/icons/x2markdown.png",
+      "icon": "/icons/x2markdown.webp",
       "name": "X2Markdown",
       "shape": "O",
       "accent": "#20b8c8",
@@ -83,12 +83,12 @@
       "iconAt": [1, 1, 0.5, 0.76],
       "face": { "preset": "mascot", "at": [0, 0, 1, 0.68], "mouth": [1, 1, 0, 0.12] },
       "motion": "squash",
-      "skin": { "light": "/skins/x2markdown-light.png", "dark": "/skins/x2markdown-dark.png" }
+      "skin": { "light": "/skins/x2markdown-light.webp", "dark": "/skins/x2markdown-dark.webp" }
     },
     {
       "type": "product",
       "id": "health-analyst",
-      "icon": "/icons/health-analyst.png",
+      "icon": "/icons/health-analyst.webp",
       "name": "Health Analyst",
       "shape": "I",
       "accent": "#3fae5a",
@@ -102,12 +102,12 @@
       "iconAt": [0, 0, 0.5, 0.22],
       "face": { "preset": "calm", "at": [3, 0, 0.52, 0.3] },
       "motion": "metronome",
-      "skin": { "light": "/skins/health-analyst-light.png", "dark": "/skins/health-analyst-dark.png" }
+      "skin": { "light": "/skins/health-analyst-light.webp", "dark": "/skins/health-analyst-dark.webp" }
     },
     {
       "type": "link",
       "id": "github",
-      "icon": "/icons/github.png",
+      "icon": "/icons/github.webp",
       "name": "GitHub",
       "label": "GH",
       "logo": "github",
@@ -116,7 +116,7 @@
     {
       "type": "link",
       "id": "kshift",
-      "icon": "/icons/kshift.png",
+      "icon": "/icons/kshift.webp",
       "name": "kshift.me",
       "label": "K",
       "url": "https://kshift.me"
@@ -124,7 +124,7 @@
     {
       "type": "link",
       "id": "x",
-      "icon": "/icons/x.png",
+      "icon": "/icons/x.webp",
       "name": "X (Twitter)",
       "label": "X",
       "logo": "x",

@@ -318,7 +318,7 @@ function optionalAsset(where: string, value: Record<string, unknown>, field: str
   const v = value[field];
   if (v === undefined || v === null || v === '') return undefined;
   if (typeof v !== 'string') fail(where, `"${field}" must be a string when present`);
-  if (!v.startsWith('/')) fail(where, `"${field}" must be a root-relative path such as "/skins/foo.png", got "${v}"`);
+  if (!v.startsWith('/')) fail(where, `"${field}" must be a root-relative path such as "/skins/foo.webp", got "${v}"`);
   return v;
 }
 

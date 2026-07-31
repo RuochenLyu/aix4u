@@ -32,7 +32,7 @@
 - 画布 = 形状占格 × 240px，透明底、二值 Alpha、严格形状遮罩、最近邻硬像素
 - **无格线、无描边、无 bevel、无脸**——这些全部由网页代码绘制
 - 亮暗两版；脸部安静区坐标由站点侧提供（按 face 锚点换算，格内矩形 ~110×100px）
-- 每版 2 候选，交付到 `public/skins/_candidates/`，站点侧选型后复制为 `public/skins/<id>-{light,dark}.png`
+- 每版 2 候选，交付到 `public/skins/_candidates/`，站点侧选型后复制为 `public/skins/<id>-{light,dark}.webp（用 sharp 无损 webp：`npx -y sharp-cli` 或站内 node_modules/sharp 转换）`
 
 ## Step 4 — 接线与验收（一条 JSON + 构建自检）
 

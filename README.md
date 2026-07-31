@@ -41,7 +41,7 @@ Append one object to `items` in [`src/data/products.json`](src/data/products.jso
   "iconAt": [1, 1],
   "face": { "preset": "keeper", "at": [2, 0, 0.38, 0.34] },
   "motion": "tease-rotate",
-  "skin": { "light": "/skins/new-thing-light.png", "dark": "/skins/new-thing-dark.png" }
+  "skin": { "light": "/skins/new-thing-light.webp", "dark": "/skins/new-thing-dark.webp" }
 }
 ```
 
