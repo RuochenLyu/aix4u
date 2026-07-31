@@ -6,7 +6,7 @@ Live at **[aix4u.com](https://aix4u.com)**.
 
 ![The aix4u playfield: tetromino product pieces floating above an uneven stack](docs/reference/current-light.png)
 
-Astro, TypeScript, no UI framework, no analytics, no third-party requests. One page, ~1 MB of static output.
+Astro, TypeScript, no UI framework, no analytics, no third-party requests. One page, ~400 KB of static output.
 
 ---
 
@@ -122,7 +122,7 @@ The artwork in `public/skins` and `public/icons` is not covered by the MIT licen
 
 线上地址：**[aix4u.com](https://aix4u.com)**。
 
-Astro + TypeScript，零 UI 框架、零统计、零第三方请求。单页，静态产物约 1 MB。
+Astro + TypeScript，零 UI 框架、零统计、零第三方请求。单页，静态产物约 400 KB。
 
 ### 概念
 
