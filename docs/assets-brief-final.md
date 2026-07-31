@@ -18,5 +18,5 @@
 
 ## 交付
 
-- 全部存到 `/Users/ruochen/workspace/aix4u/public/icons/_candidates/`
+- 全部存到 `public/icons/_candidates/`
 - 不修改代码或任何已接线素材

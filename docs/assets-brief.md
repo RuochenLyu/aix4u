@@ -55,6 +55,6 @@
 
 ## 交付
 
-- 全部存到 `/Users/ruochen/workspace/aix4u/public/skins/_candidates/`（皮肤）和 `/Users/ruochen/workspace/aix4u/public/icons/_candidates/`（其余）
+- 全部存到 `public/skins/_candidates/`（皮肤）和 `public/icons/_candidates/`（其余）
 - 命名：`meikyu-light-1.png` / `meikyu-dark-1.png` / `github-1.png` / `favicon-1.png` …
 - 不要写代码、不要改仓库其他文件——选型与接线由站点侧处理
