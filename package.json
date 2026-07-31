@@ -5,6 +5,21 @@
   "description": "aix4u.com \u2014 an indie developer's product portfolio, rendered as a frozen frame of an ongoing Tetris game.",
   "license": "MIT",
   "author": "Ruochen Lyu",
+  "homepage": "https://aix4u.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RuochenLyu/aix4u.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RuochenLyu/aix4u/issues"
+  },
+  "keywords": [
+    "astro",
+    "portfolio",
+    "tetris",
+    "pixel-art",
+    "static-site"
+  ],
   "type": "module",
   "scripts": {
     "dev": "astro dev",
