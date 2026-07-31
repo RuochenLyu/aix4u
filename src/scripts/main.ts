@@ -74,6 +74,30 @@ soundToggle?.addEventListener('click', () => {
   // on the way out, and the first thing on the way back in.
   if (on) sound.key();
 });
+// Another tab flipped the switch: the icon follows the ears (§13.4 v2.2.2).
+sound.onEnabledChange(syncSpeaker);
+
+/**
+ * Clicking a chassis button leaves it focused, and the *next* arrow key then
+ * flips the browser into keyboard modality — which lights `:focus-visible` on a
+ * button the visitor stopped thinking about several seconds ago (v2.2.2, from a
+ * device test: press the speaker, then an arrow, and a yellow ring appears
+ * around the speaker). On this page the arrows are the Konami code and the
+ * scene's own language, not chrome navigation, so a HUD button has no business
+ * claiming them.
+ *
+ * Dropping focus on `click` removes exactly that path and nothing else: a real
+ * `Tab` to the button still focuses it and still draws the ring, because Tab
+ * never goes through here. Accessibility is not traded away — only the residue
+ * of a pointer press is.
+ *
+ * The reshuffle hint is in here too: it is the same class of control (a machine
+ * key that happens to live under the panel) and R is one of the keys that would
+ * light it up.
+ */
+for (const button of document.querySelectorAll<HTMLElement>('.hud button, #reshuffle')) {
+  button.addEventListener('click', () => button.blur());
+}
 
 // The timbres take any BaseAudioContext, so a dev console can render each one
 // through an OfflineAudioContext and measure it (duration, peak) without a
@@ -498,7 +522,18 @@ if (playfield && fillerLayer && ghost && shell) {
     cursor.hidden = false;
   }
 
-  function selectPiece(id: string): void {
+  /**
+   * `quiet` is how attract mode borrows this path without borrowing its voice
+   * (§13.4 v2.2.2). The blip is feedback for a *hand* — it confirms that the
+   * thing under your pointer registered. During the demo there is no hand, so a
+   * blip every 3.5s is the machine talking to nobody, and on a page left open it
+   * is the single most annoying thing on it: a chirp from a tab you are not
+   * looking at, forever, with no gesture to explain it. A shop-window display is
+   * silent; the glass is what you hear nothing through. Sound belongs to the
+   * visitor's hand, so the demo runs mute and every visitor-driven path — hover,
+   * focus, tap — keeps the blip it always had.
+   */
+  function selectPiece(id: string, quiet = false): void {
     const el = pieceElements.get(id);
     const flavor = el?.dataset['flavor'];
     if (!flavor) return;
@@ -514,7 +549,7 @@ if (playfield && fillerLayer && ghost && shell) {
     selected = id;
     if (panel) panel.dataset['state'] = 'piece';
     // A cursor move on the wall, the quietest voice in the kit (§13.4).
-    sound.select();
+    if (!quiet) sound.select();
     // Row one lands whole, on the frame you select: the name and the two tags are
     // the answer to "what is this", and an answer that types itself is a delay.
     if (panelName) panelName.textContent = (el!.dataset['name'] ?? '').toUpperCase();
@@ -1056,10 +1091,10 @@ if (playfield && fillerLayer && ghost && shell) {
     }
     const id = attractOrder[attractStep]!;
     attractStep += 1;
-    // selectPiece drives the cursor, the panel and the blip — the demo uses the
-    // same path a visitor's pointer does, so there is no second code path to
-    // keep in sync.
-    selectPiece(id);
+    // selectPiece drives the cursor and the panel — the demo uses the same path
+    // a visitor's pointer does, so there is no second code path to keep in sync.
+    // It passes `quiet`, though: the demo is a window display, not a voice.
+    selectPiece(id, true);
     attractTimer = window.setTimeout(attractTick, ATTRACT_STEP_MS);
   }
 
@@ -1292,3 +1327,4 @@ if (playfield && fillerLayer && ghost && shell) {
     }, 180);
   });
 }
+

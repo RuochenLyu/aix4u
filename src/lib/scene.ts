@@ -242,17 +242,25 @@ const round = (v: number, places = 2): number => {
   return Math.round(v * factor) / factor;
 };
 
-/** Clearance kept between a floating piece and whatever is under it, in cells. */
-const SKY_CLEARANCE = 0.6;
+/**
+ * Clearance kept between a floating piece and whatever is under it, in cells.
+ * A whole cell since v2.2.2 — floating pieces now land on integer rows (see
+ * `layoutSky`), so a fractional clearance could only ever round away.
+ */
+const SKY_CLEARANCE = 1;
 /**
  * How far down the field each successive phone piece starts (DESIGN §7 v2.1.3).
  * Pieces alternate between the two edges, so consecutive ones interleave and the
  * *same-side* pair — two steps apart — is what has to clear: at 1.5 a pair of
  * two-row pieces keeps a one-row gap, which is the rhythm the design asks for.
  */
-const COLUMN_STEP = 1.5;
-/** Air two phone pieces must keep between them when they do share columns. */
-const BAND_GAP = 0.4;
+const COLUMN_STEP = 1;
+/**
+ * Air two phone pieces must keep between them when they do share columns. A
+ * whole row since v2.2.2, for the same reason as `SKY_CLEARANCE`: on an integer
+ * grid, 0.4 of a cell is either zero or one, and one is the honest answer.
+ */
+const BAND_GAP = 1;
 
 function shapeOf(item: SceneItem): ShapeName {
   return item.type === 'product' ? item.shape : 'DOT';
@@ -553,6 +561,22 @@ function occupied(x: number, y: number, filler: readonly FillerCell[], reserved:
  * thirds of the field, never over the stack. Lanes are exclusive strips — a
  * piece is placed in [lane, lane + laneWidth - width] — which is what keeps two
  * protagonists from ever sharing airspace.
+ *
+ * v2.2.2 snaps the vertical placement to **whole rows**, and that is a bug fix,
+ * not a tightening. `x` was always an integer column; `y` was not — it started at
+ * `bandTop = 0.3`, was spaced by a fractional `span / (n - 1)`, and then took a
+ * ±0.25 jitter on top. So every product piece hung a fraction of a cell off the
+ * grid its own background draws, and the Konami storm blocks (integer rows, like
+ * the ghost and the bed) made the mismatch impossible to unsee: the spectacle
+ * lined up with the grid and the products did not.
+ *
+ * The staggering the fraction was buying is kept — it just comes from integer row
+ * *differences* now. Five products across a nine-row band still land on five
+ * different rows; they simply land on rows. One coordinate system for the
+ * background grid, the ghost, the storm, the bed and the products.
+ *
+ * The ±2px bob is unaffected: it is a `transform` on the tile, not a grid
+ * coordinate, so it floats the piece off an integer cell without moving the cell.
  */
 function layoutSky(
   rng: Rng,
@@ -570,12 +594,15 @@ function layoutSky(
   );
 
   const stackTop = Math.max(0, ...tops);
-  const bandTop = 0.3;
-  const bandBottom = Math.max(bandTop + 1.5, Math.min(bp.rows * 0.66, bp.rows - stackTop - 1.2) - 1.6);
+  // Whole rows from here down: the band edges, the slots, and the floor.
+  const bandTop = 0;
+  const bandBottom = Math.max(bandTop + 2, Math.floor(Math.min(bp.rows * 0.66, bp.rows - stackTop - 1) - 2));
   const span = bandBottom - bandTop;
   const slots = shuffled(
     rng,
-    floating.map((_, i) => bandTop + (floating.length === 1 ? span / 2 : (span / (floating.length - 1)) * i)),
+    floating.map((_, i) =>
+      Math.round(bandTop + (floating.length === 1 ? span / 2 : (span / (floating.length - 1)) * i)),
+    ),
   );
 
   floating.forEach((item, index) => {
@@ -589,15 +616,18 @@ function layoutSky(
 
     let localTop = 0;
     for (let dx = 0; dx < shape.width; dx++) localTop = Math.max(localTop, tops[x + dx] ?? 0);
-    const floor = bp.rows - localTop - shape.height - SKY_CLEARANCE;
-    const y = clamp(slots[index]! + (rng() - 0.5) * 0.5, bandTop, Math.max(bandTop, floor));
+    const floor = Math.floor(bp.rows - localTop - shape.height - SKY_CLEARANCE);
+    // The old ±0.25 jitter is gone rather than rounded: on a whole-row grid the
+    // only jitter available is a full cell, which would undo the even spread the
+    // slots exist to produce. The stagger is the slot spacing now.
+    const y = clamp(slots[index]!, bandTop, Math.max(bandTop, floor));
 
     pieces.push({
       id: item.id,
       pool: 'floating',
       shape: shapeOf(item),
       x,
-      y: round(y, 1),
+      y,
       order: 0,
       bobPeriod: round(5.6 + rng() * 2.8, 1),
       bobDelay: round(rng() * 4, 1),
@@ -630,7 +660,8 @@ function layoutColumn(
   pieces: PiecePlacement[],
 ): number {
   let left = rng() < 0.5;
-  let y = 0.3;
+  // Whole rows, like every other pool (v2.2.2 — see `layoutSky`).
+  let y = 0;
   let bottom = 0;
   const placed: { x: number; y: number; w: number; h: number }[] = [];
 
@@ -650,7 +681,7 @@ function layoutColumn(
           r.y < top + shape.height + BAND_GAP,
       )
     ) {
-      top += 0.1;
+      top += 1;
     }
 
     pieces.push({
@@ -658,7 +689,7 @@ function layoutColumn(
       pool: 'floating',
       shape: shapeOf(item),
       x,
-      y: round(top, 1),
+      y: top,
       order: 0,
       bobPeriod: round(5.6 + rng() * 2.8, 1),
       bobDelay: round(rng() * 4, 1),
@@ -668,7 +699,9 @@ function layoutColumn(
 
     placed.push({ x, y: top, w: shape.width, h: shape.height });
     bottom = Math.max(bottom, top + shape.height);
-    y = top + COLUMN_STEP + rng() * 0.3;
+    // Integer step: the rhythm is 1 or 2 rows, chosen, rather than 1.5 plus a
+    // fraction. Same interleave, on the grid.
+    y = top + COLUMN_STEP + int(rng, 0, 1);
     left = !left;
   }
 

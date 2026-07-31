@@ -204,17 +204,60 @@ export function thudFelt(ctx: Ctx, out: AudioNode, when: number): number {
  * centre rather than a fixed one, it rides an inverse ramp on the gain node
  * instead of a constant.
  */
-const SWISH_LO = 500;
-const SWISH_HI = 2800;
+const SWISH_LO = 400;
+const SWISH_HI = 1200;
 /**
- * Tuned against the landing taps, which are the kit's reference voice at about
- * −9dBFS. The per-row version needed 1950 because a 50ms burst reads far quieter
- * than its peak; a continuous swish sustains its level for the whole sweep, so
- * the same number arrived at −0.8dBFS — a hair off clipping and eight decibels
- * over everything else. 700 puts it just under the taps, which is where a piece
- * of scenery belongs next to an impact.
+ * The brick wall, and the actual fix. A band-pass is a *slope*, not a ceiling:
+ * at Q 1.2 the old band centred on 2.8kHz still passed usable energy past 5kHz,
+ * and lowering Q to widen the "air" made it worse rather than better (measured:
+ * Q 0.6 with a 1.2kHz ceiling still read 35% harsh, because a wide band leaks
+ * upward as readily as down). Two cascaded lowpasses after the band — 12dB per
+ * octave each, 24dB total — are what turn a ceiling into a ceiling.
  */
-const SWISH_GAIN = 700;
+const SWISH_LP = 1500;
+
+/**
+ * The line-clear sweep, as **one continuous rising swish** across the whole
+ * clear — not one burst per row.
+ *
+ * Per-row was the design's first instinct and the device test rejected it: ten
+ * rows at 40ms apart is ten transients in under half a second, which reads as a
+ * machine-gun rattle rather than as light travelling up the stack. The visual it
+ * accompanies is one gesture, so the sound is one gesture: a single band-passed
+ * noise burst whose centre glides over the sweep's real duration, with one soft
+ * attack and one decay.
+ *
+ * v2.2.2, from a device test that called this "刺耳": the 500Hz→2.8kHz version
+ * put the top of its glide directly in the 2–5kHz band where human hearing peaks
+ * (ISO 226), and the ear reads a noise band parked there as a hiss aimed at it.
+ * Measured through an OfflineAudioContext, DFT at 320ms into a 400ms sweep, as
+ * a fraction of total energy in 2–5kHz:
+ *
+ *     500→2800, Q1.6, no lowpass (old)   57.5% harsh, 14.5% >5kHz, peak −7.1dBFS
+ *     450→1400, Q0.7 (widen the band)    36.2% harsh, 15.0% >5kHz, peak −6.5
+ *     450→1200, Q0.6 (widen further)     35.1% harsh, 12.0% >5kHz, peak −6.1
+ *     450→1400 + 2×LP1800, Q0.9           6.1% harsh,  0.0% >5kHz, peak −9.0
+ *     400→1200 + 2×LP1500, Q1.2 (this)    0.7% harsh,  0.0% >5kHz, peak −9.7
+ *
+ * The last row is the recipe: the glide still rises (light travelling up the
+ * stack is the whole point — the visual sweeps upward, so the pitch does too),
+ * but it now tops out at 1.2kHz where a noise band reads as *breath* rather than
+ * as sibilance, and the pair of lowpasses guarantees nothing above 1.5kHz gets
+ * out regardless of where the band's skirt lands. Q stays at 1.2: with a real
+ * ceiling in place, a *tighter* band is what makes the movement legible as pitch.
+ *
+ * The level lands at −9.7dBFS against the landing tap's −6.8, i.e. ~3dB under
+ * the kit's reference voice, which is where §13.4 wants scenery to sit next to
+ * an impact. The old version was −7.1: louder *and* brighter than the thing it
+ * was meant to accompany.
+ *
+ * The level compensation stays, and is the reason the glide is audible as pitch
+ * rather than as a crescendo: a band-pass passes energy in proportion to its
+ * bandwidth, so a fixed source level would ramp across the sweep. Because the
+ * gain has to track a *moving* centre, it rides an inverse ramp on the gain node
+ * instead of a constant.
+ */
+const SWISH_GAIN = 400;
 
 export function sweepSwish(ctx: Ctx, out: AudioNode, when: number, durationS: number): number {
   const dur = Math.max(0.12, durationS);
@@ -224,9 +267,19 @@ export function sweepSwish(ctx: Ctx, out: AudioNode, when: number, durationS: nu
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'bandpass';
-  filter.Q.value = 1.6;
+  filter.Q.value = 1.2;
   filter.frequency.setValueAtTime(SWISH_LO, when);
   filter.frequency.exponentialRampToValueAtTime(SWISH_HI, when + dur);
+
+  // The ceiling, twice — see SWISH_LP. One of these is a slope; two are a wall.
+  const lp1 = ctx.createBiquadFilter();
+  lp1.type = 'lowpass';
+  lp1.frequency.value = SWISH_LP;
+  lp1.Q.value = 0.7;
+  const lp2 = ctx.createBiquadFilter();
+  lp2.type = 'lowpass';
+  lp2.frequency.value = SWISH_LP;
+  lp2.Q.value = 0.7;
 
   const gain = ctx.createGain();
   const attack = 0.03;
@@ -238,7 +291,7 @@ export function sweepSwish(ctx: Ctx, out: AudioNode, when: number, durationS: nu
   gain.gain.exponentialRampToValueAtTime(SWISH_GAIN / SWISH_HI, when + dur);
   gain.gain.exponentialRampToValueAtTime(0.0001, when + dur + release);
 
-  src.connect(filter).connect(gain).connect(out);
+  src.connect(filter).connect(lp1).connect(lp2).connect(gain).connect(out);
   const end = when + dur + release + 0.02;
   src.start(when);
   src.stop(end);
@@ -246,12 +299,21 @@ export function sweepSwish(ctx: Ctx, out: AudioNode, when: number, durationS: nu
 }
 
 /**
- * The sweep's full stop: three tiny sine pings stepping up a G-major arpeggio at
- * the very top of the board's range — the pixel sparks, for the ear.
+ * The sweep's full stop: three tiny sine pings stepping up a G-major arpeggio —
+ * the pixel sparks, for the ear.
+ *
+ * Dropped an octave in v2.2.2 (G6 B6 D7 → G5 B5 D6) to follow the swish down.
+ * The old triad sat at 1568/1976/2349Hz, i.e. entirely inside the 2–5kHz band
+ * the swish was just rebuilt to stay out of — measured 40.1% of its energy
+ * there, which made the sparkle the new brightest thing in the kit and left the
+ * sweep sounding like it ended in a different instrument. At G5 the figure
+ * measures 0.0% harsh at an unchanged −12.4dBFS peak: same gesture, same level,
+ * same relationship to the swish it closes, minus the sting. Sine and 55ms
+ * spacing are untouched — the rhythm was never the problem.
  */
 export function sweepSparkle(ctx: Ctx, out: AudioNode, when: number): number {
   let end = when;
-  [1568, 1975.5, 2349.3].forEach((freq, i) => {
+  [784, 987.77, 1174.66].forEach((freq, i) => {
     end = tone(ctx, out, when + i * 0.055, { type: 'sine', freq, peak: 0.24, decay: 0.09 });
   });
   return end;
@@ -406,9 +468,31 @@ export interface SoundSystem {
   egg(): void;
   rain(durationMs: number): void;
   hail(): void;
+  /**
+   * Called whenever `enabled` changes for a reason that was *not* this page's
+   * own `toggle()` — i.e. another tab flipping the switch. The HUD speaker
+   * subscribes so its `aria-pressed` never disagrees with what you can hear.
+   */
+  onEnabledChange(listener: (on: boolean) => void): void;
 }
 
+/**
+ * The kit is a singleton (v2.2.2). Two systems on one page would each hold their
+ * own `enabled` flag and their own AudioContext, so the speaker would only mute
+ * the one it was wired to and two attract loops at different phases would double
+ * every voice. Nothing in the current page does that — `index.astro` imports
+ * this module exactly once and the built bundle carries one copy — but the bug
+ * this guards against is silent and intermittent, and the guard is four lines.
+ */
+let instance: SoundSystem | null = null;
+
 export function createSoundSystem(): SoundSystem {
+  if (instance) return instance;
+  instance = buildSoundSystem();
+  return instance;
+}
+
+function buildSoundSystem(): SoundSystem {
   let ctx: AudioContext | null = null;
   let bus: AudioNode | null = null;
   let voices = 0;
@@ -492,6 +576,44 @@ export function createSoundSystem(): SoundSystem {
 
   armResume();
 
+  /**
+   * The mute is per-*document*, and that is the bug this fixes (v2.2.2).
+   *
+   * `enabled` is read from localStorage exactly once, at construction, and after
+   * that only `toggle()` ever moves it. So any document loaded while sound was on
+   * keeps its own `enabled = true` forever, no matter what happens elsewhere: mute
+   * the page in tab A and tab B — same origin, same storage, speaker icon still
+   * showing "on" because it never re-read the key — goes right on running its
+   * attract loop out loud. From the visitor's seat that is exactly the reported
+   * symptom: "muted, and the demo is still making noise", plus the occasional
+   * doubled voice when both tabs' 8s idle clocks drift into alignment. Verified
+   * in the browser against a second same-origin realm: with `aix4u-sound` set to
+   * '0', the realm that had been loaded beforehand still minted 5 oscillators
+   * across one attract pass.
+   *
+   * `storage` fires in every *other* document of the origin when one of them
+   * writes, which is precisely the missing edge. The switch is a property of the
+   * visitor, not of the tab; a tab left open in the background is the single most
+   * likely place for an unexplained sound to come from, and it is also the one
+   * place the toggle could not reach.
+   */
+  const enabledListeners: ((on: boolean) => void)[] = [];
+
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key !== SOUND_KEY) return;
+    // A cleared key (`newValue === null`) means storage was wiped, which is the
+    // default-on state, same as a first-time visitor.
+    const next = event.newValue !== '0';
+    if (next === enabled) return;
+    enabled = next;
+    if (enabled) ensure();
+    // Silence *now*, not after the current voice finishes: a mute the visitor has
+    // to wait out is not a mute. Suspending the context stops everything already
+    // scheduled; `ensure()` resumes it on the way back.
+    else if (ctx && ctx.state === 'running') void ctx.suspend();
+    for (const listener of enabledListeners) listener(enabled);
+  });
+
   /** Voice-capped dispatch: at 8 voices a new sound is dropped, never queued. */
   function play(build: Timbre): void {
     const out = ensure();
@@ -562,6 +684,9 @@ export function createSoundSystem(): SoundSystem {
     },
     hail() {
       play(hailTap);
+    },
+    onEnabledChange(listener) {
+      enabledListeners.push(listener);
     },
   };
 }
