@@ -3,8 +3,9 @@
  *
  * Each shape is listed in its **canonical orientation** (DESIGN §3): the engine
  * never rotates a piece, because the orientation carries meaning — L is a pair
- * of axes, S is a wave, I is a strip, O is a page, T is a doorway — and the skin
- * and the eye are designed against that one silhouette.
+ * of axes, S is a wave, I is a strip, O is a page, T is a doorway, J is a subject
+ * lifted out of its photo — and the skin and the eye are designed against that
+ * one silhouette.
  *
  * Cells are [x, y] with the origin at the bounding box's top-left corner and y
  * growing downwards. v2.1 retired the sticker band (DESIGN §3.2), so a shape is
@@ -29,10 +30,11 @@ function shape(cells: readonly (readonly [number, number])[], orientation: strin
 }
 
 export const SHAPES = {
-  //  XXX        X..        .XX        XX
-  //  .X.        XXX        XX.        XX     XXXX
+  //  XXX        X..        ..X        .XX        XX
+  //  .X.        XXX        XXX        XX.        XX     XXXX
   T: shape([[0, 0], [1, 0], [2, 0], [1, 1]], '3-wide bar up, stem down'),
   L: shape([[0, 0], [0, 1], [1, 1], [2, 1]], 'vertical arm top-left, 3-wide arm along the bottom'),
+  J: shape([[2, 0], [0, 1], [1, 1], [2, 1]], 'vertical arm top-right, 3-wide arm along the bottom'),
   S: shape([[1, 0], [2, 0], [0, 1], [1, 1]], 'horizontal wave, upper row shifted right'),
   O: shape([[0, 0], [1, 0], [0, 1], [1, 1]], '2x2 block'),
   I: shape([[0, 0], [1, 0], [2, 0], [3, 0]], '4-wide horizontal strip'),
@@ -48,7 +50,7 @@ export const SHAPE_NAMES = Object.keys(SHAPES) as ShapeName[];
  * The seven standard tetrominoes, for the background ghost only (DESIGN §6.2).
  * They are deliberately *not* in `SHAPES`: that table is the set a product may
  * pick from, and its members carry a semantic assignment (§3.1). The ghost is
- * scenery — it draws from the whole bag, including the J and Z no product uses.
+ * scenery — it draws from the whole bag, including the Z no product uses.
  */
 export const GHOST_SHAPES: readonly Shape[] = [
   shape([[0, 0], [1, 0], [2, 0], [3, 0]], 'I'),

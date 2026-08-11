@@ -42,6 +42,9 @@ export const MOTION_PRESETS = {
   sway: { tease: 0, prop: 0, sway: 2, squash: 0.95, bob: 2, beat: 'breath' },
   squash: { tease: 0, prop: 0, sway: 0, squash: 0.84, bob: 2, beat: 'breath' },
   metronome: { tease: 0, prop: 0, sway: 0, squash: 0.96, bob: 2, beat: 'metronome' },
+  // J (Pluck): lands, then gets tugged upward — a firmer overshoot than L's
+  // prop-up, because this piece's whole story is being lifted out of somewhere.
+  pluck: { tease: 0, prop: 3, sway: 0, squash: 0.9, bob: 2, beat: 'breath' },
 } as const satisfies Record<string, MotionPreset>;
 
 export type MotionName = keyof typeof MOTION_PRESETS;
@@ -51,6 +54,7 @@ export const MOTION_NAMES = Object.keys(MOTION_PRESETS) as MotionName[];
 const MOTION_BY_SHAPE: Record<ShapeName, MotionName> = {
   T: 'tease-rotate',
   L: 'prop-up',
+  J: 'pluck',
   S: 'sway',
   O: 'squash',
   I: 'metronome',
@@ -175,6 +179,18 @@ export const FACE_PRESETS = {
     mouthSize: 0,
     ink: 1,
   },
+  /** J (Pluck) — the lifted cat: two half-lidded eyes, serenely unbothered. */
+  feline: {
+    eyes: [
+      { scale: 0.95, lid: 'half' },
+      { scale: 0.95, lid: 'half' },
+    ],
+    gap: 0.32,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
 } as const satisfies Record<string, FacePreset>;
 
 export type FaceName = keyof typeof FACE_PRESETS;
@@ -184,6 +200,7 @@ export const FACE_NAMES = Object.keys(FACE_PRESETS) as FaceName[];
 const FACE_BY_SHAPE: Record<ShapeName, FaceName> = {
   T: 'keeper',
   L: 'collector',
+  J: 'feline',
   S: 'watcher',
   O: 'mascot',
   I: 'calm',

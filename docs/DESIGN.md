@@ -52,6 +52,7 @@ The entire piece is the product's texture — no plain fills, no "icon cell + bl
 |---|---|---|---|
 | Meikyu | **T** — 3-wide bar up | Dungeon stone bricks; glowing arched door + torch in the lower-center cell; faint maze scratches in the mortar | `#e8a33d` |
 | RayTally | **L** — vertical arm upper-left, 3-wide horizontal arm at bottom | **Firefly jar on a night meadow**. Brand concept: fireflies = opportunities that glow ("每天收录正在发亮的机会"). Vertical arm is a glass jar holding 2–3 glowing fireflies (collected ideas); horizontal arm is a dark meadow with grass blades and more fireflies still hovering free. NOT a chart, NOT a lamp — the story is *collecting glowing things, daily* | `#d9f24e` |
+| Pluck | **J** — vertical arm upper-right, 3-wide horizontal arm at bottom | **The subject plucked from its photo**. Brand: a coral cat lifted out of a dune snapshot (pluck.aix4u.com's own icon). Horizontal arm is the photo — warm dunes, sun (moon at night) — with a pale cat-shaped hole in its right cell; the upper-right cell is that cat, coral, floating on a transparency checkerboard (the universal "background removed" symbol). The geometry *is* the extraction: subject up, photo left behind | `#ee4b45` |
 | AHR999 Dataset | **S** — horizontal | Solidified amber/honey with a candlestick-wick pattern; one cell embeds a `₿` seal — "a fossilized market wave" | `#f59e0b` |
 | X2Markdown | **O** — 2×2 | A page mid-fold: upper-left cell messy webpage fragments, lower-right cell clean `M↓` glyph — conversion painted on the skin | `#20b8c8` |
 | Health Analyst | **I** — 4-wide horizontal | An ECG paper strip: heartbeat line runs through all four cells | `#3fae5a` |
@@ -70,6 +71,7 @@ v2's "one identical eye for everyone" made the pieces feel stamped from one mold
 |---|---|---|
 | T (Meikyu) | One wide, half-lidded eye — the dungeon keeper | Slow sideways glance every ~10 s |
 | L (RayTally) | Two small round eyes, close-set — the collector | Occasionally glances down at its own jar |
+| J (Pluck) | Two half-lidded eyes on the lifted cat — serenely unbothered by its own extraction | Slow contented blink |
 | S (AHR999) | Two asymmetric eyes: one open, one squinting — watching the chart | Rare fast double-blink |
 | O (X2Markdown) | Two big round eyes + a tiny "o" mouth — the mascot, the most face of the five | Mouth pops "o" on landing; flattens to "–" when asleep |
 | I (Health Analyst) | One calm eye | Blink locked to its metronome bob — a visible heartbeat |
@@ -97,6 +99,7 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 |---|---|
 | T (Meikyu) | Does a quick 90°→0° tease-rotation just before landing (T-spin wink) |
 | L (RayTally) | Lands, then the vertical arm "props up" with a 1-step overshoot |
+| J (Pluck) | Lands, then the whole piece gets tugged upward — a firmer overshoot than L's (being plucked is its story) |
 | S (AHR999) | Sways ±2px horizontally while falling (the wave) |
 | O (X2Markdown) | Falls straight and dumb, biggest squash on landing (the mascot) |
 | I (Health Analyst) | Falls perfectly straight, steady metronome bob afterwards |
@@ -164,6 +167,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 |---|---|---|---|
 | Meikyu | https://meikyu.app | WEB · DAILY | Deduce the daily dungeon in six tries |
 | RayTally | https://raytally.com | WEB · DAILY | Glowing product ideas, collected daily |
+| Pluck | https://pluck.aix4u.com | MACOS · FREE | Pluck the subject, drop the background |
 | AHR999 Dataset | https://ahr999.aix4u.com | DATA · DAILY | The Bitcoin AHR999 index, as open data |
 | X2Markdown | chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo | CHROME · FREE | Right-click any page into clean Markdown |
 | Health Analyst | https://github.com/RuochenLyu/apple-health-analyst | CLI · OSS | Apple Health reports, private and agent-ready |
@@ -173,6 +177,7 @@ Voice rules: verb-first where possible, ≤ 7 words, no "AI-powered" filler, sta
 Longer descriptions (meta/JSON-LD): unchanged from v1 —
 - **Meikyu** — "Five residents are hiding in today's dungeon. You have six tries to place them." (official copy, verbatim)
 - **RayTally** — A daily feed that collects the opportunities lighting up right now — watching trends and new launches, harvesting product ideas you can actually build. (Brand: fireflies = glowing opportunities; zh copy "每天收录正在发亮的机会".)
+- **Pluck** — Native Mac app that lifts subjects out of photos entirely on-device — three cutout engines from instant to hair-fine, plus a scriptable CLI for agents and batch work. Free, open source, no cloud. (Official tagline: "Drop a photo. Take the subject.")
 - **AHR999 Dataset** — Open dataset + dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.
 - **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
 - **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.
