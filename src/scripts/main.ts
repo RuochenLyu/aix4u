@@ -698,11 +698,17 @@ if (playfield && fillerLayer && ghost && shell) {
 
   let eggDropped = Boolean(session(EGG_KEY));
 
+  // The tile ships in the static HTML so no-JS and crawlers keep the link, but
+  // in the running machine it is not *there* until it has arrived (DESIGN §6.5:
+  // the third reshuffle is an arrival, not a re-drop of something already in the
+  // bed). Within a session the arrival sticks across reloads.
+  if (egg) egg.classList.toggle('is-arrived', eggDropped);
+
   /**
-   * The mystery tile is in the scene the whole time. What the third reshuffle of
-   * a session earns is the *arrival* — it re-drops out of the NEXT slot with the
-   * full falling treatment, trail and squash and all (DESIGN §6.5 v2.1.2). Once
-   * per session: a gag that repeats is not a gag.
+   * The third reshuffle of a session earns the *arrival* — the tile drops out of
+   * the NEXT slot with the full falling treatment, trail and squash and all
+   * (DESIGN §6.5 v2.1.2), onto the perch the new scene picked for it. Once per
+   * session: a gag that repeats is not a gag.
    */
   function maybeDropEgg(): void {
     if (!egg || eggDropped) return;
@@ -712,6 +718,9 @@ if (playfield && fillerLayer && ghost && shell) {
 
     eggDropped = true;
     rememberSession(EGG_KEY, '1');
+    // Arrival first, animation second: under reduced motion the tile still has
+    // to appear — it just appears seated.
+    egg.classList.add('is-arrived');
     if (reducedMotion.matches) return;
     // The riddle plays with the fall, not after it (§13.4).
     sound.egg();
@@ -931,6 +940,10 @@ if (playfield && fillerLayer && ghost && shell) {
     field.classList.add('is-cleared');
     for (const el of field.querySelectorAll('.is-motes')) el.classList.remove('is-motes');
     for (const el of pieceElements.values()) el.style.removeProperty('--swept');
+    // The egg is a `.piece` the sweep clips like any other, but it is not in
+    // `pieceElements` — leaving its `--swept` behind kept its `?` clipped away
+    // for the rest of the session (the bare gray tile a device review caught).
+    egg?.style.removeProperty('--swept');
     field.classList.remove('is-clearing');
     applyScene(currentScene(seed));
     await wait(EMPTY_MS);

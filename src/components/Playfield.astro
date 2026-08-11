@@ -58,8 +58,10 @@ const ghostShape = GHOST_SHAPES[scene.ghost.shape]!;
   {/* The mystery `?`: a 1x1 tile perched on the bed, built out of the same parts
       as the GitHub and X tiles beside it (DESIGN §6.5 v2.1.2). v2.1.1 made it a
       whole tetromino and the device review sent it back — six cells of prime
-      scene space for a footnote link. It is in the scene from the first frame;
-      the third reshuffle is what makes it drop out of the NEXT slot for real. */}
+      scene space for a footnote link. It ships in the HTML so no-JS and crawlers
+      keep the link, but the running machine hides it until the third reshuffle
+      *arrives* it out of the NEXT slot — a tile that has sat in the bed all
+      session cannot arrive (device review, v2.2.2). */}
   <a
     class="piece piece--link piece--egg piece--landed"
     id="egg"

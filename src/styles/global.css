@@ -1695,9 +1695,17 @@ button {
    v2.1.1 drew it as a gray dashed tetromino standing on the bed. On the device
    that was six cells of the best space in the scene spent on a footnote, so the
    3x2 is gone and everything it duplicated went with it. */
+/* Until the third reshuffle earns the arrival, the running machine does not
+   show the tile at all (DESIGN §6.5: an arrival is of something that was not
+   there). It stays in the static HTML so no-JS visitors and crawlers keep the
+   link; `display: none` also keeps the hidden state out of the tab order. */
+.js .piece--egg:not(.is-arrived) {
+  display: none;
+}
+
 /* The drop the third reshuffle earns: the full falling treatment — trail on the
    way down, squash on the landing frame — because the point is that it arrives
-   like any other piece, having sat there quietly all session. */
+   like any other piece. */
 .piece--egg.is-dropping .piece__drop {
   --fall-from: calc(-1 * (var(--gy) * var(--cell) + 6 * var(--cell)));
   animation: piece-fall 620ms var(--gravity) both;
