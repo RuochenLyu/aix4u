@@ -169,13 +169,30 @@ function problems(scene: Scene): string[] {
   // above (or it is a dip in the skyline, not a hole), bridged from at least one
   // side (or the blocks over it are floating), and alone in its column (or the
   // bridge test passes cell by cell while the column as a whole comes apart).
+  // A landed product's box raises the skyline across its whole width (v2.2.1:
+  // the skin owns the box), so a notched piece puts unpainted box corners under
+  // the skyline. Those are reserved airspace, not holes in the bed — nothing is
+  // drawn there and nothing may stand there, and both engine and check know it.
+  const boxAir = new Set<string>();
+  for (const piece of scene.pieces) {
+    if (piece.pool !== 'landed' || piece.shape === 'DOT') continue;
+    const shape = SHAPES[piece.shape];
+    for (let dx = 0; dx < shape.width; dx++) {
+      for (let dy = 0; dy < shape.height; dy++) {
+        if (!hasCell(shape, dx, dy)) boxAir.add(`${piece.x + dx}:${piece.y + dy}`);
+      }
+    }
+  }
+
   const holes: { x: number; y: number; what: string }[] = [];
   for (const cell of scene.filler) if (cell.empty) holes.push({ x: cell.x, y: cell.y, what: 'dashed slot' });
   for (let x = 0; x < bp.cols; x++) {
     for (let row = 0; row < (scene.stackTops[x] ?? 0); row++) {
       const y = bp.rows - 1 - row;
       const dashed = scene.filler.some((c) => c.empty && c.x === x && c.y === y);
-      if (!solid.has(`${x}:${y}`) && !dashed) holes.push({ x, y, what: 'hollow gap' });
+      if (!solid.has(`${x}:${y}`) && !dashed && !boxAir.has(`${x}:${y}`)) {
+        holes.push({ x, y, what: 'hollow gap' });
+      }
     }
   }
 

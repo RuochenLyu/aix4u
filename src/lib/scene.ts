@@ -308,7 +308,7 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
 
   const ghost: GhostPlacement = { ...rollGhost(rng, bp.cols), delay: int(rng, 0, 6) };
 
-  const egg = eggSlot(rng, bp, tops, pieces);
+  const egg = eggSlot(rng, bp, tops, pieces, filler);
 
   return { seed, breakpoint: bp, pieces, filler, stackTops: tops, ghost, egg };
 }
@@ -325,12 +325,22 @@ function eggSlot(
   bp: Breakpoint,
   tops: readonly number[],
   pieces: readonly PiecePlacement[],
+  filler: readonly FillerCell[],
 ): EggPlacement {
   const taken = (x: number, y: number): boolean =>
     pieces.some((piece) => {
       const shape = SHAPES[piece.shape];
       return x >= piece.x && x < piece.x + shape.width && y >= piece.y && y < piece.y + shape.height;
     });
+
+  // What the tile may stand on: a painted cell, not airspace. A column's box
+  // top can be a notched piece's empty corner, and a tile there floats.
+  const solid = new Set<string>();
+  for (const cell of filler) if (!cell.empty) solid.add(`${cell.x}:${cell.y}`);
+  for (const piece of pieces) {
+    if (piece.pool !== 'landed') continue;
+    for (const [dx, dy] of SHAPES[piece.shape].cells) solid.add(`${piece.x + dx}:${piece.y + dy}`);
+  }
 
   const slots: { x: number; y: number; depth: number }[] = [];
   for (let x = 0; x < bp.cols; x++) {
@@ -340,7 +350,7 @@ function eggSlot(
     // degenerate one-column case, so this is `rows - depth - 1` spelled the
     // shared way.
     const y = restingRow(SHAPES.DOT, x, tops, bp.rows);
-    if (y < 0 || taken(x, y)) continue;
+    if (y < 0 || taken(x, y) || !solid.has(`${x}:${y + 1}`)) continue;
     slots.push({ x, y, depth });
   }
   if (slots.length === 0) return { x: 0, y: bp.rows - 1 };
@@ -371,7 +381,16 @@ function layoutStack(
   pieces: PiecePlacement[],
 ): { filler: FillerCell[]; tops: number[] } {
   const widest = landed.reduce((max, item) => Math.max(max, SHAPES[shapeOf(item)].width), 1);
-  const stackWidth = clamp(Math.round(bp.cols * bp.stackRatio), Math.min(bp.cols, widest + 2), bp.cols);
+  const landedProducts = shuffled(
+    rng,
+    landed.filter((it) => it.type === 'product'),
+  );
+  const productsWidth = landedProducts.reduce((sum, item) => sum + SHAPES[shapeOf(item)].width, 0);
+  const stackWidth = clamp(
+    Math.round(bp.cols * bp.stackRatio),
+    Math.min(bp.cols, Math.max(widest + 2, productsWidth)),
+    bp.cols,
+  );
   const stackStart = int(rng, 0, bp.cols - stackWidth);
   const stackEnd = stackStart + stackWidth;
 
@@ -386,20 +405,28 @@ function layoutStack(
    * hole a real game leaves under an overhang.
    */
   const reserved = new Set<string>();
+  /**
+   * Cells that actually hold paint: a piece's silhouette cells and the perched
+   * tiles. `reserved` is the wider set — the whole box — and the two part ways
+   * exactly at a piece's empty box corners: airspace for collision, but *not*
+   * cover for a hole and not a floor for anything to stand on. Six products put
+   * the first notched piece (the S) in the bed and made the difference real.
+   */
+  const drawn = new Set<string>();
 
-  // 1. Landed products, widest first, standing on the floor.
-  for (const item of shuffled(
-    rng,
-    landed.filter((it) => it.type === 'product'),
-  ).sort((a, b) => SHAPES[shapeOf(b)].width - SHAPES[shapeOf(a)].width)) {
+  // 1. Landed products, packed left to right in shuffled order, the window's
+  // slack dealt out as seeded gaps. (They used to pick a random free run each —
+  // which fragments a crowded window until the last piece has no run left and
+  // falls back onto a claimed column. Three products of widths 4+3+2 in the
+  // medium breakpoint's 10-column window is where that stopped being theory.)
+  let cursor = stackStart;
+  let slack = Math.max(0, stackWidth - productsWidth);
+  for (const item of landedProducts) {
     const shape = SHAPES[shapeOf(item)];
-    const spots: number[] = [];
-    for (let x = stackStart; x + shape.width <= stackEnd; x++) {
-      let free = true;
-      for (let dx = 0; dx < shape.width; dx++) if (claimed[x + dx]) free = false;
-      if (free) spots.push(x);
-    }
-    const x = spots.length > 0 ? spots[int(rng, 0, spots.length - 1)]! : stackStart;
+    const gap = int(rng, 0, slack);
+    slack -= gap;
+    const x = Math.min(cursor + gap, stackEnd - shape.width);
+    cursor = x + shape.width;
     // The shared collision (heights are all zero in an unclaimed window, so
     // this is the floor — but it is the same function the hard drop uses, and
     // the day the bed is built first, the piece will bite into it correctly).
@@ -426,6 +453,7 @@ function layoutStack(
       heights[x + dx] = shape.height;
       for (let dy = 0; dy < shape.height; dy++) reserved.add(`${x + dx}:${y + dy}`);
     }
+    for (const [dx, dy] of shape.cells) drawn.add(`${x + dx}:${y + dy}`);
   }
 
   // 2. The bed, in runs of a few columns at the same depth. Runs rather than a
@@ -475,7 +503,12 @@ function layoutStack(
       if (perched.has(x)) continue;
       const h = heights[x]!;
       if (h === 0) bare.push(x);
-      else if (h <= 2) (claimed[x] ? onProduct : bed).push(x);
+      // A claimed column's surface is the *box* top, and over a notched piece
+      // (the S) that can be an empty corner — airspace, not a shelf. A tile may
+      // only stand where the cell under it is actually painted.
+      else if (h <= 2 && (claimed[x] ? drawn.has(`${x}:${bp.rows - h}`) : true)) {
+        (claimed[x] ? onProduct : bed).push(x);
+      }
     }
     const spots = bed.length > 0 ? bed : onProduct.length > 0 ? onProduct : bare;
     // The lowest surfaces first, so a tile tucks into a dip in the bed; the
@@ -497,6 +530,7 @@ function layoutStack(
       blinkDelay: 0,
     });
     reserved.add(`${x}:${y}`);
+    drawn.add(`${x}:${y}`);
     support.add(`${x}:${y + 1}`);
     perched.add(x);
     heights[x] = heights[x]! + 1;
@@ -522,9 +556,15 @@ function layoutStack(
   const holedColumns = new Set<number>();
   const slots = int(rng, 1, 2);
   const wanted = slots + int(rng, 1, 2);
-  /** Solid *now* — a cell already carved has stopped holding anything up. */
+  /**
+   * Solid *now* — a cell already carved has stopped holding anything up, and a
+   * reserved-but-unpainted box corner never held anything to begin with (the
+   * check measures cover and bridges against what is drawn, so the carving has
+   * to as well).
+   */
   const holds = (x: number, y: number): boolean =>
-    !carved.has(`${x}:${y}`) && occupied(x, y, filler, reserved);
+    !carved.has(`${x}:${y}`) &&
+    (drawn.has(`${x}:${y}`) || filler.some((cell) => cell.x === x && cell.y === y));
 
   for (const cell of shuffled(rng, filler)) {
     if (carved.size >= wanted) break;
@@ -550,10 +590,6 @@ function layoutStack(
   }
 
   return { filler: filler.filter((cell) => !hollow.has(cell)), tops: heights };
-}
-
-function occupied(x: number, y: number, filler: readonly FillerCell[], reserved: ReadonlySet<string>): boolean {
-  return reserved.has(`${x}:${y}`) || filler.some((cell) => cell.x === x && cell.y === y);
 }
 
 /**
