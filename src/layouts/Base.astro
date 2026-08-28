@@ -21,13 +21,15 @@ const ogImage = new URL('/og.png', canonical);
 const site = (Astro.site ?? new URL('https://aix4u.com')).origin;
 
 /**
- * Entity linking (DESIGN §12.5 v2.1.4): one graph — the WebSite, the Person
- * behind it, and the product ItemList, every item carrying its own url. The
- * public name is kshift, never the legal name (§12.2); `sameAs` is what ties
- * aix4u.com to kshift.me / x.com/kshift / github.com/RuochenLyu into one
- * entity across domains. check:links asserts all three survive the build.
+ * Entity linking (DESIGN §12.5 v2.1.4): https://kshift.me/#person is the
+ * single Person source of truth. Its `url` points to kshift.me and `sameAs`
+ * contains only the X and GitHub profiles. The aix4u WebSite and products
+ * reference that Person through `creator`; aix4u is a collection of work,
+ * not an equivalent page for the Person. check:links asserts this contract.
  */
-const personId = `${site}/#kshift`;
+const KSHIFT_PERSON_ID = 'https://kshift.me/#person';
+const KSHIFT_PROFILE_URL = 'https://kshift.me/';
+const KSHIFT_SAME_AS = ['https://x.com/kshift', 'https://github.com/RuochenLyu'] as const;
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -37,14 +39,15 @@ const structuredData = {
       url: `${site}/`,
       name: 'aix4u',
       description,
-      author: { '@id': personId },
+      creator: { '@id': KSHIFT_PERSON_ID },
     },
     {
       '@type': 'Person',
-      '@id': personId,
+      '@id': KSHIFT_PERSON_ID,
       name: 'kshift',
-      url: `${site}/`,
-      sameAs: ['https://kshift.me', 'https://x.com/kshift', 'https://github.com/RuochenLyu'],
+      url: KSHIFT_PROFILE_URL,
+      image: 'https://kshift.me/assets/avatar-day.jpg',
+      sameAs: [...KSHIFT_SAME_AS],
     },
     {
       '@type': 'ItemList',
@@ -61,7 +64,7 @@ const structuredData = {
           url: product.url,
           description: product.description,
           applicationCategory: 'WebApplication',
-          author: { '@id': personId },
+          creator: { '@id': KSHIFT_PERSON_ID },
         },
       })),
     },

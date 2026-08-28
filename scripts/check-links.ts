@@ -113,41 +113,113 @@ for (const file of files) {
   }
 }
 
-// The entity graph (DESIGN §12.5 v2.1.4): the Person's `sameAs` is what ties
-// aix4u.com to the rest of the kshift identity, so all three URLs have to
-// survive every build — a structured-data block that quietly drops one is the
-// SEO version of the missing aria-label above.
-const REQUIRED_SAME_AS = ['https://kshift.me', 'https://x.com/kshift', 'https://github.com/RuochenLyu'];
+// The entity graph (DESIGN §12.5 v2.1.4) has one external Person source of
+// truth. Validate the nodes that own the identity fields instead of gathering
+// every `sameAs` recursively: another entity's links must never satisfy this
+// contract by accident.
+const KSHIFT_PERSON_ID = 'https://kshift.me/#person';
+const KSHIFT_PROFILE_URL = 'https://kshift.me/';
+const KSHIFT_IMAGE_URL = 'https://kshift.me/assets/avatar-day.jpg';
+const KSHIFT_SAME_AS = ['https://x.com/kshift', 'https://github.com/RuochenLyu'];
+const RETIRED_PERSON_ID = 'https://aix4u.com/#kshift';
 
-function sameAsValues(node: unknown, out: Set<string>): void {
-  if (Array.isArray(node)) {
-    for (const entry of node) sameAsValues(entry, out);
-  } else if (node !== null && typeof node === 'object') {
-    for (const [key, value] of Object.entries(node)) {
-      if (key === 'sameAs') {
-        for (const url of Array.isArray(value) ? value : [value]) {
-          if (typeof url === 'string') out.add(url);
-        }
-      } else {
-        sameAsValues(value, out);
-      }
-    }
-  }
+type JsonObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is JsonObject {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const sameAs = new Set<string>();
+function hasType(node: JsonObject, type: string): boolean {
+  const value = node['@type'];
+  return value === type || (Array.isArray(value) && value.includes(type));
+}
+
+function graphNodes(value: unknown): JsonObject[] {
+  if (Array.isArray(value)) return value.flatMap(graphNodes);
+  if (!isObject(value)) return [];
+  const graph = value['@graph'];
+  return graph === undefined ? [value] : graphNodes(graph);
+}
+
+function referencedId(value: unknown): unknown {
+  return isObject(value) ? value['@id'] : undefined;
+}
+
+const entities: JsonObject[] = [];
 for (const file of files) {
   const html = readFileSync(file, 'utf8');
+  if (html.includes(RETIRED_PERSON_ID)) {
+    problems.push(`${file}: contains retired Person id "${RETIRED_PERSON_ID}"`);
+  }
   for (const match of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
     try {
-      sameAsValues(JSON.parse(match[1]!), sameAs);
+      entities.push(...graphNodes(JSON.parse(match[1]!)));
     } catch {
       problems.push(`${file}: JSON-LD block does not parse`);
     }
   }
 }
-for (const url of REQUIRED_SAME_AS) {
-  if (!sameAs.has(url)) problems.push(`JSON-LD is missing "${url}" from the Person's sameAs`);
+
+const people = entities.filter((node) => hasType(node, 'Person'));
+if (people.length !== 1) {
+  problems.push(`JSON-LD has ${people.length} Person nodes, expected exactly 1`);
+}
+const person = people[0];
+if (person) {
+  if (person['@id'] !== KSHIFT_PERSON_ID) {
+    problems.push(`Person @id is "${String(person['@id'])}", expected "${KSHIFT_PERSON_ID}"`);
+  }
+  if (person.url !== KSHIFT_PROFILE_URL) {
+    problems.push(`Person url is "${String(person.url)}", expected "${KSHIFT_PROFILE_URL}"`);
+  }
+  if (person.image !== KSHIFT_IMAGE_URL) {
+    problems.push(`Person image is "${String(person.image)}", expected "${KSHIFT_IMAGE_URL}"`);
+  }
+
+  const sameAs = Array.isArray(person.sameAs) ? person.sameAs : [];
+  const sameAsSet = new Set(sameAs);
+  const exactSameAs =
+    sameAs.length === KSHIFT_SAME_AS.length &&
+    sameAs.every((url): url is string => typeof url === 'string') &&
+    KSHIFT_SAME_AS.every((url) => sameAsSet.has(url));
+  if (!exactSameAs) {
+    problems.push(`Person sameAs is ${JSON.stringify(person.sameAs)}, expected exactly ${JSON.stringify(KSHIFT_SAME_AS)}`);
+  }
+}
+
+const websites = entities.filter((node) => hasType(node, 'WebSite'));
+if (websites.length !== 1) {
+  problems.push(`JSON-LD has ${websites.length} WebSite nodes, expected exactly 1`);
+}
+for (const website of websites) {
+  if (referencedId(website.creator) !== KSHIFT_PERSON_ID) {
+    problems.push(`WebSite creator.@id must be "${KSHIFT_PERSON_ID}"`);
+  }
+}
+
+const itemLists = entities.filter((node) => hasType(node, 'ItemList'));
+if (itemLists.length !== 1) {
+  problems.push(`JSON-LD has ${itemLists.length} ItemList nodes, expected exactly 1`);
+}
+const applications: JsonObject[] = [];
+for (const itemList of itemLists) {
+  const elements = Array.isArray(itemList.itemListElement) ? itemList.itemListElement : [];
+  for (const element of elements) {
+    if (!isObject(element) || !isObject(element.item) || !hasType(element.item, 'SoftwareApplication')) continue;
+    applications.push(element.item);
+  }
+}
+if (applications.length !== content.products.length) {
+  problems.push(
+    `JSON-LD has ${applications.length} SoftwareApplication items, expected ${content.products.length}`,
+  );
+}
+for (const application of applications) {
+  if (referencedId(application.creator) !== KSHIFT_PERSON_ID) {
+    problems.push(
+      `SoftwareApplication "${String(application.name)}" creator.@id must be "${KSHIFT_PERSON_ID}"`,
+    );
+  }
 }
 
 // A page with no external anchors would pass every rule above by doing nothing,
