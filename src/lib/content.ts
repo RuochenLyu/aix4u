@@ -45,6 +45,9 @@ export const MOTION_PRESETS = {
   // J (Pluck): lands, then gets tugged upward — a firmer overshoot than L's
   // prop-up, because this piece's whole story is being lifted out of somewhere.
   pluck: { tease: 0, prop: 3, sway: 0, squash: 0.9, bob: 2, beat: 'breath' },
+  // Z (Yomoru): a train pulling in — rocks on the rails on the way down, brakes
+  // with a firm settle, then idles on the timetable's beat rather than breathing.
+  arrive: { tease: 0, prop: 0, sway: 1, squash: 0.9, bob: 2, beat: 'metronome' },
 } as const satisfies Record<string, MotionPreset>;
 
 export type MotionName = keyof typeof MOTION_PRESETS;
@@ -56,6 +59,7 @@ const MOTION_BY_SHAPE: Record<ShapeName, MotionName> = {
   L: 'prop-up',
   J: 'pluck',
   S: 'sway',
+  Z: 'arrive',
   O: 'squash',
   I: 'metronome',
   DOT: 'squash',
@@ -118,7 +122,7 @@ export interface FacePreset {
 }
 
 /**
- * Five characters, one anatomy (DESIGN §3.3 v2.1.3). Every entry below varies
+ * Seven characters, one anatomy (DESIGN §3.3 v2.1.3). Every entry below varies
  * exactly three things — how many eyes, how far apart, and what the lids are
  * doing. The scales stay within ±20 % of the shared token, because "wide eye"
  * and "small close-set eyes" are readings the *placement* has to carry; a preset
@@ -191,6 +195,18 @@ export const FACE_PRESETS = {
     mouthSize: 0,
     ink: 1,
   },
+  /** Z (Yomoru) — the station master: two small round eyes, set wide and placid. */
+  conductor: {
+    eyes: [
+      { scale: 0.86, lid: 'open' },
+      { scale: 0.86, lid: 'open' },
+    ],
+    gap: 0.46,
+    mouth: false,
+    mouthDrop: 0,
+    mouthSize: 0,
+    ink: 1,
+  },
 } as const satisfies Record<string, FacePreset>;
 
 export type FaceName = keyof typeof FACE_PRESETS;
@@ -202,6 +218,7 @@ const FACE_BY_SHAPE: Record<ShapeName, FaceName> = {
   L: 'collector',
   J: 'feline',
   S: 'watcher',
+  Z: 'conductor',
   O: 'mascot',
   I: 'calm',
   DOT: 'calm',

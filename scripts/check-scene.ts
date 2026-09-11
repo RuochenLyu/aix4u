@@ -23,7 +23,16 @@
  * Run with `npm run check:scene`.
  */
 
-import { buildScene, settleShape, DEFAULT_SEED, type PiecePlacement, type Scene } from '../src/lib/scene';
+import {
+  buildScene,
+  settleShape,
+  DEFAULT_SEED,
+  NARROW_VIEWPORT_H,
+  NARROW_MIN_CELL,
+  NARROW_MAX_ROWS,
+  type PiecePlacement,
+  type Scene,
+} from '../src/lib/scene';
 import { SHAPES, columnProfile, hasCell, type ShapeName } from '../src/lib/tetromino';
 import { content, EYE_SIZE, FACE_PRESETS, type ProductItem } from '../src/lib/content';
 
@@ -42,23 +51,9 @@ const MIN_AIR = 0.4;
 const EYE_SCALE_MIN = 0.8;
 const EYE_SCALE_MAX = 1.25;
 
-/**
- * The one-screen budget (DESIGN §7 v2.1.3). A phone shows the whole machine —
- * HUD, field, bezel — inside `100svh` and never scrolls, so the field's row
- * count is not a free parameter: it is whatever survives after the two bezels
- * are paid for, at the smallest cell the design allows.
- *
- * The numbers are the stylesheet's, read off the narrow media query:
- *   3rem   HUD chassis        + 0.35rem of padding above it
- *   3.05rem bottom bezel      + 0.35rem of padding below it
- *   0.25rem of stage padding, twice
- * which is 7.25rem ≈ 116px at the root font size, rounded up to 130 so a font
- * scale or a fatter bezel does not silently eat the last row.
- */
-const NARROW_VIEWPORT_H = 667; // iPhone SE — the shortest phone this has to hold
-const NARROW_CHROME_H = 130;
-const NARROW_MIN_CELL = 34;
-const NARROW_MAX_ROWS = Math.floor((NARROW_VIEWPORT_H - NARROW_CHROME_H) / NARROW_MIN_CELL);
+// The one-screen budget (DESIGN §7 v2.1.3) is the engine's own `NARROW_*`
+// constants: the layout packs the phone column under that ceiling, and this
+// script asserts it from the other side, reading the same numbers.
 
 function overlaps(a: Rect, b: Rect): boolean {
   return (

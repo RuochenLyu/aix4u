@@ -74,7 +74,7 @@ While working on the engine: `?seed=` reproduces a scene, `?theme=light|dark` fo
 ## Layout
 
 ```
-src/data/products.json   the CMS — five products, three link tiles, one NEXT teaser
+src/data/products.json   the CMS — seven products, three link tiles, one NEXT teaser
 src/lib/content.ts       build-time validation
 src/lib/tetromino.ts     shape geometry in grid cells
 src/lib/scene.ts         the scene engine (pure, isomorphic)

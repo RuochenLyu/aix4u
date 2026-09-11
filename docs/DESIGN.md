@@ -54,6 +54,7 @@ The entire piece is the product's texture — no plain fills, no "icon cell + bl
 | RayTally | **L** — vertical arm upper-left, 3-wide horizontal arm at bottom | **Firefly jar on a night meadow**. Brand concept: fireflies = opportunities that glow ("每天收录正在发亮的机会"). Vertical arm is a glass jar holding 2–3 glowing fireflies (collected ideas); horizontal arm is a dark meadow with grass blades and more fireflies still hovering free. NOT a chart, NOT a lamp — the story is *collecting glowing things, daily* | `#d9f24e` |
 | Pluck | **J** — vertical arm upper-right, 3-wide horizontal arm at bottom | **The subject plucked from its photo**. Brand: a coral cat lifted out of a dune snapshot (pluck.aix4u.com's own icon). Horizontal arm is the photo — warm dunes, sun (moon at night) — with a pale cat-shaped hole in its right cell; the upper-right cell is that cat, coral, floating on a transparency checkerboard (the universal "background removed" symbol). The geometry *is* the extraction: subject up, photo left behind | `#ee4b45` |
 | AHR999 Dataset | **S** — horizontal | Solidified amber/honey with a candlestick-wick pattern; one cell embeds a `₿` seal — "a fossilized market wave" | `#f59e0b` |
+| Yomoru | **Z** — upper row shifted left, lower row shifted right | **The transfer station**. Brand: yomoru.com answers "finished the anime — which volume do I read next?", and its whole UI is a rail line map (timetable, line map, S1/S2/F stations, a slate station-master cat with a red-banded cap). The upper row is the anime line: a slate train pulling into a small station; the middle column is the interchange, stairs stepping down from the platform; the lower row is the book line: a shelf of manga spines running on as a second track, with the station-master cat reading at the terminus. The Z *is* the transfer: you get off one line and carry on along the next. Accent is the brand's slate neutral saturated into a blue, not its vermilion — the vermilion is Pluck's coral in all but name, and two coral frames on the night board are one product; the red stays inside the skin, on the cap band, the signal and the book | `#4a72c4` |
 | X2Markdown | **O** — 2×2 | A page mid-fold: upper-left cell messy webpage fragments, lower-right cell clean `M↓` glyph — conversion painted on the skin | `#20b8c8` |
 | Health Analyst | **I** — 4-wide horizontal | An ECG paper strip: heartbeat line runs through all four cells | `#3fae5a` |
 
@@ -73,7 +74,8 @@ v2's "one identical eye for everyone" made the pieces feel stamped from one mold
 | L (RayTally) | Two small round eyes, close-set — the collector | Occasionally glances down at its own jar |
 | J (Pluck) | Two half-lidded eyes on the lifted cat — serenely unbothered by its own extraction | Slow contented blink |
 | S (AHR999) | Two asymmetric eyes: one open, one squinting — watching the chart | Rare fast double-blink |
-| O (X2Markdown) | Two big round eyes + a tiny "o" mouth — the mascot, the most face of the five | Mouth pops "o" on landing; flattens to "–" when asleep |
+| Z (Yomoru) | Two small round eyes, set wide — the station master, placid on the platform | Blink locked to the timetable's metronome bob |
+| O (X2Markdown) | Two big round eyes + a tiny "o" mouth — the mascot, the most face of the seven | Mouth pops "o" on landing; flattens to "–" when asleep |
 | I (Health Analyst) | One calm eye | Blink locked to its metronome bob — a visible heartbeat |
 
 Restraint rules (the line between "alive" and "toy" moves, but still exists):
@@ -101,6 +103,7 @@ All pieces share one parameterized animation system (same keyframes, per-piece C
 | L (RayTally) | Lands, then the vertical arm "props up" with a 1-step overshoot |
 | J (Pluck) | Lands, then the whole piece gets tugged upward — a firmer overshoot than L's (being plucked is its story) |
 | S (AHR999) | Sways ±2px horizontally while falling (the wave) |
+| Z (Yomoru) | A train pulling in: rocks ±1px on the rails while falling, brakes with a firm squash, then idles on the metronome beat — it runs to a timetable |
 | O (X2Markdown) | Falls straight and dumb, biggest squash on landing (the mascot) |
 | I (Health Analyst) | Falls perfectly straight, steady metronome bob afterwards |
 
@@ -159,7 +162,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 ## 7. Layout & responsiveness
 - Cell `clamp(44px, 4.5vw, 72px)`; playfield max-width ~1140px, centered, full height; huge screens get ambience (grid + ghost), never stretching.
 - No label-collision engine anymore (labels are gone). Floating pieces occupy seeded lanes with staggered heights; sky spans the upper ~2/3 above the real stack height.
-- Narrow **(v2.1.3: one screen, no scroll)**: all-float (§4.1), and the whole machine — HUD, field, bezel — fits `100svh`; the page never scrolls. Cell size is the smaller of the width-bound and the height-bound (floor ~34px); pieces stagger in two tight columns with ~1-row gaps; the bed compresses to 1–2 rows (no three-row bump). Vertical breathing room shrinks before anything scrolls — a handheld console has exactly one screen. The narrow grid is **8 columns**, down from 9: once the field is width-bound, a column is nothing but cell size, and 8 buys a ~45px cell on a 375px phone where 9 left a band of dead sky under the HUD. The field is bottom-anchored in the stage, so whatever height is left over becomes sky rather than a gap under the floor. `svh`, not `dvh`: `dvh` grows when iOS retracts the address bar, which composes the layout for a state the visitor is not in yet. `check:scene` asserts the row count against the same budget from the other side (shortest phone, smallest cell).
+- Narrow **(v2.1.3: one screen, no scroll)**: all-float (§4.1), and the whole machine — HUD, field, bezel — fits `100svh`; the page never scrolls. Cell size is the smaller of the width-bound and the height-bound (floor ~34px); pieces stagger in two tight columns with ~1-row gaps; the bed compresses to 1–2 rows (no three-row bump). Vertical breathing room shrinks before anything scrolls — a handheld console has exactly one screen. The narrow grid is **8 columns**, down from 9: once the field is width-bound, a column is nothing but cell size, and 8 buys a ~45px cell on a 375px phone where 9 left a band of dead sky under the HUD. The field is bottom-anchored in the stage, so whatever height is left over becomes sky rather than a gap under the floor. `svh`, not `dvh`: `dvh` grows when iOS retracts the address bar, which composes the layout for a state the visitor is not in yet. `check:scene` asserts the row count against the same budget from the other side (shortest phone, smallest cell). **(v2.2.3) The engine reads that budget too.** The phone column's 1-or-2-row rhythm was free while six products left slack; the seventh (Yomoru) needs the full fifteen rows packed tight, and the seeded extra rows overflowed on one seed in twenty. The `NARROW_*` budget now lives in `scene.ts` — the layout lays the column out loose, and if that runs past the ceiling, again tight — and `check:scene` imports the same constants, so the ceiling cannot drift between the two.
 
 ## 8. Content (authoritative copy)
 
@@ -168,6 +171,7 @@ Physical first, pixel second. All transform/opacity; `prefers-reduced-motion` sk
 | Meikyu | https://meikyu.app | WEB · DAILY | Deduce the daily dungeon in six tries |
 | RayTally | https://raytally.com | WEB · DAILY | Glowing product ideas, collected daily |
 | Pluck | https://pluck.aix4u.com | MACOS · FREE | Pluck the subject, drop the background |
+| Yomoru | https://yomoru.com | WEB · SEASONAL | Start reading where the anime left off |
 | AHR999 Dataset | https://ahr999.aix4u.com | DATA · DAILY | The Bitcoin AHR999 index, as open data |
 | X2Markdown | chromewebstore.google.com/detail/x2markdown/acljfllclafamkhdjjkldogcadfbigmo | CHROME · FREE | Right-click any page into clean Markdown |
 | Health Analyst | https://github.com/RuochenLyu/apple-health-analyst | CLI · OSS | Apple Health reports, private and agent-ready |
@@ -178,6 +182,7 @@ Longer descriptions (meta/JSON-LD): unchanged from v1 —
 - **Meikyu** — "Five residents are hiding in today's dungeon. You have six tries to place them." (official copy, verbatim)
 - **RayTally** — A daily feed that collects the opportunities lighting up right now — watching trends and new launches, harvesting product ideas you can actually build. (Brand: fireflies = glowing opportunities; zh copy "每天收录正在发亮的机会".)
 - **Pluck** — Native Mac app that lifts subjects out of photos entirely on-device — three cutout engines from instant to hair-fine, plus a scriptable CLI for agents and batch work. Free, open source, no cloud. (Official tagline: "Drop a photo. Take the subject.")
+- **Yomoru** — Finished the anime? Yomoru maps every season to its source manga or light novel and names the exact volume, edition and publisher to pick up next — organised by broadcast season, with a timetable of what is airing. (Official copy: "Finished the anime? Where to start reading?" / "Find the next manga or novel volume, and the edition to buy.")
 - **AHR999 Dataset** — Open dataset + dashboard for the AHR999 Bitcoin accumulation index; JSON + CSV, updated daily by CI.
 - **X2Markdown** — Chrome extension converting the visible page (or selection) into clean Markdown via right-click; dedicated x.com extraction; local-only processing.
 - **Health Analyst** — Two-stage CLI + agent skill: parses Apple Health exports locally into structured insights, renders narrative HTML reports with SVG charts.
@@ -193,7 +198,8 @@ Astro latest, TypeScript strict, zero UI framework; one vanilla TS engine module
 ## 11. Asset pipeline
 Produced via image-gen (see `docs/assets-brief.md`), landing in `public/skins/` and `public/icons/`:
 - **Per-piece skins**: one transparent PNG per product per theme (light/dark), drawn at the piece's exact cell proportions (e.g. T = 3×2), laid under the CSS silhouette seam and bevel. Multiple candidates; final picks wired in `products.json`.
-- Link-tile glyphs, favicon, og-image, NEXT crate.
+- Link-tile glyphs, og-image, NEXT crate.
+- **Favicon is code** (`scripts/gen-favicon.mjs`, v2.2.3): the image-gen favicon was a 7-pixel wireframe T floating in a 16-pixel canvas — invisible on a dark tab bar, lopsided on a light one. The mark is now the site in one glyph: a bevelled amber T with one googly eye on the dark chassis plate, hand-plotted at 16 and 32 (a downscaled 32 loses its 1px bevel), plus a 256 and an opaque 180 touch icon, all from one script.
 - The eye, seams, bevels, the extruded side face and sparks are **code, not assets** (they animate).
 - Until skins land: placeholder = accent fill + a small pixel icon badge (no letters-in-cells, no name text).
 

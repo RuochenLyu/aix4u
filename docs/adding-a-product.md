@@ -8,10 +8,10 @@
 
 | 决策 | 规则 |
 |---|---|
-| **形状** | 从未占用的 tetromino 里选（当前空闲：Z）。**形状必须有语义**——几何本身要能讲这个产品的故事（先例：L=罐子立在草地、J=主体从照片里被拔出、S=波浪、I=纸带、O=对折页、T=门）。产品多于 7 个后允许复用形状，优先让低优先级产品让出 |
+| **形状** | 从未占用的 tetromino 里选（当前空闲：无——七个标准形状已全部有主）。**形状必须有语义**——几何本身要能讲这个产品的故事（先例：L=罐子立在草地、J=主体从照片里被拔出、S=波浪、Z=换乘、I=纸带、O=对折页、T=门）。产品多于 7 个后允许复用形状，优先让低优先级产品让出 |
 | **皮肤概念** | 一句话讲清整块骨牌是什么画面。参考品牌已有资产（logo/图标/主色），但不是把 logo 贴上去，而是把产品的**功能故事**画成一块地皮/物件 |
 | **accent / accentDark** | 从产品品牌色取；检查与现有五色不撞车（亮暗两主题下都要可区分） |
-| **face preset** | keeper / collector / watcher / mascot / calm 五选一，或在 content.ts 新增 preset。性格要和产品气质、和 motion 一致 |
+| **face preset** | keeper / collector / feline / watcher / conductor / mascot / calm 七选一，或在 content.ts 新增 preset。性格要和产品气质、和 motion 一致 |
 | **motion preset** | 同上：落法即性格 |
 | **priority** | 决定悬空/落床。数字越小越靠前 |
 
@@ -41,4 +41,6 @@
 3. 浏览器过一遍：亮暗两主题、掉落、hover 信息面板、移动端一屏。
 4. HUD 的 `COLLECTED` 计数、sitemap、JSON-LD ItemList 全部从 JSON 派生，无需手动更新。
 
+> 先例：**Yomoru**（动画看完去哪本书接着读，2026-09 上线）走的是 image-gen 路线——Z 形（换乘：上排动画线、下排书线、中间一列是换乘站）、品牌灰饱和成的蓝 `#4a72c4`（品牌朱红与 Pluck 的珊瑚红在暗色板上不可区分，红色留在皮肤里）、conductor face + arrive motion 两个新 preset、皮肤用 `gen_image.py`（gpt-image-2）出 3:2 候选后由 `scripts/gen-yomoru-assets.mjs` 降采样到 48px/格、套 Z 遮罩、烙内部格缝、×5 最近邻放大成 webp。
+>
 > 先例：**Pluck**（macOS 抠图 app，2026-08 上线）走完了整个流程——J 形（主体从照片里被拔出）、珊瑚红 `#ee4b45`、feline face + pluck motion 两个新 preset、皮肤用 sharp 程序化生成（`scripts/gen-pluck-assets.mjs`：照片沙丘场景 + 猫形空洞 + 棋盘格上的珊瑚猫，见 DESIGN §3.1）——当皮肤概念本身是几何/程序化的（棋盘格、渐变、剪影），这条路线可以替代 image-gen。

@@ -248,6 +248,30 @@ const round = (v: number, places = 2): number => {
  * `layoutSky`), so a fractional clearance could only ever round away.
  */
 const SKY_CLEARANCE = 1;
+
+/**
+ * The one-screen budget (DESIGN §7 v2.1.3). A phone shows the whole machine —
+ * HUD, field, bezel — inside `100svh` and never scrolls, so the field's row
+ * count is not a free parameter: it is whatever survives after the two bezels
+ * are paid for, at the smallest cell the design allows.
+ *
+ * The numbers are the stylesheet's, read off the narrow media query:
+ *   3rem   HUD chassis        + 0.35rem of padding above it
+ *   3.05rem bottom bezel      + 0.35rem of padding below it
+ *   0.25rem of stage padding, twice
+ * which is 7.25rem ≈ 116px at the root font size, rounded up to 130 so a font
+ * scale or a fatter bezel does not silently eat the last row.
+ *
+ * These lived in `check:scene` alone until v2.2.3, when the seventh product
+ * made the phone column's loose rhythm overflow on one seed in twenty. The
+ * engine has to know the ceiling it is laying out under, and the assertion
+ * has to read the same number, so the budget is defined here and imported there.
+ */
+export const NARROW_VIEWPORT_H = 667; // iPhone SE — the shortest phone this has to hold
+export const NARROW_CHROME_H = 130;
+export const NARROW_MIN_CELL = 34;
+export const NARROW_MAX_ROWS = Math.floor((NARROW_VIEWPORT_H - NARROW_CHROME_H) / NARROW_MIN_CELL);
+
 /**
  * How far down the field each successive phone piece starts (DESIGN §7 v2.1.3).
  * Pieces alternate between the two edges, so consecutive ones interleave and the
@@ -290,7 +314,7 @@ export function buildScene(seed: number, viewportWidth: number, items: readonly 
   if (base.floatAll) {
     // The column of pieces is laid out from the top down, so the field height
     // falls out of the layout rather than constraining it; the floor goes under.
-    const skyBottom = layoutColumn(rng, base, floating, pieces);
+    const skyBottom = layoutColumn(rng, base, floating, pieces, NARROW_MAX_ROWS - SKY_CLEARANCE - base.stackRows);
     bp = { ...base, rows: Math.max(base.rows, Math.ceil(skyBottom + SKY_CLEARANCE) + base.stackRows) };
     ({ filler, tops } = layoutStack(rng, bp, landed, pieces));
   } else {
@@ -688,13 +712,35 @@ function layoutSky(
  * clears everything already placed: five products of four different widths in
  * nine columns is exactly the case where a rhythm alone eventually collides.
  * Returns the bottom of the lowest piece.
+ *
+ * (v2.2.3) The rhythm also has a seeded extra row in it — a 1-or-2 step, so the
+ * column does not read as a staircase. Seven products of two rows each need
+ * eleven rows packed tight, and the budget is exactly that (`NARROW_MAX_ROWS`
+ * less the clearance and the bed), so every extra row is now a row that does not
+ * exist. The loose rhythm is tried first and kept when it fits; a seed whose
+ * extras overflow `budget` is laid out again on the tight rhythm. Same seed,
+ * same scene, and the assertion in `check:scene` reads the same ceiling.
  */
 function layoutColumn(
   rng: Rng,
   bp: Breakpoint,
   floating: readonly SceneItem[],
   pieces: PiecePlacement[],
+  budget: number,
 ): number {
+  const loose = packColumn(rng, bp, floating, 1);
+  const fit = loose.bottom <= budget ? loose : packColumn(rng, bp, floating, 0);
+  pieces.push(...fit.pieces);
+  return fit.bottom;
+}
+
+function packColumn(
+  rng: Rng,
+  bp: Breakpoint,
+  floating: readonly SceneItem[],
+  slack: 0 | 1,
+): { pieces: PiecePlacement[]; bottom: number } {
+  const pieces: PiecePlacement[] = [];
   let left = rng() < 0.5;
   // Whole rows, like every other pool (v2.2.2 — see `layoutSky`).
   let y = 0;
@@ -736,10 +782,11 @@ function layoutColumn(
     placed.push({ x, y: top, w: shape.width, h: shape.height });
     bottom = Math.max(bottom, top + shape.height);
     // Integer step: the rhythm is 1 or 2 rows, chosen, rather than 1.5 plus a
-    // fraction. Same interleave, on the grid.
-    y = top + COLUMN_STEP + int(rng, 0, 1);
+    // fraction. Same interleave, on the grid. The extra row is the slack a
+    // budget-bound retry gives up.
+    y = top + COLUMN_STEP + int(rng, 0, slack);
     left = !left;
   }
 
-  return bottom;
+  return { pieces, bottom };
 }
